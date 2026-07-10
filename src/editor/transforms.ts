@@ -1,6 +1,10 @@
 import type { Shape } from '@/editor/types'
 
 export function buildShapeTransform(shape: Shape): string {
+  if (shape.type === 'text') {
+    return `rotate(${shape.rotation} ${shape.x} ${shape.y}) scale(${shape.scale})`
+  }
+
   if (shape.type === 'rect') {
     const width = shape.width
     const height = shape.height

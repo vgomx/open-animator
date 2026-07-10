@@ -3,6 +3,7 @@ import type { Project } from '@/editor/types'
 export type HistorySnapshot = {
   project: Project
   selectedLayerId: string | null
+  selectedLayerIds: string[]
 }
 
 export type HistoryStacks = {
@@ -14,11 +15,12 @@ export const HISTORY_LIMIT = 50
 
 export function createSnapshot(
   project: Project,
-  selectedLayerId: string | null,
+  selectedLayerIds: string[],
 ): HistorySnapshot {
   return {
     project: structuredClone(project),
-    selectedLayerId,
+    selectedLayerIds: [...selectedLayerIds],
+    selectedLayerId: selectedLayerIds[selectedLayerIds.length - 1] ?? null,
   }
 }
 
@@ -51,7 +53,7 @@ export function undoSnapshot(
   return {
     stacks: {
       past,
-      future: [createSnapshot(current.project, current.selectedLayerId), ...stacks.future],
+      future: [createSnapshot(current.project, current.selectedLayerIds), ...stacks.future],
     },
     snapshot: previous,
   }
@@ -70,7 +72,7 @@ export function redoSnapshot(
 
   return {
     stacks: {
-      past: [...stacks.past, createSnapshot(current.project, current.selectedLayerId)],
+      past: [...stacks.past, createSnapshot(current.project, current.selectedLayerIds)],
       future,
     },
     snapshot: next,

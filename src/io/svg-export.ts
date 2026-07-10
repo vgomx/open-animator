@@ -1,44 +1,171 @@
-import type { Project, Shape } from '@/editor/types'
+import type { ExportOptions } from '@/io/export-options'
+import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
+import type { Layer, Project, Shape } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
 import { buildShapeTransform } from '@/editor/transforms'
 
-function shapeAttributes(shape: Shape): string {
-  const transform = buildShapeTransform(shape)
+function escapeXml(value: string): string {
+  return value
+    .replaceAll('&', '&amp;')
+    .replaceAll('"', '&quot;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+}
 
+function toCssTransform(shape: Shape): string {
+  return buildShapeTransform(shape)
+    .replace(/translate\(([^)]+)\)/g, (_, values: string) => {
+      const [x, y] = values.trim().split(/\s+/)
+      return `translate(${x}px, ${y}px)`
+    })
+    .replace(/rotate\(([^)]+)\)/g, 'rotate($1deg)')
+}
+
+function scaledDimension(value: number, scale: number): number {
+  return Math.round(value * scale)
+}
+
+function shapeMarkup(shape: Shape, className?: string, animated = false): string {
+  const classAttr = className ? ` class="${className}"` : ''
   const shared = [
-    `transform="${transform}"`,
-    `fill="${shape.fill}"`,
-    `stroke="${shape.stroke}"`,
+    ...(animated ? [] : [`transform="${buildShapeTransform(shape)}"`]),
+    `fill="${escapeXml(shape.fill)}"`,
+    `stroke="${escapeXml(shape.stroke)}"`,
     `stroke-width="${shape.strokeWidth}"`,
     `opacity="${shape.opacity}"`,
   ]
 
   if (shape.type === 'rect') {
-    return `<rect ${shared.join(' ')} width="${shape.width}" height="${shape.height}" />`
+    return `<rect${classAttr} ${shared.join(' ')} width="${shape.width}" height="${shape.height}" />`
   }
 
-  return `<ellipse ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
+  if (shape.type === 'text') {
+    return `<text${classAttr} x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" fill="${escapeXml(shape.fill)}" opacity="${shape.opacity}">${escapeXml(shape.text)}</text>`
+  }
+
+  return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
 }
 
-export function exportSvgAtTime(project: Project, time: number): string {
+function backgroundMarkup(options: ExportOptions): string {
+  if (options.background === 'transparent') {
+    return ''
+  }
+
+  return `<rect width="100%" height="100%" fill="${escapeXml(options.backgroundColor)}" />`
+}
+
+function collectLayerTimes(layer: Layer, duration: number): number[] {
+  const times = new Set<number>([0, duration])
+  for (const keyframe of layer.keyframes) {
+    times.add(Math.max(0, Math.min(keyframe.time, duration)))
+  }
+
+  return [...times].sort((a, b) => a - b)
+}
+
+function layerAnimationCss(layer: Layer, duration: number, className: string): string {
+  const times = collectLayerTimes(layer, duration)
+  if (times.length <= 1) {
+    return ''
+  }
+
+  const keyframeLines = times
+    .map((time) => {
+      const shape = getAnimatedShape(layer, time)
+      const percent = duration === 0 ? 0 : (time / duration) * 100
+      return `  ${percent}% { transform: ${toCssTransform(shape)}; opacity: ${shape.opacity}; fill: ${shape.fill}; stroke: ${shape.stroke}; }`
+    })
+    .join('\n')
+
+  return `@keyframes ${className} {\n${keyframeLines}\n}\n.${className} { animation: ${className} ${duration}s linear infinite; transform-box: fill-box; transform-origin: center; }`
+}
+
+export function exportSvgAtTime(
+  project: Project,
+  time: number,
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+): string {
+  const width = scaledDimension(project.artboard.width, options.scale)
+  const height = scaledDimension(project.artboard.height, options.scale)
   const visibleLayers = project.layers.filter((layer) => layer.visible)
   const shapes = visibleLayers
-    .map((layer) => shapeAttributes(getAnimatedShape(layer, time)))
+    .map((layer) => shapeMarkup(getAnimatedShape(layer, time)))
     .join('\n    ')
 
+  const scaleGroup =
+    options.scale === 1
+      ? shapes
+      : `<g transform="scale(${options.scale})">\n    ${shapes}\n  </g>`
+
   return `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${project.artboard.width}" height="${project.artboard.height}" viewBox="0 0 ${project.artboard.width} ${project.artboard.height}">
-  <rect width="100%" height="100%" fill="#111827" />
-  ${shapes}
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  ${backgroundMarkup(options)}
+  ${scaleGroup}
 </svg>`
 }
 
-export function exportStaticSvg(project: Project): string {
-  return exportSvgAtTime(project, 0)
+export function exportAnimatedSvg(
+  project: Project,
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+): string {
+  const width = scaledDimension(project.artboard.width, options.scale)
+  const height = scaledDimension(project.artboard.height, options.scale)
+  const visibleLayers = project.layers.filter((layer) => layer.visible)
+  const styles: string[] = []
+  const shapes: string[] = []
+
+  visibleLayers.forEach((layer, index) => {
+    const className = `layer-anim-${index}`
+    const css = layerAnimationCss(layer, project.duration, className)
+    if (css) {
+      styles.push(css)
+    }
+
+    const baseShape = getAnimatedShape(layer, 0)
+    shapes.push(shapeMarkup(baseShape, css ? className : undefined, Boolean(css)))
+  })
+
+  const styleBlock =
+    styles.length > 0 ? `<style>\n${styles.join('\n')}\n</style>\n  ` : ''
+  const scaleGroup =
+    options.scale === 1
+      ? shapes.join('\n    ')
+      : `<g transform="scale(${options.scale})">\n    ${shapes.join('\n    ')}\n  </g>`
+
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  ${styleBlock}${backgroundMarkup(options)}
+  ${scaleGroup}
+</svg>`
 }
 
-export function downloadStaticSvg(project: Project, filename = 'artboard.svg'): void {
-  const blob = new Blob([exportStaticSvg(project)], { type: 'image/svg+xml' })
+export function exportStaticSvg(
+  project: Project,
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+): string {
+  return exportSvgAtTime(project, 0, options)
+}
+
+export function downloadStaticSvg(
+  project: Project,
+  filename = 'artboard.svg',
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+): void {
+  const blob = new Blob([exportStaticSvg(project, options)], { type: 'image/svg+xml' })
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  anchor.click()
+  URL.revokeObjectURL(url)
+}
+
+export function downloadAnimatedSvg(
+  project: Project,
+  filename = 'animation.svg',
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+): void {
+  const blob = new Blob([exportAnimatedSvg(project, options)], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
@@ -50,9 +177,11 @@ export function downloadStaticSvg(project: Project, filename = 'artboard.svg'): 
 export async function downloadWebm(
   project: Project,
   filename = 'animation.webm',
-  fps = 30,
+  options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
 ): Promise<void> {
-  const { width, height } = project.artboard
+  const fps = options.fps
+  const width = scaledDimension(project.artboard.width, options.scale)
+  const height = scaledDimension(project.artboard.height, options.scale)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -78,11 +207,14 @@ export async function downloadWebm(
   })
 
   recorder.start()
-  const frameCount = Math.max(1, Math.ceil(project.duration * fps))
+  const loopIn = project.loopIn ?? 0
+  const loopOut = project.loopOut ?? project.duration
+  const regionDuration = Math.max(0.1, loopOut - loopIn)
+  const frameCount = Math.max(1, Math.ceil(regionDuration * fps))
 
   for (let frame = 0; frame < frameCount; frame += 1) {
-    const time = Math.min(project.duration, frame / fps)
-    const svgMarkup = exportSvgAtTime(project, time)
+    const time = Math.min(loopOut, loopIn + frame / fps)
+    const svgMarkup = exportSvgAtTime(project, time, options)
     const image = new Image()
     const url = URL.createObjectURL(new Blob([svgMarkup], { type: 'image/svg+xml' }))
 

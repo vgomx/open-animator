@@ -22,6 +22,42 @@ export function applyEasing(progress: number, easing: EasingType = 'linear'): nu
       return t * (2 - t)
     case 'easeInOut':
       return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+    case 'spring': {
+      const c4 = (2 * Math.PI) / 3
+      return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1
+    }
+    case 'bounce': {
+      const n1 = 7.5625
+      const d1 = 2.75
+      if (t < 1 / d1) {
+        return n1 * t * t
+      }
+      if (t < 2 / d1) {
+        const v = t - 1.5 / d1
+        return n1 * v * v + 0.75
+      }
+      if (t < 2.5 / d1) {
+        const v = t - 2.25 / d1
+        return n1 * v * v + 0.9375
+      }
+      const v = t - 2.625 / d1
+      return n1 * v * v + 0.984375
+    }
+    case 'elastic': {
+      const c5 = (2 * Math.PI) / 4.5
+      return t === 0
+        ? 0
+        : t === 1
+          ? 1
+          : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c5) + 1
+    }
+    case 'back': {
+      const c1 = 1.70158
+      const c3 = c1 + 1
+      return c3 * t * t * t - c1 * t * t
+    }
+    case 'hold':
+      return 0
     default:
       return t
   }
@@ -174,6 +210,10 @@ export function sampleColorAtTime(
         return typeof next.value === 'string' ? next.value : fallback
       }
 
+      if (current.easing === 'hold') {
+        return current.value
+      }
+
       const progress = (time - current.time) / span
       const eased = applyEasing(progress, current.easing)
       return lerpColor(current.value, next.value, eased)
@@ -185,15 +225,42 @@ export function sampleColorAtTime(
 
 export function getAnimatedShape(layer: Layer, time: number): Shape {
   const { shape, keyframes } = layer
+  const sampleTime = Math.max(0, time - layer.delay)
+
+  const base = {
+    ...shape,
+    x: samplePropertyAtTime(keyframes, 'x', sampleTime, shape.x),
+    y: samplePropertyAtTime(keyframes, 'y', sampleTime, shape.y),
+    rotation: samplePropertyAtTime(keyframes, 'rotation', sampleTime, shape.rotation),
+    opacity: samplePropertyAtTime(keyframes, 'opacity', sampleTime, shape.opacity),
+    scale: samplePropertyAtTime(keyframes, 'scale', sampleTime, shape.scale),
+    fill: sampleColorAtTime(keyframes, 'fill', sampleTime, shape.fill),
+    stroke: sampleColorAtTime(keyframes, 'stroke', sampleTime, shape.stroke),
+  }
+
+  if (shape.type === 'rect') {
+    return {
+      ...base,
+      type: 'rect',
+      width: samplePropertyAtTime(keyframes, 'width', sampleTime, shape.width),
+      height: samplePropertyAtTime(keyframes, 'height', sampleTime, shape.height),
+    }
+  }
+
+  if (shape.type === 'text') {
+    return {
+      ...base,
+      type: 'text',
+      text: shape.text,
+      fontFamily: shape.fontFamily,
+      fontSize: samplePropertyAtTime(keyframes, 'fontSize', sampleTime, shape.fontSize),
+    }
+  }
 
   return {
-    ...shape,
-    x: samplePropertyAtTime(keyframes, 'x', time, shape.x),
-    y: samplePropertyAtTime(keyframes, 'y', time, shape.y),
-    rotation: samplePropertyAtTime(keyframes, 'rotation', time, shape.rotation),
-    opacity: samplePropertyAtTime(keyframes, 'opacity', time, shape.opacity),
-    scale: samplePropertyAtTime(keyframes, 'scale', time, shape.scale),
-    fill: sampleColorAtTime(keyframes, 'fill', time, shape.fill),
-    stroke: sampleColorAtTime(keyframes, 'stroke', time, shape.stroke),
+    ...base,
+    type: 'ellipse',
+    rx: samplePropertyAtTime(keyframes, 'rx', sampleTime, shape.rx),
+    ry: samplePropertyAtTime(keyframes, 'ry', sampleTime, shape.ry),
   }
 }

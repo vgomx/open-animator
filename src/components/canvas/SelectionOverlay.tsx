@@ -21,6 +21,7 @@ import { saveProjectToStorage } from '@/io/project'
 type SelectionOverlayProps = {
   layerId: string
   shape: Shape
+  interactive?: boolean
 }
 
 const handlePositions: Array<{ handle: ResizeHandle; x: number; y: number }> = [
@@ -44,9 +45,12 @@ type DragMode =
       anchor: ShapeBounds
     }
 
-export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
+export function SelectionOverlay({ layerId, shape, interactive = true }: SelectionOverlayProps) {
   const updateShape = useEditorStore((state) => state.updateShape)
   const setActiveSnapLines = useEditorStore((state) => state.setActiveSnapLines)
+  const locked = useEditorStore(
+    (state) => state.project.layers.find((layer) => layer.id === layerId)?.locked ?? false,
+  )
   const svgRef = useRef<SVGSVGElement | null>(null)
   const dragRef = useRef<DragMode | null>(null)
 
@@ -131,6 +135,10 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
   }, [layerId, setActiveSnapLines, updateShape])
 
   const beginPointer = (event: React.PointerEvent<SVGElement>, mode: DragMode) => {
+    if (locked || !interactive) {
+      return
+    }
+
     event.stopPropagation()
     const svg = event.currentTarget.ownerSVGElement
     if (!svg) {
@@ -151,11 +159,13 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
         width={bounds.width + padding * 2}
         height={bounds.height + padding * 2}
         fill="none"
-        stroke="#38bdf8"
+        stroke={locked ? '#f59e0b' : '#38bdf8'}
         strokeWidth={1.5}
         strokeDasharray="4 3"
         pointerEvents="none"
       />
+      {locked || !interactive ? null : (
+        <>
       <rect
         x={bounds.x}
         y={bounds.y}
@@ -197,6 +207,8 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
           }}
         />
       ))}
+        </>
+      )}
     </g>
   )
 }

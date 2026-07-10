@@ -5,6 +5,7 @@ import type {
   RectShape,
   Shape,
   ShapeType,
+  TextShape,
 } from '@/editor/types'
 import { PROJECT_VERSION } from '@/editor/types'
 
@@ -20,8 +21,12 @@ export function createDefaultProject(): Project {
       height: 600,
     },
     duration: 3,
+    loopIn: 0,
+    loopOut: 3,
     layers: [],
     guides: [],
+    states: [],
+    markers: [],
   }
 }
 
@@ -40,6 +45,25 @@ function baseShape(type: ShapeType): Shape {
       fill: '#6366f1',
       stroke: '#312e81',
       strokeWidth: 2,
+      opacity: 1,
+      scale: 1,
+    }
+    return shape
+  }
+
+  if (type === 'text') {
+    const shape: TextShape = {
+      id,
+      type: 'text',
+      x: 280,
+      y: 280,
+      rotation: 0,
+      text: 'Hello',
+      fontSize: 48,
+      fontFamily: 'Geist, system-ui, sans-serif',
+      fill: '#f8fafc',
+      stroke: 'none',
+      strokeWidth: 0,
       opacity: 1,
       scale: 1,
     }
@@ -68,8 +92,11 @@ export function createLayer(type: ShapeType, index: number): Layer {
 
   return {
     id: createId(),
-    name: `${type === 'rect' ? 'Rectangle' : 'Ellipse'} ${index + 1}`,
+    name: getLayerName(type, index),
     visible: true,
+    locked: false,
+    groupId: null,
+    delay: 0,
     shape,
     keyframes: [],
   }
@@ -82,6 +109,9 @@ export function cloneLayer(layer: Layer): Layer {
     id: createId(),
     name: `${layer.name} copy`,
     visible: layer.visible,
+    locked: layer.locked,
+    groupId: layer.groupId,
+    delay: layer.delay,
     shape: {
       ...shape,
       id: createId(),
@@ -96,5 +126,11 @@ export function cloneLayer(layer: Layer): Layer {
 }
 
 export function getLayerName(type: ShapeType, index: number): string {
-  return `${type === 'rect' ? 'Rectangle' : 'Ellipse'} ${index + 1}`
+  if (type === 'rect') {
+    return `Rectangle ${index + 1}`
+  }
+  if (type === 'text') {
+    return `Text ${index + 1}`
+  }
+  return `Ellipse ${index + 1}`
 }

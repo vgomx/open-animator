@@ -15,10 +15,21 @@ export function deserializeProject(raw: string): Project {
     return {
       ...parsed,
       guides: parsed.guides ?? [],
+      states: parsed.states ?? [],
+      layers: parsed.layers.map((layer) => ({
+        ...layer,
+        locked: layer.locked ?? false,
+      })),
     }
   }
 
-  if (parsed.version === 1 || parsed.version === 2 || parsed.version === 3) {
+  if (
+    parsed.version === 1 ||
+    parsed.version === 2 ||
+    parsed.version === 3 ||
+    parsed.version === 4 ||
+    parsed.version === 5
+  ) {
     return migrateProject(parsed)
   }
 

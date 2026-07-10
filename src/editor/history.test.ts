@@ -16,8 +16,8 @@ describe('history', () => {
       duration: 5,
     }
 
-    const stacks = pushSnapshot({ past: [], future: [] }, createSnapshot(projectA, null))
-    const undoResult = undoSnapshot(stacks, createSnapshot(projectB, 'layer-1'))
+    const stacks = pushSnapshot({ past: [], future: [] }, createSnapshot(projectA, []))
+    const undoResult = undoSnapshot(stacks, createSnapshot(projectB, ['layer-1']))
 
     expect(undoResult?.snapshot.project.duration).toBe(3)
     expect(undoResult?.stacks.future).toHaveLength(1)
@@ -30,8 +30,8 @@ describe('history', () => {
       duration: 5,
     }
 
-    const stacks = pushSnapshot({ past: [], future: [] }, createSnapshot(projectA, null))
-    const undoResult = undoSnapshot(stacks, createSnapshot(projectB, null))
+    const stacks = pushSnapshot({ past: [], future: [] }, createSnapshot(projectA, []))
+    const undoResult = undoSnapshot(stacks, createSnapshot(projectB, []))
     const redoResult = redoSnapshot(undoResult!.stacks, undoResult!.snapshot)
 
     expect(redoResult?.snapshot.project.duration).toBe(5)

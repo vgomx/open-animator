@@ -1,5 +1,5 @@
 import type { AnimatableProperty, Keyframe, Layer, Project } from '@/editor/types'
-import { isNumericProperty } from '@/editor/types'
+import { isNumericProperty, PROJECT_VERSION } from '@/editor/types'
 import { createId } from '@/editor/scene'
 
 type LottieKeyframe = {
@@ -39,9 +39,38 @@ function lottieEasingHandles(easing: Keyframe['easing']): Pick<LottieKeyframe, '
       return { i: { x: [0], y: [0] }, o: { x: [0.58], y: [1] } }
     case 'easeInOut':
       return { i: { x: [0.42], y: [0] }, o: { x: [0.58], y: [1] } }
+    case 'bounce':
+    case 'spring':
+    case 'elastic':
+    case 'back':
+      return { i: { x: [0], y: [0] }, o: { x: [0.58], y: [1] } }
+    case 'hold':
+      return { i: { x: [0], y: [0] }, o: { x: [0], y: [0] } }
     default:
       return {}
   }
+}
+
+function readShapeNumericValue(shape: Layer['shape'], property: AnimatableProperty): number {
+  if (property === 'width' || property === 'height') {
+    return shape.type === 'rect' ? shape[property] : 0
+  }
+
+  if (property === 'rx' || property === 'ry') {
+    return shape.type === 'ellipse' ? shape[property] : 0
+  }
+
+  if (
+    property === 'x' ||
+    property === 'y' ||
+    property === 'rotation' ||
+    property === 'opacity' ||
+    property === 'scale'
+  ) {
+    return shape[property]
+  }
+
+  return 0
 }
 
 function buildPropertyKeyframes(
@@ -54,7 +83,7 @@ function buildPropertyKeyframes(
     return []
   }
 
-  const baseValue = layer.shape[property]
+  const baseValue = readShapeNumericValue(layer.shape, property)
   const track = layer.keyframes
     .filter((keyframe) => keyframe.property === property)
     .sort((a, b) => a.time - b.time)
@@ -100,10 +129,17 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
           p: { a: 0, k: [shape.width / 2, shape.height / 2, 0] },
           r: { a: 0, k: 0 },
         }
-      : {
+      : shape.type === 'ellipse'
+        ? {
           ty: 'el',
           d: 1,
           s: { a: 0, k: [shape.rx * 2, shape.ry * 2] },
+          p: { a: 0, k: [0, 0, 0] },
+        }
+        : {
+          ty: 'rc',
+          d: 1,
+          s: { a: 0, k: [100, shape.fontSize] },
           p: { a: 0, k: [0, 0, 0] },
         }
 
@@ -321,20 +357,27 @@ export function importLottie(raw: string): Project | null {
         id: layerId,
         name: lottieLayer.nm ?? `Layer ${layers.length + 1}`,
         visible: true,
+        locked: false,
+        groupId: null,
+        delay: 0,
         shape: base,
         keyframes,
       })
     }
 
     return {
-      version: 4,
+      version: PROJECT_VERSION,
       artboard: {
         width: data.w ?? 800,
         height: data.h ?? 600,
       },
       duration,
+      loopIn: 0,
+      loopOut: duration,
       layers,
       guides: [],
+      states: [],
+      markers: [],
     }
   } catch {
     return null
