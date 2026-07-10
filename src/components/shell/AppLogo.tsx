@@ -16,12 +16,15 @@ export function AppLogo({
   title = 'Open Animator',
 }: AppLogoProps) {
   const { resolvedTheme } = useTheme()
+  const isDark = resolvedTheme === 'dark'
   const color =
     variant === 'accent'
       ? APP_BRAND_ACCENT
-      : resolvedTheme === 'dark'
+      : isDark
         ? '#f4f3f0'
         : '#1c1b19'
+  const lineOpacity = variant === 'accent' || isDark ? 0.4 : 0.35
+  const handleOpacity = variant === 'accent' || isDark ? 0.6 : 0.5
 
   return (
     <svg
@@ -36,17 +39,33 @@ export function AppLogo({
     >
       <title>{title}</title>
       <path
-        d="M 20 68 C 20 40, 40 20, 68 20"
+        d="M 24 72 C 24 44, 44 24, 72 24"
         stroke={color}
         strokeWidth="5"
         strokeLinecap="round"
       />
-      <line x1="20" y1="68" x2="20" y2="30" stroke={color} strokeWidth="2.5" opacity="0.4" />
-      <line x1="68" y1="20" x2="68" y2="58" stroke={color} strokeWidth="2.5" opacity="0.4" />
-      <circle cx="20" cy="68" r="7" fill={color} />
-      <circle cx="68" cy="20" r="7" fill={color} />
-      <circle cx="20" cy="30" r="4" fill={color} opacity="0.6" />
-      <circle cx="68" cy="58" r="4" fill={color} opacity="0.6" />
+      <line
+        x1="24"
+        y1="72"
+        x2="24"
+        y2="34"
+        stroke={color}
+        strokeWidth="2.5"
+        opacity={lineOpacity}
+      />
+      <line
+        x1="72"
+        y1="24"
+        x2="72"
+        y2="62"
+        stroke={color}
+        strokeWidth="2.5"
+        opacity={lineOpacity}
+      />
+      <circle cx="24" cy="72" r="7" fill={color} />
+      <circle cx="72" cy="24" r="7" fill={color} />
+      <circle cx="24" cy="34" r="4" fill={color} opacity={handleOpacity} />
+      <circle cx="72" cy="62" r="4" fill={color} opacity={handleOpacity} />
     </svg>
   )
 }
