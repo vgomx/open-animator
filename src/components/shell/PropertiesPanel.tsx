@@ -4,6 +4,7 @@ import { RULER_X_SIZE } from '@/editor/layout-constants'
 import { AnimationTab } from '@/components/shell/properties/AnimationTab'
 import { DesignTab } from '@/components/shell/properties/PropertyTabs'
 import { getAnimatedShape } from '@/editor/animation'
+import { getSelectedAnimatedShapes } from '@/editor/selection-utils'
 import { useEditorStore, useSelectedLayer } from '@/editor/store'
 import { Layers2, Sparkles } from 'lucide-react'
 
@@ -13,7 +14,10 @@ export function PropertiesPanel() {
   const selectedCount = useEditorStore((state) => state.selectedLayerIds.length)
   const currentTime = useEditorStore((state) => state.currentTime)
   const recordMode = useEditorStore((state) => state.recordMode)
+  const updateSelectedShapes = useEditorStore((state) => state.updateSelectedShapes)
   const updateShape = useEditorStore((state) => state.updateShape)
+  const layers = useEditorStore((state) => state.project.layers)
+  const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const updateLayer = useEditorStore((state) => state.updateLayer)
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
@@ -45,6 +49,18 @@ export function PropertiesPanel() {
   }
 
   const shape = getAnimatedShape(selectedLayer, currentTime)
+  const selectedShapes = getSelectedAnimatedShapes(layers, selectedLayerIds, currentTime).map(
+    (item) => item.shape,
+  )
+
+  const applyShapePatch = (patch: Partial<typeof shape>) => {
+    if (selectedCount > 1) {
+      updateSelectedShapes(patch)
+      return
+    }
+
+    updateShape(selectedLayer.id, patch)
+  }
 
   return (
     <aside
@@ -77,9 +93,10 @@ export function PropertiesPanel() {
           <TabsContent value="design" className="mt-0">
             <DesignTab
               selectedLayer={selectedLayer}
-              shape={shape}
+              selectedCount={selectedCount}
+              shapes={selectedShapes}
               onRename={(name) => updateLayer(selectedLayer.id, { name })}
-              onUpdateShape={(patch) => updateShape(selectedLayer.id, patch)}
+              onUpdateShape={applyShapePatch}
             />
           </TabsContent>
           <TabsContent value="animation" className="mt-0">
@@ -91,6 +108,7 @@ export function PropertiesPanel() {
               currentTime={currentTime}
               onAddKeyframe={addKeyframeAtCurrentTime}
               onSetEasing={setKeyframeEasing}
+              onUpdateShape={(patch) => updateShape(selectedLayer.id, patch)}
             />
           </TabsContent>
         </ScrollArea>

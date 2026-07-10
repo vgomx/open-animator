@@ -143,7 +143,20 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
             s: { a: 0, k: [100, shape.fontSize] },
             p: { a: 0, k: [0, 0, 0] },
           }
-          : {
+          : shape.type === 'path'
+            ? {
+              ty: 'sh',
+              ks: {
+                a: 0,
+                k: {
+                  i: shape.points.map(() => [0, 0]),
+                  o: shape.points.map(() => [0, 0]),
+                  v: shape.points.map((point) => [point.x, point.y]),
+                  c: shape.closed,
+                },
+              },
+            }
+            : {
             ty: 'rc',
             d: 1,
             s: { a: 0, k: [120, 120] },

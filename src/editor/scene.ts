@@ -209,8 +209,35 @@ export function createLayer(type: ShapeType, index: number): Layer {
   }
 }
 
-export function cloneLayer(layer: Layer): Layer {
+export function cloneLayer(layer: Layer, offset = 20): Layer {
   const shape = layer.shape
+
+  const clonedShape = (() => {
+    if (shape.type === 'path') {
+      return {
+        ...shape,
+        id: createId(),
+        points: shape.points.map((point) => ({
+          ...point,
+          x: point.x + offset,
+          y: point.y + offset,
+          handleIn: point.handleIn
+            ? { x: point.handleIn.x + offset, y: point.handleIn.y + offset }
+            : point.handleIn,
+          handleOut: point.handleOut
+            ? { x: point.handleOut.x + offset, y: point.handleOut.y + offset }
+            : point.handleOut,
+        })),
+      }
+    }
+
+    return {
+      ...shape,
+      id: createId(),
+      x: shape.x + offset,
+      y: shape.y + offset,
+    } as Shape
+  })()
 
   return {
     id: createId(),
@@ -219,12 +246,7 @@ export function cloneLayer(layer: Layer): Layer {
     locked: layer.locked,
     groupId: layer.groupId,
     delay: layer.delay,
-    shape: {
-      ...shape,
-      id: createId(),
-      x: shape.x + 20,
-      y: shape.y + 20,
-    } as Shape,
+    shape: clonedShape,
     keyframes: layer.keyframes.map((keyframe) => ({
       ...keyframe,
       id: createId(),

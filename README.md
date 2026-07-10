@@ -34,17 +34,34 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 
 ## Features
 
-- Dark editor shell with glass side panels, toolbar, layers, properties, and timeline
-- Add rectangle / ellipse shapes; duplicate layers (`⌘D`)
-- Edit position, size, fill, stroke, and opacity
-- Canvas resize handles and drag-to-move selection
+### Editor shell
+- Dark editor shell with frosted-glass side panels, toolbar, layers, properties, and timeline
+- Canvas rulers (top + left) with guide dragging, snapping, and full-bleed glass chrome
+- Floating tool palette at the bottom of the canvas
+- Canvas context menu with common actions and shortcuts
+
+### Tools
+- **Select** — move, resize, rotate, multi-select (Shift+click, marquee)
+- **Hand** — pan the viewport
+- **Zoom** — click to zoom in/out
+- **Node** — edit path points and shape corners
+- **Pen** — draw vector paths
+- **Rect / Ellipse / Text** — create shapes on canvas
+
+### Design & animation
+- Edit position, size, fill, stroke, opacity, rotation, and scale
+- Figma-style color picker with hex input, presets, and eyedropper (screen or canvas sampling)
+- Custom number inputs with label scrub and steppers
 - Keyframe `x`, `y`, `rotation`, `opacity`, `scale`, `fill`, and `stroke` with easing segments
 - Record mode (auto-keyframe on property change)
 - Playback with loop toggle; click-to-scrub timeline
+- Layer groups — select and move grouped layers together on canvas
+
+### Workflow
 - Undo/redo (`⌘Z` / `⌘⇧Z`)
 - Pan viewport (Space + drag or middle mouse); fit artboard to screen
 - Save/open project JSON (autosaved to `localStorage`, v2 format with migration from v1)
-- Export static SVG, **WebM video**, and **Lottie JSON** (subset)
+- Export static SVG, **WebM video**, and **Lottie JSON** (subset, including paths)
 - Import Lottie JSON (limited subset) and preview with lottie-web
 
 ## Project structure
@@ -52,7 +69,7 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 ```text
 src/
   components/
-    canvas/       # SVG stage, shapes, selection overlay
+    canvas/       # SVG stage, tools, selection, rulers, context menu
     lottie/       # Lottie preview dialog
     shell/        # Editor layout, toolbar, panels, shortcuts
     timeline/     # Playhead and keyframe tracks
@@ -62,6 +79,7 @@ src/
     history.ts    # Undo/redo snapshots
     scene.ts      # Layer/project helpers
     store.ts      # Zustand editor store
+    tools.ts      # Canvas tool definitions
     types.ts      # Core types
   io/
     lottie.ts     # Lottie import/export (subset)

@@ -1,5 +1,5 @@
 import { getShapeBounds, type ShapeBounds } from '@/editor/bounds'
-import { shapePatchFromBoundsDelta } from '@/editor/snap'
+import { shapePatchFromBoundsDelta, translateShape } from '@/editor/shape-transform'
 import type { Shape } from '@/editor/types'
 
 export type LayerAlignment =
@@ -85,10 +85,7 @@ export function alignSelectionToArtboard(
   const patches = new Map<string, Partial<Shape>>()
 
   for (const item of items) {
-    patches.set(item.id, {
-      x: item.shape.x + deltaX,
-      y: item.shape.y + deltaY,
-    })
+    patches.set(item.id, translateShape(item.shape, deltaX, deltaY))
   }
 
   return patches

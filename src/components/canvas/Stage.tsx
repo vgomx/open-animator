@@ -14,6 +14,8 @@ import { EyedropperHint } from '@/components/canvas/EyedropperHint'
 import { getShapeBounds } from '@/editor/bounds'
 import { clientToArtboard } from '@/editor/coordinates'
 import { sampleColorFromArtboard } from '@/editor/eyedropper'
+import { TextEditOverlay } from '@/components/canvas/TextEditOverlay'
+import { createPathPointWithHandle } from '@/editor/path-nodes'
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
 import { useEditorStore } from '@/editor/store'
 import { wheelZoomFactor } from '@/editor/viewport'
@@ -40,6 +42,8 @@ export function Stage() {
   } | null>(null)
   const [drawDraft, setDrawDraft] = useState<DrawDraft | null>(null)
   const [penPreview, setPenPreview] = useState<{ x: number; y: number } | null>(null)
+  const [penDrag, setPenDrag] = useState<{ anchor: { x: number; y: number } } | null>(null)
+  const penDragRef = useRef<{ anchor: { x: number; y: number } } | null>(null)
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(
     null,
   )
@@ -72,6 +76,8 @@ export function Stage() {
   const eyedropperActive = useEditorStore((state) => state.eyedropperActive)
   const completeEyedropper = useEditorStore((state) => state.completeEyedropper)
   const cancelEyedropper = useEditorStore((state) => state.cancelEyedropper)
+  const setEditingTextLayerId = useEditorStore((state) => state.setEditingTextLayerId)
+  const editingTextLayerId = useEditorStore((state) => state.editingTextLayerId)
 
   const { width, height } = project.artboard
   const onionOffset = 1 / 30
@@ -124,6 +130,8 @@ export function Stage() {
         cancelPenDraft()
         setDrawDraft(null)
         setMarquee(null)
+        setPenDrag(null)
+        setEditingTextLayerId(null)
       }
 
       if (event.key === 'Enter' && activeTool === 'pen' && penDraft && penDraft.length >= 2) {
@@ -144,7 +152,7 @@ export function Stage() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [activeTool, cancelPenDraft, finishPenPath, penDraft])
+  }, [activeTool, cancelPenDraft, finishPenPath, penDraft, setEditingTextLayerId])
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -307,6 +315,48 @@ export function Stage() {
     }
   }, [createShapeInBounds, drawDraft])
 
+  useEffect(() => {
+    if (!penDrag) {
+      penDragRef.current = null
+      return
+    }
+
+    penDragRef.current = penDrag
+
+    const onPointerMove = (event: PointerEvent) => {
+      const svg = svgRef.current
+      if (!svg) {
+        return
+      }
+
+      const point = clientToArtboard(svg, event.clientX, event.clientY)
+      setPenPreview(point)
+    }
+
+    const onPointerUp = (event: PointerEvent) => {
+      const svg = svgRef.current
+      const drag = penDragRef.current
+      if (!svg || !drag) {
+        setPenDrag(null)
+        setPenPreview(null)
+        return
+      }
+
+      const point = clientToArtboard(svg, event.clientX, event.clientY)
+      const pathPoint = createPathPointWithHandle(drag.anchor, point)
+      addPenDraftPoint(pathPoint)
+      setPenDrag(null)
+      setPenPreview(null)
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [addPenDraftPoint, penDrag])
+
   const beginPan = (event: React.PointerEvent) => {
     event.preventDefault()
     panDragRef.current = {
@@ -375,7 +425,8 @@ export function Stage() {
         }
       }
 
-      addPenDraftPoint(point)
+      setPenDrag({ anchor: point })
+      setPenPreview(point)
       return
     }
 
@@ -414,14 +465,21 @@ export function Stage() {
   }
 
   const handleArtboardPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (activeTool !== 'pen') {
-      setPenPreview(null)
+    if (activeTool !== 'pen' || penDrag) {
+      if (!penDrag) {
+        setPenPreview(null)
+      }
       return
     }
 
     const point = clientToArtboard(event.currentTarget, event.clientX, event.clientY)
     setPenPreview(point)
   }
+
+  const penPreviewPoint =
+    penDrag && penPreview
+      ? createPathPointWithHandle(penDrag.anchor, penPreview)
+      : penPreview
 
   const marqueeRect = marquee
     ? {
@@ -540,6 +598,14 @@ export function Stage() {
                         additive: event.shiftKey || event.metaKey || event.ctrlKey,
                       })
                     }}
+                    onDoubleClick={(event) => {
+                      if (activeTool !== 'select' || layer.shape.type !== 'text') {
+                        return
+                      }
+
+                      event.stopPropagation()
+                      setEditingTextLayerId(layer.id)
+                    }}
                     className={allowLayerSelect ? 'cursor-pointer' : undefined}
                     style={{ pointerEvents: allowLayerSelect ? 'auto' : 'none' }}
                   >
@@ -561,7 +627,7 @@ export function Stage() {
               })}
               {penDraft && penDraft.length > 0 ? (
                 <g data-eyedropper-ignore>
-                  <PenDraftLayer points={penDraft} previewPoint={penPreview} />
+                  <PenDraftLayer points={penDraft} previewPoint={penPreviewPoint} />
                 </g>
               ) : null}
               {drawPreview ? (
@@ -590,6 +656,7 @@ export function Stage() {
                 />
               ) : null}
             </svg>
+            {!editingTextLayerId ? null : <TextEditOverlay />}
           </div>
           </div>
         </div>

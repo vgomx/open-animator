@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react'
 import { CircleDot } from 'lucide-react'
 
+import { ColorField } from '@/components/shell/properties/ColorField'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
 import type { AnimatableProperty, EasingType } from '@/editor/types'
@@ -25,19 +26,23 @@ const PROPERTY_LABELS: Record<AnimatableProperty, string> = {
 type AnimationPropertyFieldProps = {
   property: AnimatableProperty
   displayValue: ReactNode
+  colorValue?: string
   keyframeAtTime: boolean
   easing: EasingType
   onAddKeyframe: () => void
   onSetEasing: (easing: EasingType) => void
+  onColorChange?: (value: string) => void
 }
 
 export function AnimationPropertyField({
   property,
   displayValue,
+  colorValue,
   keyframeAtTime,
   easing,
   onAddKeyframe,
   onSetEasing,
+  onColorChange,
 }: AnimationPropertyFieldProps) {
   return (
     <div
@@ -46,19 +51,37 @@ export function AnimationPropertyField({
         keyframeAtTime ? 'border-primary/30 bg-primary/5' : 'border-border/70 bg-muted/10',
       )}
     >
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-            {PROPERTY_LABELS[property]}
-          </p>
-          <div className="truncate text-xs text-foreground">{displayValue}</div>
+      {isColorProperty(property) && colorValue && onColorChange ? (
+        <div className="space-y-2">
+          <ColorField
+            label={PROPERTY_LABELS[property]}
+            value={colorValue}
+            allowNone={property === 'stroke'}
+            onChange={onColorChange}
+          />
+          <div className="flex justify-end">
+            <TooltipIconButton
+              label={keyframeAtTime ? 'Keyframe at playhead' : 'Add keyframe'}
+              active={keyframeAtTime}
+              onClick={onAddKeyframe}
+            />
+          </div>
         </div>
-        <TooltipIconButton
-          label={keyframeAtTime ? 'Keyframe at playhead' : 'Add keyframe'}
-          active={keyframeAtTime}
-          onClick={onAddKeyframe}
-        />
-      </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+              {PROPERTY_LABELS[property]}
+            </p>
+            <div className="truncate text-xs text-foreground">{displayValue}</div>
+          </div>
+          <TooltipIconButton
+            label={keyframeAtTime ? 'Keyframe at playhead' : 'Add keyframe'}
+            active={keyframeAtTime}
+            onClick={onAddKeyframe}
+          />
+        </div>
+      )}
       <div className="mt-2 space-y-1">
         <Label className="text-[10px] text-muted-foreground">Easing</Label>
         <select
