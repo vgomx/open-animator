@@ -1,6 +1,8 @@
-export const PROJECT_VERSION = 1 as const
+export const PROJECT_VERSION = 2 as const
 
 export type AnimatableProperty = 'x' | 'y' | 'opacity' | 'scale'
+
+export type EasingType = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
 
 export type ShapeType = 'rect' | 'ellipse'
 
@@ -35,6 +37,7 @@ export type Keyframe = {
   time: number
   property: AnimatableProperty
   value: number
+  easing?: EasingType
 }
 
 export type Layer = {
@@ -56,3 +59,10 @@ export type Project = {
 }
 
 export type PlaybackState = 'idle' | 'playing' | 'paused'
+
+export const EASING_OPTIONS: Array<{ value: EasingType; label: string }> = [
+  { value: 'linear', label: 'Linear' },
+  { value: 'easeIn', label: 'Ease in' },
+  { value: 'easeOut', label: 'Ease out' },
+  { value: 'easeInOut', label: 'Ease in-out' },
+]

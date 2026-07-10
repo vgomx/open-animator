@@ -1,6 +1,7 @@
 import { useEffect } from 'react'
 
 import { Stage } from '@/components/canvas/Stage'
+import { KeyboardShortcuts } from '@/components/shell/KeyboardShortcuts'
 import { LayersPanel } from '@/components/shell/LayersPanel'
 import { PropertiesPanel } from '@/components/shell/PropertiesPanel'
 import { Toolbar } from '@/components/shell/Toolbar'
@@ -58,10 +59,11 @@ export function EditorLayout() {
   return (
     <div className="flex min-h-svh flex-col bg-background text-foreground">
       <PlaybackLoop />
+      <KeyboardShortcuts />
       <Toolbar />
-      <div className="flex min-h-0 flex-1">
-        <LayersPanel />
+      <div className="relative min-h-0 flex-1">
         <Stage />
+        <LayersPanel />
         <PropertiesPanel />
       </div>
       <Timeline />

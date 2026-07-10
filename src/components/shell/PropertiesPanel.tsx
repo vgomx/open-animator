@@ -4,7 +4,8 @@ import { Label } from '@/components/ui/label'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
-import type { AnimatableProperty } from '@/editor/types'
+import type { AnimatableProperty, EasingType } from '@/editor/types'
+import { EASING_OPTIONS } from '@/editor/types'
 import { useEditorStore, useSelectedLayer } from '@/editor/store'
 
 const animatableProperties: AnimatableProperty[] = ['x', 'y', 'opacity', 'scale']
@@ -32,14 +33,17 @@ function NumberField({
 
 export function PropertiesPanel() {
   const selectedLayer = useSelectedLayer()
+  const currentTime = useEditorStore((state) => state.currentTime)
+  const recordMode = useEditorStore((state) => state.recordMode)
   const updateShape = useEditorStore((state) => state.updateShape)
   const updateLayer = useEditorStore((state) => state.updateLayer)
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
+  const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
 
   if (!selectedLayer) {
     return (
-      <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-card">
-        <div className="border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 shrink-0 flex-col border-l border-border/50">
+        <div className="glass-panel-header border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Properties
         </div>
         <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
@@ -52,8 +56,8 @@ export function PropertiesPanel() {
   const { shape } = selectedLayer
 
   return (
-    <aside className="flex w-72 shrink-0 flex-col border-l border-border bg-card">
-      <div className="border-b border-border px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 shrink-0 flex-col border-l border-border/50">
+      <div className="glass-panel-header border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Properties
       </div>
       <Tabs defaultValue="design" className="flex min-h-0 flex-1 flex-col">
@@ -151,28 +155,56 @@ export function PropertiesPanel() {
           </TabsContent>
           <TabsContent value="animation" className="space-y-3 p-3">
             <p className="text-sm text-muted-foreground">
-              Scrub the timeline, adjust a value, then add a keyframe at the current time.
+              {recordMode
+                ? 'Record mode is on — property edits at the current time create keyframes automatically.'
+                : 'Record mode is off — scrub the timeline, adjust a value, then add a keyframe manually.'}
             </p>
-            {animatableProperties.map((property) => (
+            {animatableProperties.map((property) => {
+              const keyframeAtTime = selectedLayer.keyframes.find(
+                (keyframe) =>
+                  keyframe.property === property &&
+                  Math.abs(keyframe.time - currentTime) < 0.001,
+              )
+
+              return (
               <div
                 key={property}
-                className="flex items-center justify-between rounded-md border border-border px-3 py-2"
+                className="space-y-2 rounded-md border border-border px-3 py-2"
               >
-                <div>
-                  <p className="text-sm font-medium uppercase">{property}</p>
-                  <p className="text-xs text-muted-foreground">
-                    {shape[property].toFixed(2)}
-                  </p>
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-sm font-medium uppercase">{property}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {shape[property].toFixed(2)}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={() => addKeyframeAtCurrentTime(property)}
+                  >
+                    Keyframe
+                  </Button>
                 </div>
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={() => addKeyframeAtCurrentTime(property)}
-                >
-                  Keyframe
-                </Button>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Segment easing</Label>
+                  <select
+                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+                    value={keyframeAtTime?.easing ?? 'linear'}
+                    disabled={!keyframeAtTime}
+                    onChange={(event) =>
+                      setKeyframeEasing(property, event.target.value as EasingType)
+                    }
+                  >
+                    {EASING_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
-            ))}
+            )})}
           </TabsContent>
         </ScrollArea>
       </Tabs>

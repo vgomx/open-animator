@@ -1,22 +1,28 @@
 import type { Project } from '@/editor/types'
 import { PROJECT_VERSION } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
+import { migrateProject } from '@/io/migrate'
+import { STORAGE_KEYS } from '@/lib/app'
 
 export function serializeProject(project: Project): string {
   return JSON.stringify(project, null, 2)
 }
 
 export function deserializeProject(raw: string): Project {
-  const parsed = JSON.parse(raw) as Project
+  const parsed = JSON.parse(raw) as Project & { version: number }
 
-  if (parsed.version !== PROJECT_VERSION) {
-    throw new Error(`Unsupported project version: ${String(parsed.version)}`)
+  if (parsed.version === PROJECT_VERSION) {
+    return parsed
   }
 
-  return parsed
+  if (parsed.version === 1) {
+    return migrateProject(parsed)
+  }
+
+  throw new Error(`Unsupported project version: ${String(parsed.version)}`)
 }
 
-export function downloadProject(project: Project, filename = 'project.json'): void {
+export function downloadProject(project: Project, filename = 'open-animator-project.json'): void {
   const blob = new Blob([serializeProject(project)], {
     type: 'application/json',
   })
@@ -54,20 +60,28 @@ export async function openProjectFile(): Promise<Project | null> {
 }
 
 export function loadProjectFromStorage(): Project | null {
-  const raw = localStorage.getItem('svg-animator:project')
+  const raw =
+    localStorage.getItem(STORAGE_KEYS.project) ??
+    localStorage.getItem(STORAGE_KEYS.legacyProject)
+
   if (!raw) {
     return null
   }
 
   try {
-    return deserializeProject(raw)
+    const project = deserializeProject(raw)
+    if (!localStorage.getItem(STORAGE_KEYS.project)) {
+      saveProjectToStorage(project)
+      localStorage.removeItem(STORAGE_KEYS.legacyProject)
+    }
+    return project
   } catch {
     return null
   }
 }
 
 export function saveProjectToStorage(project: Project): void {
-  localStorage.setItem('svg-animator:project', serializeProject(project))
+  localStorage.setItem(STORAGE_KEYS.project, serializeProject(project))
 }
 
 export function createInitialProject(): Project {

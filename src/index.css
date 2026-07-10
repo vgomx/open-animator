@@ -68,6 +68,16 @@
   }
 }
 
+@layer components {
+  .glass-panel {
+    @apply bg-card/40 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/30;
+  }
+
+  .glass-panel-header {
+    @apply border-border/40 bg-card/20;
+  }
+}
+
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);

@@ -1,4 +1,4 @@
-# SVG Animator
+# Open Animator
 
 Browser-based SVG animator and editor — a portfolio side project for authoring simple shape animations with keyframes.
 
@@ -8,6 +8,7 @@ Browser-based SVG animator and editor — a portfolio side project for authoring
 - **Radix UI** via **shadcn/ui** (Nova preset)
 - **Tailwind CSS v4**
 - **Zustand** for editor state
+- **lottie-web** for Lottie preview
 - **Vitest** for unit tests
 
 ## Getting started
@@ -29,43 +30,44 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 | `npm run test` | Run unit tests |
 | `npm run lint` | Run oxlint |
 
-## MVP features (current scaffold)
+## Features
 
-- Dark editor shell with toolbar, layers, properties, and timeline panels
-- Add rectangle / ellipse shapes
+- Dark editor shell with glass side panels, toolbar, layers, properties, and timeline
+- Add rectangle / ellipse shapes; duplicate layers (`⌘D`)
 - Edit position, size, fill, stroke, and opacity
-- Keyframe `x`, `y`, `opacity`, and `scale` at the current playhead
-- Linear interpolation playback with loop toggle
-- Save/open project JSON (autosaved to `localStorage`)
-- Export static SVG snapshot
+- Canvas resize handles and drag-to-move selection
+- Keyframe `x`, `y`, `opacity`, and `scale` with **linear**, **ease-in**, **ease-out**, and **ease-in-out** segments
+- Record mode (auto-keyframe on property change)
+- Playback with loop toggle; click-to-scrub timeline
+- Undo/redo (`⌘Z` / `⌘⇧Z`)
+- Pan viewport (Space + drag or middle mouse); fit artboard to screen
+- Save/open project JSON (autosaved to `localStorage`, v2 format with migration from v1)
+- Export static SVG, **WebM video**, and **Lottie JSON** (subset)
+- Import Lottie JSON (limited subset) and preview with lottie-web
 
 ## Project structure
 
 ```text
 src/
   components/
-    canvas/       # SVG stage and shape rendering
-    shell/        # Editor layout, toolbar, panels
-    timeline/     # Playhead and keyframe track
+    canvas/       # SVG stage, shapes, selection overlay
+    lottie/       # Lottie preview dialog
+    shell/        # Editor layout, toolbar, panels, shortcuts
+    timeline/     # Playhead and keyframe tracks
     ui/           # shadcn/Radix primitives
   editor/
-    animation.ts  # Keyframe interpolation
+    animation.ts  # Keyframe interpolation and easing
+    history.ts    # Undo/redo snapshots
     scene.ts      # Layer/project helpers
     store.ts      # Zustand editor store
     types.ts      # Core types
   io/
+    lottie.ts     # Lottie import/export (subset)
+    migrate.ts    # Project version migration
     project.ts    # JSON save/load
-    svg-export.ts # Static SVG export
+    svg-export.ts # Static SVG and WebM export
 ```
-
-## Roadmap
-
-- [ ] Undo/redo
-- [ ] Resize handles on canvas
-- [ ] Easing curves
-- [ ] Animated export (GIF/WebM)
-- [ ] Lottie playback and limited import/export
 
 ## License
 
-MIT
+MIT — see [LICENSE](LICENSE).

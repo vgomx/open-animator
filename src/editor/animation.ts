@@ -1,7 +1,22 @@
-import type { AnimatableProperty, Keyframe } from '@/editor/types'
+import type { AnimatableProperty, EasingType, Keyframe } from '@/editor/types'
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
+}
+
+export function applyEasing(progress: number, easing: EasingType = 'linear'): number {
+  const t = Math.max(0, Math.min(1, progress))
+
+  switch (easing) {
+    case 'easeIn':
+      return t * t
+    case 'easeOut':
+      return t * (2 - t)
+    case 'easeInOut':
+      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
+    default:
+      return t
+  }
 }
 
 export function getKeyframesForProperty(
@@ -45,7 +60,8 @@ export function samplePropertyAtTime(
       }
 
       const progress = (time - current.time) / span
-      return lerp(current.value, next.value, progress)
+      const eased = applyEasing(progress, current.easing)
+      return lerp(current.value, next.value, eased)
     }
   }
 

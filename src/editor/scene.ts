@@ -72,6 +72,26 @@ export function createLayer(type: ShapeType, index: number): Layer {
   }
 }
 
+export function cloneLayer(layer: Layer): Layer {
+  const shape = layer.shape
+
+  return {
+    id: createId(),
+    name: `${layer.name} copy`,
+    visible: layer.visible,
+    shape: {
+      ...shape,
+      id: createId(),
+      x: shape.x + 20,
+      y: shape.y + 20,
+    } as Shape,
+    keyframes: layer.keyframes.map((keyframe) => ({
+      ...keyframe,
+      id: createId(),
+    })),
+  }
+}
+
 export function getLayerName(type: ShapeType, index: number): string {
   return `${type === 'rect' ? 'Rectangle' : 'Ellipse'} ${index + 1}`
 }
