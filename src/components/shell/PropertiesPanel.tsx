@@ -91,11 +91,11 @@ export function PropertiesPanel() {
 
   if (!selectedLayer) {
     return (
-      <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 shrink-0 flex-col border-l border-border/50">
-        <div className="glass-panel-header border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+      <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50">
+        <div className="glass-panel-header shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Properties
         </div>
-        <div className="flex flex-1 items-center justify-center p-4 text-sm text-muted-foreground">
+        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 text-sm text-muted-foreground">
           Select a layer to edit properties.
         </div>
       </aside>
@@ -105,16 +105,16 @@ export function PropertiesPanel() {
   const { shape } = selectedLayer
 
   return (
-    <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 shrink-0 flex-col border-l border-border/50">
-      <div className="glass-panel-header border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50">
+      <div className="glass-panel-header shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Properties
       </div>
-      <Tabs defaultValue="design" className="flex min-h-0 flex-1 flex-col">
-        <TabsList className="mx-3 mt-3 grid w-auto grid-cols-2">
+      <Tabs defaultValue="design" className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <TabsList className="mx-3 mt-3 grid w-auto shrink-0 grid-cols-2">
           <TabsTrigger value="design">Design</TabsTrigger>
           <TabsTrigger value="animation">Animation</TabsTrigger>
         </TabsList>
-        <ScrollArea className="flex-1">
+        <ScrollArea className="panel-scroll">
           <TabsContent value="design" className="space-y-4 p-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Layer name</Label>

@@ -84,8 +84,8 @@ export function Timeline() {
     : []
 
   return (
-    <footer className="flex h-52 shrink-0 flex-col border-t border-border bg-card">
-      <div className="flex items-center justify-between border-b border-border px-3 py-2">
+    <footer className="flex h-52 shrink-0 flex-col overflow-hidden border-t border-border bg-card">
+      <div className="flex shrink-0 items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Timeline
         </span>
@@ -94,8 +94,9 @@ export function Timeline() {
         </span>
       </div>
 
-      <div className="space-y-3 px-4 py-3">
+      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-3">
         <Slider
+          className="shrink-0"
           min={0}
           max={duration}
           step={0.01}
@@ -103,65 +104,67 @@ export function Timeline() {
           onValueChange={(value) => setCurrentTime(value[0] ?? 0)}
         />
 
-        <div
-          ref={trackRef}
-          className="relative cursor-pointer overflow-y-auto rounded-md border border-border bg-background/60"
-          onPointerDown={(event) => {
-            if (dragKeyframeRef.current) {
-              return
-            }
-
-            scrubToClientX(event.clientX)
-          }}
-        >
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div
-            className="pointer-events-none absolute inset-y-0 z-10 w-px bg-sky-400"
-            style={{
-              left: `${(currentTime / duration) * 100}%`,
-            }}
-          />
+            ref={trackRef}
+            className="relative min-h-full cursor-pointer rounded-md border border-border bg-background/60"
+            onPointerDown={(event) => {
+              if (dragKeyframeRef.current) {
+                return
+              }
 
-          {!selectedLayer ? (
-            <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
-              Select a layer to view keyframes.
-            </div>
-          ) : (
-            <div className="divide-y divide-border/60">
-              {keyframesByProperty.map(({ property, keyframes }) => (
-                <div key={property} className="relative h-7">
-                  <span className="absolute top-1/2 left-2 z-10 -translate-y-1/2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                    {propertyLabels[property]}
-                  </span>
-                  {keyframes.map((keyframe) => (
-                    <button
-                      key={keyframe.id}
-                      type="button"
-                      className={cn(
-                        'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-sky-400 ring-2 ring-sky-400/20 active:cursor-grabbing',
-                        property === 'fill' || property === 'stroke'
-                          ? 'ring-offset-1 ring-offset-background'
-                          : '',
-                      )}
-                      style={{
-                        left: `${(keyframe.time / duration) * 100}%`,
-                        backgroundColor:
+              scrubToClientX(event.clientX)
+            }}
+          >
+            <div
+              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-sky-400"
+              style={{
+                left: `${(currentTime / duration) * 100}%`,
+              }}
+            />
+
+            {!selectedLayer ? (
+              <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
+                Select a layer to view keyframes.
+              </div>
+            ) : (
+              <div className="divide-y divide-border/60">
+                {keyframesByProperty.map(({ property, keyframes }) => (
+                  <div key={property} className="relative h-7">
+                    <span className="absolute top-1/2 left-2 z-10 -translate-y-1/2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                      {propertyLabels[property]}
+                    </span>
+                    {keyframes.map((keyframe) => (
+                      <button
+                        key={keyframe.id}
+                        type="button"
+                        className={cn(
+                          'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-sky-400 ring-2 ring-sky-400/20 active:cursor-grabbing',
                           property === 'fill' || property === 'stroke'
-                            ? String(keyframe.value)
-                            : undefined,
-                      }}
-                      title={`${keyframe.property} @ ${formatTime(keyframe.time)}`}
-                      onPointerDown={(event) => {
-                        event.stopPropagation()
-                        beginHistoryTransaction()
-                        dragKeyframeRef.current = keyframe.id
-                        event.currentTarget.setPointerCapture(event.pointerId)
-                      }}
-                    />
-                  ))}
-                </div>
-              ))}
-            </div>
-          )}
+                            ? 'ring-offset-1 ring-offset-background'
+                            : '',
+                        )}
+                        style={{
+                          left: `${(keyframe.time / duration) * 100}%`,
+                          backgroundColor:
+                            property === 'fill' || property === 'stroke'
+                              ? String(keyframe.value)
+                              : undefined,
+                        }}
+                        title={`${keyframe.property} @ ${formatTime(keyframe.time)}`}
+                        onPointerDown={(event) => {
+                          event.stopPropagation()
+                          beginHistoryTransaction()
+                          dragKeyframeRef.current = keyframe.id
+                          event.currentTarget.setPointerCapture(event.pointerId)
+                        }}
+                      />
+                    ))}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </footer>

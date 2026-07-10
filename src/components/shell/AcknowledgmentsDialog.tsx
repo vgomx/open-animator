@@ -18,14 +18,14 @@ export function AcknowledgmentsDialog({ open, onOpenChange }: AcknowledgmentsDia
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="flex max-h-[min(32rem,calc(100svh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
-        <DialogHeader className="border-b border-border px-4 py-4">
+        <DialogHeader className="shrink-0 border-b border-border px-4 py-4">
           <DialogTitle>Open source acknowledgments</DialogTitle>
           <DialogDescription>
             {APP_NAME} is built with the following open source software.
           </DialogDescription>
         </DialogHeader>
 
-        <ScrollArea className="max-h-[min(24rem,calc(100svh-10rem))] px-4 py-3">
+        <ScrollArea className="min-h-0 flex-1 overflow-hidden px-4 py-3">
           <ul className="space-y-2">
             {ACKNOWLEDGMENTS.map((item) => (
               <li

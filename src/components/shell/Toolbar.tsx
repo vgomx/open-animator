@@ -86,7 +86,7 @@ export function Toolbar() {
 
   return (
     <>
-      <header className="flex h-12 items-center gap-2 border-b border-border bg-card px-3">
+      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
       <div className="flex items-center gap-1">
         <span className="px-2 text-sm font-semibold tracking-tight">Open Animator</span>
         <Separator orientation="vertical" className="mx-1 h-6" />

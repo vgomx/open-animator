@@ -5,6 +5,7 @@ import { KeyboardShortcuts } from '@/components/shell/KeyboardShortcuts'
 import { LayersPanel } from '@/components/shell/LayersPanel'
 import { PropertiesPanel } from '@/components/shell/PropertiesPanel'
 import { Toolbar } from '@/components/shell/Toolbar'
+import { UiZoomGuard } from '@/components/shell/UiZoomGuard'
 import { Timeline } from '@/components/timeline/Timeline'
 import { useEditorStore } from '@/editor/store'
 
@@ -57,11 +58,12 @@ function PlaybackLoop() {
 
 export function EditorLayout() {
   return (
-    <div className="flex min-h-svh flex-col bg-background text-foreground">
+    <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground">
       <PlaybackLoop />
+      <UiZoomGuard />
       <KeyboardShortcuts />
       <Toolbar />
-      <div className="relative min-h-0 flex-1">
+      <div className="relative min-h-0 flex-1 overflow-hidden">
         <Stage />
         <LayersPanel />
         <PropertiesPanel />

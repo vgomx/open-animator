@@ -5,7 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-import { APP_AUTHOR, APP_LICENSE, APP_NAME } from '@/lib/app'
+import { APP_AUTHOR, APP_GITHUB_URL, APP_LICENSE, APP_NAME } from '@/lib/app'
 
 type AboutDialogProps = {
   open: boolean
@@ -37,6 +37,15 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
             A browser-based SVG animator for authoring simple shape animations with keyframes.
             Built as an open source portfolio project.
           </p>
+
+          <a
+            href={APP_GITHUB_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 font-medium text-foreground underline underline-offset-4 hover:text-primary"
+          >
+            View on GitHub
+          </a>
 
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="mb-2 font-medium text-foreground">{APP_LICENSE} License</p>

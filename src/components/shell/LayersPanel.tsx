@@ -12,11 +12,11 @@ export function LayersPanel() {
   const updateLayer = useEditorStore((state) => state.updateLayer)
 
   return (
-    <aside className="glass-panel absolute inset-y-0 left-0 z-10 flex w-56 shrink-0 flex-col border-r border-border/50">
-      <div className="glass-panel-header border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <aside className="glass-panel absolute inset-y-0 left-0 z-10 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border/50">
+      <div className="glass-panel-header shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         Layers
       </div>
-      <ScrollArea className="flex-1">
+      <ScrollArea className="panel-scroll">
         <div className="space-y-1 p-2">
           {layers.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">

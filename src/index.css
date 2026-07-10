@@ -54,15 +54,21 @@
     @apply border-border outline-ring/50;
   }
 
+  html,
   body {
     @apply antialiased bg-background text-foreground;
     margin: 0;
-    min-height: 100svh;
+    height: 100%;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: manipulation;
   }
 
   #root {
-    min-height: 100svh;
+    height: 100svh;
+    overflow: hidden;
   }
+
   html {
     @apply font-sans;
   }
@@ -94,6 +100,10 @@
       0 10px,
       10px -10px,
       -10px 0;
+  }
+
+  .panel-scroll {
+    @apply min-h-0 flex-1 overflow-hidden overscroll-contain;
   }
 }
 

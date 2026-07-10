@@ -8,6 +8,8 @@ export const APP_AUTHOR = 'Vitor Gomes'
 
 export const APP_LICENSE = 'MIT'
 
+export const APP_GITHUB_URL = 'https://github.com/vgomx/open-animator'
+
 export const STORAGE_KEYS = {
   project: `${APP_SLUG}:project`,
   legacyProject: 'svg-animator:project',
