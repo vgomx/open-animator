@@ -14,6 +14,10 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const duplicateSelectedLayer = useEditorStore((state) => state.duplicateSelectedLayer)
   const copyKeyframesAtCurrentTime = useEditorStore((state) => state.copyKeyframesAtCurrentTime)
   const pasteKeyframesAtCurrentTime = useEditorStore((state) => state.pasteKeyframesAtCurrentTime)
+  const copyStyleFromSelection = useEditorStore((state) => state.copyStyleFromSelection)
+  const pasteStyleToSelection = useEditorStore((state) => state.pasteStyleToSelection)
+  const toggleLockSelectedLayers = useEditorStore((state) => state.toggleLockSelectedLayers)
+  const toggleVisibilitySelectedLayers = useEditorStore((state) => state.toggleVisibilitySelectedLayers)
   const nudgeSelectedKeyframes = useEditorStore((state) => state.nudgeSelectedKeyframes)
   const setPlaybackState = useEditorStore((state) => state.setPlaybackState)
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -25,6 +29,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const cancelPenDraft = useEditorStore((state) => state.cancelPenDraft)
   const eyedropperActive = useEditorStore((state) => state.eyedropperActive)
   const cancelEyedropper = useEditorStore((state) => state.cancelEyedropper)
+  const zoomToSelection = useEditorStore((state) => state.zoomToSelection)
+  const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -73,15 +79,48 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
         return
       }
 
-      if (mod && key === 'c') {
+      if (mod && event.altKey && key === 'c') {
+        event.preventDefault()
+        copyStyleFromSelection()
+        return
+      }
+
+      if (mod && event.altKey && key === 'v') {
+        event.preventDefault()
+        pasteStyleToSelection()
+        return
+      }
+
+      if (mod && key === 'c' && !event.altKey) {
         event.preventDefault()
         copyKeyframesAtCurrentTime()
         return
       }
 
-      if (mod && key === 'v') {
+      if (mod && key === 'v' && !event.altKey) {
         event.preventDefault()
         pasteKeyframesAtCurrentTime()
+        return
+      }
+
+      if (mod && key === '2' && selectedLayerIds.length > 0) {
+        event.preventDefault()
+        const viewport = document.querySelector('[data-stage-viewport]')
+        if (viewport) {
+          zoomToSelection(viewport.clientWidth, viewport.clientHeight)
+        }
+        return
+      }
+
+      if (mod && event.shiftKey && key === 'l') {
+        event.preventDefault()
+        toggleLockSelectedLayers()
+        return
+      }
+
+      if (mod && event.shiftKey && key === 'h') {
+        event.preventDefault()
+        toggleVisibilitySelectedLayers()
         return
       }
 
@@ -136,6 +175,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     cancelEyedropper,
     cancelPenDraft,
     copyKeyframesAtCurrentTime,
+    copyStyleFromSelection,
     deleteSelectedNodes,
     duplicateSelectedLayer,
     eyedropperActive,
@@ -143,13 +183,18 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     nudgeSelectedKeyframes,
     onOpenShortcuts,
     pasteKeyframesAtCurrentTime,
+    pasteStyleToSelection,
     playbackState,
     redo,
     removeSelectedLayer,
+    selectedLayerIds.length,
     selectedNodeIndices.length,
     setActiveTool,
     setPlaybackState,
+    toggleLockSelectedLayers,
+    toggleVisibilitySelectedLayers,
     undo,
+    zoomToSelection,
   ])
 
   return null

@@ -41,6 +41,7 @@ import type {
   SnapLine,
 } from '@/editor/types'
 import { isColorProperty, isNumericProperty } from '@/editor/types'
+import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
 
 const animatableProperties = new Set<AnimatableProperty>([
@@ -81,6 +82,9 @@ type EditorStore = {
   penDraft: PathPoint[] | null
   eyedropperActive: boolean
   eyedropperHandler: ((color: string) => void) | null
+  styleClipboard: ShapeStylePatch | null
+  collapsedGroupIds: string[]
+  editingTextLayerId: string | null
   setSelectedLayerId: (layerId: string | null) => void
   selectLayer: (layerId: string, options?: { additive?: boolean }) => void
   selectLayers: (layerIds: string[]) => void
@@ -88,6 +92,14 @@ type EditorStore = {
   addShape: (type: ShapeType) => void
   removeSelectedLayer: () => void
   duplicateSelectedLayer: () => void
+  duplicateSelectedLayerInPlace: () => string[]
+  updateSelectedShapes: (patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
+  copyStyleFromSelection: () => void
+  pasteStyleToSelection: () => void
+  toggleLockSelectedLayers: () => void
+  toggleVisibilitySelectedLayers: () => void
+  toggleGroupCollapsed: (groupId: string) => void
+  setEditingTextLayerId: (layerId: string | null) => void
   updateLayer: (layerId: string, patch: Partial<Layer>) => void
   reorderLayers: (fromIndex: number, toIndex: number) => void
   updateShape: (layerId: string, patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
@@ -324,15 +336,26 @@ export const useEditorStore = create<EditorStore>((set) => ({
   penDraft: null,
   eyedropperActive: false,
   eyedropperHandler: null,
+  styleClipboard: null,
+  collapsedGroupIds: [],
+  editingTextLayerId: null,
 
   setSelectedLayerId: (layerId) =>
     set(layerId ? syncSelection([layerId]) : syncSelection([])),
 
   selectLayer: (layerId, options) =>
     set((state) => {
+      const layer = state.project.layers.find((item) => item.id === layerId)
+      const groupedIds =
+        !options?.additive && layer?.groupId
+          ? state.project.layers
+              .filter((item) => item.groupId === layer.groupId)
+              .map((item) => item.id)
+          : [layerId]
+
       const next =
         !options?.additive
-          ? syncSelection([layerId])
+          ? syncSelection(groupedIds)
           : state.selectedLayerIds.includes(layerId)
             ? syncSelection(state.selectedLayerIds.filter((id) => id !== layerId))
             : syncSelection([...state.selectedLayerIds, layerId])
@@ -544,6 +567,181 @@ export const useEditorStore = create<EditorStore>((set) => ({
         }
       })
     }),
+
+  duplicateSelectedLayerInPlace: () => {
+    let createdIds: string[] = []
+
+    set((state) => {
+      if (state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      return withHistory(state, (current) => {
+        const duplicates = current.selectedLayerIds
+          .map((layerId) => current.project.layers.find((item) => item.id === layerId))
+          .filter((layer): layer is Layer => Boolean(layer))
+          .map((layer) => cloneLayer(layer, 0))
+
+        if (duplicates.length === 0) {
+          return {}
+        }
+
+        createdIds = duplicates.map((layer) => layer.id)
+
+        return {
+          project: {
+            ...current.project,
+            layers: [...current.project.layers, ...duplicates],
+          },
+          ...syncSelection(createdIds),
+        }
+      })
+    })
+
+    return createdIds
+  },
+
+  updateSelectedShapes: (patch, options) =>
+    set((state) => {
+      if (state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      const applyUpdate = (current: EditorStore): Partial<EditorStore> => {
+        const project = {
+          ...current.project,
+          layers: current.project.layers.map((layer) => {
+            if (!current.selectedLayerIds.includes(layer.id)) {
+              return layer
+            }
+
+            const shape = { ...layer.shape, ...patch } as Shape
+            const keyframes = applyAutoKeyframes(
+              layer,
+              patch,
+              current.currentTime,
+              current.recordMode,
+            )
+
+            return {
+              ...layer,
+              shape,
+              keyframes,
+            }
+          }),
+        }
+
+        return { project }
+      }
+
+      if (options?.skipHistory) {
+        const next = applyUpdate(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyUpdate)
+    }),
+
+  copyStyleFromSelection: () =>
+    set((state) => {
+      const layer = state.project.layers.find((item) => item.id === state.selectedLayerId)
+      if (!layer) {
+        return state
+      }
+
+      return {
+        styleClipboard: extractShapeStyle(layer.shape),
+      }
+    }),
+
+  pasteStyleToSelection: () =>
+    set((state) => {
+      if (!state.styleClipboard || state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      return withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          layers: current.project.layers.map((layer) => {
+            if (!current.selectedLayerIds.includes(layer.id)) {
+              return layer
+            }
+
+            const shape = { ...layer.shape, ...current.styleClipboard! } as Shape
+            const keyframes = applyAutoKeyframes(
+              layer,
+              current.styleClipboard!,
+              current.currentTime,
+              current.recordMode,
+            )
+
+            return {
+              ...layer,
+              shape,
+              keyframes,
+            }
+          }),
+        },
+      }))
+    }),
+
+  toggleLockSelectedLayers: () =>
+    set((state) => {
+      if (state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      const shouldLock = state.selectedLayerIds.some((id) => {
+        const layer = state.project.layers.find((item) => item.id === id)
+        return layer && !layer.locked
+      })
+
+      return withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          layers: current.project.layers.map((layer) =>
+            current.selectedLayerIds.includes(layer.id)
+              ? { ...layer, locked: shouldLock }
+              : layer,
+          ),
+        },
+      }))
+    }),
+
+  toggleVisibilitySelectedLayers: () =>
+    set((state) => {
+      if (state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      const shouldHide = state.selectedLayerIds.some((id) => {
+        const layer = state.project.layers.find((item) => item.id === id)
+        return layer?.visible ?? false
+      })
+
+      return withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          layers: current.project.layers.map((layer) =>
+            current.selectedLayerIds.includes(layer.id)
+              ? { ...layer, visible: !shouldHide }
+              : layer,
+          ),
+        },
+      }))
+    }),
+
+  toggleGroupCollapsed: (groupId) =>
+    set((state) => ({
+      collapsedGroupIds: state.collapsedGroupIds.includes(groupId)
+        ? state.collapsedGroupIds.filter((id) => id !== groupId)
+        : [...state.collapsedGroupIds, groupId],
+    })),
+
+  setEditingTextLayerId: (layerId) => set({ editingTextLayerId: layerId }),
 
   updateLayer: (layerId, patch) =>
     set((state) =>

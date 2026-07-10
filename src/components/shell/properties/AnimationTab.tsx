@@ -12,6 +12,7 @@ import {
 } from '@/components/shell/properties/AnimationPropertyField'
 import { PanelSection } from '@/components/shell/properties/PanelSection'
 import type { AnimatableProperty, EasingType, Layer, Shape } from '@/editor/types'
+import { isColorProperty } from '@/editor/types'
 
 const TRANSFORM_PROPERTIES: AnimatableProperty[] = ['x', 'y', 'rotation', 'scale']
 const APPEARANCE_PROPERTIES: AnimatableProperty[] = ['opacity', 'fill', 'stroke']
@@ -24,6 +25,7 @@ type AnimationTabProps = {
   currentTime: number
   onAddKeyframe: (property: AnimatableProperty) => void
   onSetEasing: (property: AnimatableProperty, easing: EasingType) => void
+  onUpdateShape: (patch: Partial<Shape>) => void
 }
 
 function sizeProperties(shape: Shape): AnimatableProperty[] {
@@ -45,6 +47,7 @@ function PropertySection({
   currentTime,
   onAddKeyframe,
   onSetEasing,
+  onUpdateShape,
   className,
 }: {
   title: string
@@ -55,6 +58,7 @@ function PropertySection({
   currentTime: number
   onAddKeyframe: (property: AnimatableProperty) => void
   onSetEasing: (property: AnimatableProperty, easing: EasingType) => void
+  onUpdateShape: (patch: Partial<Shape>) => void
   className?: string
 }) {
   return (
@@ -71,10 +75,16 @@ function PropertySection({
               key={property}
               property={property}
               displayValue={formatAnimationValue(property, shape as Record<string, string | number>)}
+              colorValue={isColorProperty(property) ? String(shape[property]) : undefined}
               keyframeAtTime={Boolean(keyframeAtTime)}
               easing={keyframeAtTime?.easing ?? 'linear'}
               onAddKeyframe={() => onAddKeyframe(property)}
               onSetEasing={(easing) => onSetEasing(property, easing)}
+              onColorChange={
+                isColorProperty(property)
+                  ? (value) => onUpdateShape({ [property]: value } as Partial<Shape>)
+                  : undefined
+              }
             />
           )
         })}
@@ -91,6 +101,7 @@ export function AnimationTab({
   currentTime,
   onAddKeyframe,
   onSetEasing,
+  onUpdateShape,
 }: AnimationTabProps) {
   return (
     <div className="pb-3">
@@ -130,6 +141,7 @@ export function AnimationTab({
         currentTime={currentTime}
         onAddKeyframe={onAddKeyframe}
         onSetEasing={onSetEasing}
+        onUpdateShape={onUpdateShape}
       />
 
       <PropertySection
@@ -141,6 +153,7 @@ export function AnimationTab({
         currentTime={currentTime}
         onAddKeyframe={onAddKeyframe}
         onSetEasing={onSetEasing}
+        onUpdateShape={onUpdateShape}
       />
 
       <PropertySection
@@ -152,6 +165,7 @@ export function AnimationTab({
         currentTime={currentTime}
         onAddKeyframe={onAddKeyframe}
         onSetEasing={onSetEasing}
+        onUpdateShape={onUpdateShape}
         className="border-b-0"
       />
     </div>

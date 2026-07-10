@@ -47,6 +47,9 @@ export function CanvasContextMenu({ children, onPrepare }: CanvasContextMenuProp
   const layers = useEditorStore((state) => state.project.layers)
 
   const duplicateSelectedLayer = useEditorStore((state) => state.duplicateSelectedLayer)
+  const copyStyleFromSelection = useEditorStore((state) => state.copyStyleFromSelection)
+  const pasteStyleToSelection = useEditorStore((state) => state.pasteStyleToSelection)
+  const styleClipboard = useEditorStore((state) => state.styleClipboard)
   const copyKeyframesAtCurrentTime = useEditorStore((state) => state.copyKeyframesAtCurrentTime)
   const pasteKeyframesAtCurrentTime = useEditorStore((state) => state.pasteKeyframesAtCurrentTime)
   const removeSelectedLayer = useEditorStore((state) => state.removeSelectedLayer)
@@ -71,6 +74,7 @@ export function CanvasContextMenu({ children, onPrepare }: CanvasContextMenuProp
     return Boolean(layer?.groupId)
   })
   const canPasteKeyframes = keyframeClipboard.length > 0 && hasSelection
+  const canPasteStyle = Boolean(styleClipboard) && hasSelection
   const isPlaying = playbackState === 'playing'
 
   const zoomViewport = () => document.querySelector('[data-stage-viewport]')
@@ -101,6 +105,14 @@ export function CanvasContextMenu({ children, onPrepare }: CanvasContextMenuProp
             <ContextMenuItem disabled={!canPasteKeyframes} onSelect={() => pasteKeyframesAtCurrentTime()}>
               Paste keyframes
               <ContextMenuShortcut>{modShortcut('V')}</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem onSelect={() => copyStyleFromSelection()}>
+              Copy style
+              <ContextMenuShortcut>{modShortcut('⌥C')}</ContextMenuShortcut>
+            </ContextMenuItem>
+            <ContextMenuItem disabled={!canPasteStyle} onSelect={() => pasteStyleToSelection()}>
+              Paste style
+              <ContextMenuShortcut>{modShortcut('⌥V')}</ContextMenuShortcut>
             </ContextMenuItem>
             <ContextMenuItem variant="destructive" onSelect={() => removeSelectedLayer()}>
               <Trash2 />
@@ -157,6 +169,7 @@ export function CanvasContextMenu({ children, onPrepare }: CanvasContextMenuProp
         >
           <ZoomIn />
           Zoom to selection
+          <ContextMenuShortcut>{modShortcut('2')}</ContextMenuShortcut>
         </ContextMenuItem>
         <ContextMenuItem
           onSelect={() => {

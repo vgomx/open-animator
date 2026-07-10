@@ -15,6 +15,7 @@ type ColorFieldProps = {
   label: string
   value: string
   allowNone?: boolean
+  mixed?: boolean
   onChange: (value: string) => void
 }
 
@@ -36,9 +37,9 @@ function SwatchPreview({ color, className }: { color: string; className?: string
   )
 }
 
-export function ColorField({ label, value, allowNone = false, onChange }: ColorFieldProps) {
-  const transparent = isTransparentColor(value)
-  const displayHex = transparent ? '' : normalizeHex(value).replace('#', '').toUpperCase()
+export function ColorField({ label, value, allowNone = false, mixed = false, onChange }: ColorFieldProps) {
+  const transparent = !mixed && isTransparentColor(value)
+  const displayHex = mixed ? '' : transparent ? '' : normalizeHex(value).replace('#', '').toUpperCase()
   const [hexDraft, setHexDraft] = useState(displayHex)
   const [open, setOpen] = useState(false)
   const startEyedropper = useEditorStore((state) => state.startEyedropper)
@@ -77,7 +78,7 @@ export function ColorField({ label, value, allowNone = false, onChange }: ColorF
               className="flex w-9 shrink-0 items-center justify-center border-r border-input hover:bg-muted/40"
               aria-label={`Open ${label.toLowerCase()} color picker`}
             >
-              <SwatchPreview color={value} className="size-5" />
+              <SwatchPreview color={mixed ? 'transparent' : value} className="size-5" />
             </button>
           </PopoverTrigger>
           <Tooltip>
@@ -105,8 +106,8 @@ export function ColorField({ label, value, allowNone = false, onChange }: ColorF
               {transparent ? '' : '#'}
             </span>
             <Input
-              value={transparent ? 'None' : hexDraft}
-              readOnly={transparent}
+              value={mixed ? 'Mixed' : transparent ? 'None' : hexDraft}
+              readOnly={mixed || transparent}
               className={cn(
                 'h-7 rounded-none border-0 bg-transparent pr-2 font-mono text-xs uppercase shadow-none focus-visible:ring-0',
                 transparent ? 'pl-2' : 'pl-5',

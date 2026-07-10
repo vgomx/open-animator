@@ -11,6 +11,7 @@ type PropertyFieldProps = {
   type?: 'number' | 'text' | 'color'
   className?: string
   disabled?: boolean
+  mixed?: boolean
   onChange: (value: number | string) => void
 } & Pick<NumberInputProps, 'step' | 'shiftStep' | 'min' | 'max' | 'decimals'>
 
@@ -21,6 +22,7 @@ export function PropertyField({
   type = 'number',
   className,
   disabled = false,
+  mixed = false,
   step,
   shiftStep,
   min,
@@ -29,6 +31,7 @@ export function PropertyField({
   onChange,
 }: PropertyFieldProps) {
   const numericValue = typeof value === 'number' ? value : Number(value)
+  const isFieldDisabled = disabled || mixed
   const { scrubProps } = useNumberScrub({
     value: numericValue,
     onChange: (next) => onChange(next),
@@ -36,7 +39,7 @@ export function PropertyField({
     shiftStep,
     min,
     max,
-    disabled: disabled || type !== 'number',
+    disabled: isFieldDisabled || type !== 'number',
   })
 
   return (
@@ -44,29 +47,45 @@ export function PropertyField({
       <span
         className={cn(
           'text-[10px] font-medium uppercase tracking-wide text-muted-foreground',
-          type === 'number' && !disabled && scrubProps.className,
+          type === 'number' && !isFieldDisabled && scrubProps.className,
         )}
-        onPointerDown={type === 'number' && !disabled ? scrubProps.onPointerDown : undefined}
+        onPointerDown={type === 'number' && !isFieldDisabled ? scrubProps.onPointerDown : undefined}
       >
         {label}
       </span>
       {type === 'number' ? (
-        <NumberInput
-          value={numericValue}
-          suffix={suffix}
-          step={step}
-          shiftStep={shiftStep}
-          min={min}
-          max={max}
-          decimals={decimals}
-          disabled={disabled}
-          onChange={(next) => onChange(next)}
-        />
+        mixed ? (
+          <Input
+            type="text"
+            value=""
+            placeholder="Mixed"
+            className="h-7 px-2 text-xs text-muted-foreground"
+            onChange={(event) => {
+              const parsed = Number.parseFloat(event.target.value)
+              if (Number.isFinite(parsed)) {
+                onChange(parsed)
+              }
+            }}
+          />
+        ) : (
+          <NumberInput
+            value={numericValue}
+            suffix={suffix}
+            step={step}
+            shiftStep={shiftStep}
+            min={min}
+            max={max}
+            decimals={decimals}
+            disabled={disabled}
+            onChange={(next) => onChange(next)}
+          />
+        )
       ) : (
         <Input
           type={type}
-          value={value}
-          disabled={disabled}
+          value={mixed ? '' : value}
+          placeholder={mixed ? 'Mixed' : undefined}
+          disabled={isFieldDisabled}
           className="h-7 px-2 text-xs"
           onChange={(event) => onChange(event.target.value)}
         />

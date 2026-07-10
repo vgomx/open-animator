@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
 
 import { clientToArtboard } from '@/editor/coordinates'
-import { applyNodePosition, getShapeNodes, type ShapeNode } from '@/editor/path-nodes'
+import { applyNodePosition, getShapeNodes, pathPointsToString, type ShapeNode } from '@/editor/path-nodes'
 import type { Shape } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
 import { saveProjectToStorage } from '@/io/project'
@@ -73,11 +73,16 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
     event.currentTarget.setPointerCapture(event.pointerId)
   }
 
+  const pathData =
+    shape.type === 'path' && shape.points.length > 1
+      ? pathPointsToString(shape.points, shape.closed)
+      : null
+
   return (
     <g>
-      {shape.type === 'path' && shape.points.length > 1 ? (
-        <polyline
-          points={shape.points.map((point) => `${point.x},${point.y}`).join(' ')}
+      {pathData ? (
+        <path
+          d={pathData}
           fill="none"
           stroke="#a855f7"
           strokeWidth={1}
@@ -86,9 +91,60 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
           pointerEvents="none"
         />
       ) : null}
+      {shape.type === 'path'
+        ? shape.points.map((point, index) => (
+            <g key={`handles-${index}`} pointerEvents="none">
+              {point.handleIn ? (
+                <line
+                  x1={point.x}
+                  y1={point.y}
+                  x2={point.handleIn.x}
+                  y2={point.handleIn.y}
+                  stroke="#a855f7"
+                  strokeWidth={1}
+                  opacity={0.7}
+                />
+              ) : null}
+              {point.handleOut ? (
+                <line
+                  x1={point.x}
+                  y1={point.y}
+                  x2={point.handleOut.x}
+                  y2={point.handleOut.y}
+                  stroke="#a855f7"
+                  strokeWidth={1}
+                  opacity={0.7}
+                />
+              ) : null}
+            </g>
+          ))
+        : null}
       {nodes.map((node) => {
         const isSelected =
           node.index !== undefined ? selectedNodeIndices.includes(node.index) : false
+        const isHandle = node.role === 'handle-in' || node.role === 'handle-out'
+
+        if (isHandle) {
+          return (
+            <circle
+              key={node.id}
+              cx={node.x}
+              cy={node.y}
+              r={4}
+              className="cursor-pointer fill-[#c084fc]"
+              stroke={isSelected ? '#38bdf8' : '#a855f7'}
+              strokeWidth={1.5}
+              onPointerDown={(event) => {
+                if (node.index !== undefined) {
+                  selectNodes([node.index], {
+                    additive: event.shiftKey || event.metaKey || event.ctrlKey,
+                  })
+                }
+                beginDrag(event, node)
+              }}
+            />
+          )
+        }
 
         return (
           <rect

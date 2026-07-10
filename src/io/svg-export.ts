@@ -2,6 +2,7 @@ import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
 import type { Layer, Project, Shape } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
+import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
 
 function escapeXml(value: string): string {
@@ -44,11 +45,26 @@ function shapeMarkup(shape: Shape, className?: string, animated = false): string
   }
 
   if (shape.type === 'path') {
-    const d = shape.points
-      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
-      .join(' ')
-    const close = shape.closed ? ' Z' : ''
-    return `<path${classAttr} ${shared.join(' ')} d="${d}${close}" />`
+    const d = pathPointsToString(shape.points, shape.closed)
+    if (!d) {
+      return ''
+    }
+
+    const pathAttrs = [
+      `d="${d}"`,
+      `fill="${escapeXml(shape.fill)}"`,
+      `stroke="${escapeXml(shape.stroke)}"`,
+      `stroke-width="${shape.strokeWidth}"`,
+      `opacity="${shape.opacity}"`,
+      'stroke-linejoin="round"',
+      'stroke-linecap="round"',
+    ].join(' ')
+
+    if (animated && className) {
+      return `<g class="${className}"><path ${pathAttrs} /></g>`
+    }
+
+    return `<g transform="${buildShapeTransform(shape)}"><path ${pathAttrs} /></g>`
   }
 
   return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`

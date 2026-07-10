@@ -44,6 +44,8 @@ export type ShapeType = 'rect' | 'ellipse' | 'text' | 'path'
 export type PathPoint = {
   x: number
   y: number
+  handleIn?: { x: number; y: number } | null
+  handleOut?: { x: number; y: number } | null
 }
 
 export type PathShape = BaseShape & {

@@ -7,9 +7,9 @@ import {
   type ShapeBounds,
 } from '@/editor/bounds'
 import { clientToArtboard } from '@/editor/coordinates'
+import { translateShape } from '@/editor/shape-transform'
 import {
   collectSnapTargets,
-  shapePatchFromBoundsDelta,
   snapBounds,
   snapPoint,
   snapThresholdForZoom,
@@ -36,8 +36,8 @@ type DragMode =
       type: 'move'
       startX: number
       startY: number
-      boundsOriginX: number
-      boundsOriginY: number
+      primaryBoundsOrigin: ShapeBounds
+      initialShapes: Map<string, Shape>
     }
   | {
       type: 'resize'
@@ -97,16 +97,21 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
         const currentBounds = getShapeBounds(currentShape)
         const proposedBounds = {
           ...currentBounds,
-          x: drag.boundsOriginX + (point.x - drag.startX),
-          y: drag.boundsOriginY + (point.y - drag.startY),
+          x: drag.primaryBoundsOrigin.x + (point.x - drag.startX),
+          y: drag.primaryBoundsOrigin.y + (point.y - drag.startY),
         }
         const snapped = snapBounds(proposedBounds, targets, threshold)
         setActiveSnapLines(snapped.lines)
-        updateShape(
-          layerId,
-          shapePatchFromBoundsDelta(currentShape, snapped.bounds),
-          { skipHistory: true },
-        )
+        const deltaX = snapped.bounds.x - drag.primaryBoundsOrigin.x
+        const deltaY = snapped.bounds.y - drag.primaryBoundsOrigin.y
+
+        for (const [selectedId, initialShape] of drag.initialShapes) {
+          updateShape(
+            selectedId,
+            translateShape(initialShape, deltaX, deltaY),
+            { skipHistory: true },
+          )
+        }
         return
       }
 
@@ -197,12 +202,43 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
             return
           }
           const point = clientToArtboard(svg, event.clientX, event.clientY)
+          const store = useEditorStore.getState()
+          let initialShapes = new Map<string, Shape>()
+
+          if (event.altKey) {
+            store.duplicateSelectedLayerInPlace()
+            const nextStore = useEditorStore.getState()
+            for (const selectedId of nextStore.selectedLayerIds) {
+              const selectedLayer = nextStore.project.layers.find((item) => item.id === selectedId)
+              if (!selectedLayer || selectedLayer.locked) {
+                continue
+              }
+
+              initialShapes.set(
+                selectedId,
+                nextStore.getAnimatedShape(selectedLayer, nextStore.currentTime),
+              )
+            }
+          } else {
+            for (const selectedId of store.selectedLayerIds) {
+              const selectedLayer = store.project.layers.find((item) => item.id === selectedId)
+              if (!selectedLayer || selectedLayer.locked) {
+                continue
+              }
+
+              initialShapes.set(
+                selectedId,
+                store.getAnimatedShape(selectedLayer, store.currentTime),
+              )
+            }
+          }
+
           beginPointer(event, {
             type: 'move',
             startX: point.x,
             startY: point.y,
-            boundsOriginX: bounds.x,
-            boundsOriginY: bounds.y,
+            primaryBoundsOrigin: bounds,
+            initialShapes,
           })
         }}
       />

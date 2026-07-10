@@ -27,7 +27,34 @@ export function PenDraftLayer({ points, previewPoint }: PenDraftLayerProps) {
         />
       ) : null}
       {draftPoints.map((point, index) => (
-        <circle key={`${point.x}-${point.y}-${index}`} cx={point.x} cy={point.y} r={4} fill="#a855f7" />
+        <g key={`${point.x}-${point.y}-${index}`}>
+          {point.handleIn ? (
+            <line
+              x1={point.x}
+              y1={point.y}
+              x2={point.handleIn.x}
+              y2={point.handleIn.y}
+              stroke="#a855f7"
+              strokeWidth={1}
+              opacity={0.7}
+            />
+          ) : null}
+          {point.handleOut ? (
+            <line
+              x1={point.x}
+              y1={point.y}
+              x2={point.handleOut.x}
+              y2={point.handleOut.y}
+              stroke="#a855f7"
+              strokeWidth={1}
+              opacity={0.7}
+            />
+          ) : null}
+          <circle cx={point.x} cy={point.y} r={4} fill="#a855f7" />
+          {point.handleOut ? (
+            <circle cx={point.handleOut.x} cy={point.handleOut.y} r={3} fill="#c084fc" />
+          ) : null}
+        </g>
       ))}
     </g>
   )

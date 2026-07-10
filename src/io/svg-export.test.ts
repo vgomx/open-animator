@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { createDefaultProject } from '@/editor/scene'
+import { createDefaultProject, createLayerFromShape, createPathShape } from '@/editor/scene'
 import { exportAnimatedSvg, exportStaticSvg } from '@/io/svg-export'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
 
@@ -49,5 +49,23 @@ describe('svg export', () => {
     const svg = exportAnimatedSvg(project)
     expect(svg).toContain('@keyframes')
     expect(svg).toContain('animation:')
+  })
+
+  it('exports path shapes with svg path data', () => {
+    const project = createDefaultProject()
+    const pathLayer = createLayerFromShape(
+      createPathShape([
+        { x: 10, y: 20 },
+        { x: 50, y: 80 },
+      ]),
+      0,
+    )
+    project.layers = [pathLayer]
+
+    const svg = exportStaticSvg(project)
+
+    expect(svg).toContain('<path')
+    expect(svg).toContain('M 10 20 L 50 80')
+    expect(svg).toContain('stroke-linecap="round"')
   })
 })

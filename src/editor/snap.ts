@@ -2,6 +2,8 @@ import { getShapeBounds, type ShapeBounds } from '@/editor/bounds'
 import type { Guide, Layer, SnapLine } from '@/editor/types'
 import type { Shape } from '@/editor/types'
 
+export { shapePatchFromBoundsDelta } from '@/editor/shape-transform'
+
 export const DEFAULT_SNAP_THRESHOLD_PX = 8
 
 export type SnapTarget = SnapLine
@@ -154,16 +156,6 @@ export function snapPoint(
   }
 }
 
-export function shapePatchFromBoundsDelta(shape: Shape, bounds: ShapeBounds): Partial<Shape> {
-  const currentBounds = getShapeBounds(shape)
-  const deltaX = bounds.x - currentBounds.x
-  const deltaY = bounds.y - currentBounds.y
-
-  return {
-    x: shape.x + deltaX,
-    y: shape.y + deltaY,
-  }
-}
 
 export function snapThresholdForZoom(zoom: number): number {
   return DEFAULT_SNAP_THRESHOLD_PX / Math.max(zoom, 0.25)
