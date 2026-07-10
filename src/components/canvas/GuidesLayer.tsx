@@ -3,6 +3,7 @@ import { useEffect, useRef } from 'react'
 import { clientToArtboard } from '@/editor/coordinates'
 import type { Guide } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
+import { UI_PATH_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 
 type GuidesLayerProps = {
@@ -74,7 +75,7 @@ function GuideLine({
             y1={0}
             x2={guide.position}
             y2={height}
-            stroke="#22d3ee"
+            stroke={UI_PATH_STROKE}
             strokeWidth={1}
             pointerEvents="none"
           />
@@ -104,7 +105,7 @@ function GuideLine({
             y1={guide.position}
             x2={width}
             y2={guide.position}
-            stroke="#22d3ee"
+            stroke={UI_PATH_STROKE}
             strokeWidth={1}
             pointerEvents="none"
           />
@@ -148,7 +149,7 @@ export function GuidesLayer({ width, height }: GuidesLayerProps) {
             y1={0}
             x2={guideDraft.position}
             y2={height}
-            stroke="#22d3ee"
+            stroke={UI_PATH_STROKE}
             strokeWidth={1}
             strokeDasharray="4 4"
             opacity={0.8}
@@ -160,7 +161,7 @@ export function GuidesLayer({ width, height }: GuidesLayerProps) {
             y1={guideDraft.position}
             x2={width}
             y2={guideDraft.position}
-            stroke="#22d3ee"
+            stroke={UI_PATH_STROKE}
             strokeWidth={1}
             strokeDasharray="4 4"
             opacity={0.8}

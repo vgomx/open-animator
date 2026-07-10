@@ -5,6 +5,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
+import { AppLogo } from '@/components/shell/AppLogo'
 import { APP_AUTHOR, APP_GITHUB_URL, APP_LICENSE, APP_NAME } from '@/lib/app'
 
 type AboutDialogProps = {
@@ -20,11 +21,8 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader className="items-center gap-4 text-center">
-          <div
-            aria-hidden
-            className="flex size-16 items-center justify-center rounded-xl border border-dashed border-border bg-muted/40 text-xs font-medium uppercase tracking-wide text-muted-foreground"
-          >
-            Logo
+          <div className="flex size-16 items-center justify-center rounded-xl border border-border/60 bg-muted/30">
+            <AppLogo size={40} variant="accent" />
           </div>
           <div className="space-y-1">
             <DialogTitle className="text-lg">{APP_NAME}</DialogTitle>

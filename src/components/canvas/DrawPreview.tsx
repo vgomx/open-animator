@@ -1,5 +1,6 @@
 import type { PathPoint } from '@/editor/types'
 import { pathPointsToString } from '@/editor/path-nodes'
+import { BRAND, UI_PATH_FILL, UI_PATH_STROKE } from '@/lib/brand-colors'
 
 type PenDraftLayerProps = {
   points: PathPoint[]
@@ -20,7 +21,7 @@ export function PenDraftLayer({ points, previewPoint }: PenDraftLayerProps) {
         <path
           d={pathData}
           fill="none"
-          stroke="#a855f7"
+          stroke={UI_PATH_STROKE}
           strokeWidth={2}
           strokeDasharray="6 4"
           opacity={0.8}
@@ -34,7 +35,7 @@ export function PenDraftLayer({ points, previewPoint }: PenDraftLayerProps) {
               y1={point.y}
               x2={point.handleIn.x}
               y2={point.handleIn.y}
-              stroke="#a855f7"
+              stroke={UI_PATH_STROKE}
               strokeWidth={1}
               opacity={0.7}
             />
@@ -45,14 +46,14 @@ export function PenDraftLayer({ points, previewPoint }: PenDraftLayerProps) {
               y1={point.y}
               x2={point.handleOut.x}
               y2={point.handleOut.y}
-              stroke="#a855f7"
+              stroke={UI_PATH_STROKE}
               strokeWidth={1}
               opacity={0.7}
             />
           ) : null}
-          <circle cx={point.x} cy={point.y} r={4} fill="#a855f7" />
+          <circle cx={point.x} cy={point.y} r={4} fill={UI_PATH_STROKE} />
           {point.handleOut ? (
-            <circle cx={point.handleOut.x} cy={point.handleOut.y} r={3} fill="#c084fc" />
+            <circle cx={point.handleOut.x} cy={point.handleOut.y} r={3} fill={UI_PATH_FILL} />
           ) : null}
         </g>
       ))}
@@ -80,8 +81,8 @@ export function DrawPreview({ x, y, width, height, kind }: DrawPreviewProps) {
         cy={y + height / 2}
         rx={Math.max(1, width / 2)}
         ry={Math.max(1, height / 2)}
-        fill="rgba(99,102,241,0.15)"
-        stroke="#6366f1"
+        fill="rgba(242, 84, 45, 0.15)"
+        stroke={BRAND.accent}
         strokeWidth={1.5}
         strokeDasharray="4 3"
         pointerEvents="none"
@@ -95,8 +96,8 @@ export function DrawPreview({ x, y, width, height, kind }: DrawPreviewProps) {
       y={y}
       width={width}
       height={height}
-      fill="rgba(34,211,238,0.15)"
-      stroke="#22d3ee"
+      fill="rgba(224, 122, 85, 0.15)"
+      stroke={UI_PATH_STROKE}
       strokeWidth={1.5}
       strokeDasharray="4 3"
       pointerEvents="none"

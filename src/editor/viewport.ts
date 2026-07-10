@@ -29,6 +29,18 @@ export function zoomAtPoint(params: {
   }
 }
 
-export function wheelZoomFactor(deltaY: number): number {
-  return Math.exp(-deltaY * 0.01)
+const DOM_DELTA_PIXEL = 0
+const DOM_DELTA_LINE = 1
+const DOM_DELTA_PAGE = 2
+
+export function wheelZoomFactor(deltaY: number, deltaMode: number = DOM_DELTA_PIXEL): number {
+  const scale =
+    deltaMode === DOM_DELTA_LINE
+      ? 16
+      : deltaMode === DOM_DELTA_PAGE
+        ? 120
+        : 1
+
+  const normalizedDelta = deltaY * scale
+  return Math.exp(-normalizedDelta * 0.0025)
 }

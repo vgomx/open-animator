@@ -6,6 +6,7 @@ import type { AnimatableProperty } from '@/editor/types'
 import { ANIMATABLE_PROPERTIES } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
+import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, Flag, Sparkles } from 'lucide-react'
 
@@ -170,7 +171,7 @@ export function Timeline() {
             />
 
             <div
-              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-sky-400"
+              className="pointer-events-none absolute inset-y-0 z-10 w-px bg-primary"
               style={{
                 left: `${duration === 0 ? 0 : (currentTime / duration) * 100}%`,
               }}
@@ -185,7 +186,7 @@ export function Timeline() {
                     className="pointer-events-auto absolute top-0.5 -translate-x-1/2 rounded px-1 text-[10px] font-medium"
                     style={{
                       left: `${duration === 0 ? 0 : (marker.time / duration) * 100}%`,
-                      color: marker.color ?? '#38bdf8',
+                      color: marker.color ?? UI_STROKE,
                     }}
                     title={`${marker.name} @ ${formatTime(marker.time)}`}
                     onClick={(event) => {
@@ -273,7 +274,7 @@ export function Timeline() {
                           key={keyframe.id}
                           type="button"
                           className={cn(
-                            'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-sky-400 ring-2 ring-sky-400/20 active:cursor-grabbing',
+                            'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-primary ring-2 ring-primary/20 active:cursor-grabbing',
                             property === 'fill' || property === 'stroke'
                               ? 'ring-offset-1 ring-offset-background'
                               : '',

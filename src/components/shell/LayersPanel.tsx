@@ -29,6 +29,7 @@ type LayerRow = {
 }
 
 export function LayersPanel() {
+  const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
   const layers = useEditorStore((state) => state.project.layers)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const collapsedGroupIds = useEditorStore((state) => state.collapsedGroupIds)
@@ -86,6 +87,10 @@ export function LayersPanel() {
   }, [collapsedGroupIds, rows])
 
   const toActualIndex = (layerId: string) => layers.findIndex((item) => item.id === layerId)
+
+  if (!showLayersPanel) {
+    return null
+  }
 
   const renderLayerRow = (layer: Layer, indented = false) => {
     const isSelected = selectedLayerIds.includes(layer.id)
@@ -182,7 +187,7 @@ export function LayersPanel() {
   }
 
   return (
-    <aside className="glass-chrome absolute inset-y-0 left-0 z-10 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border/50">
+    <aside className="glass-chrome absolute inset-y-0 left-0 z-30 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border/50">
       <div className="glass-panel-header shrink-0 border-b px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
           <span>Layers</span>

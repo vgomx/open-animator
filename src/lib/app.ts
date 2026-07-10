@@ -1,5 +1,6 @@
-/** Display name for the project codename (not the official brand). */
 export const APP_NAME = 'Open Animator'
+
+export { APP_BRAND_ACCENT, BRAND, UI_PATH_STROKE, UI_STROKE } from '@/lib/brand-colors'
 
 /** npm / folder slug */
 export const APP_SLUG = 'open-animator'

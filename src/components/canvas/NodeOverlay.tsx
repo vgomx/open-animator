@@ -4,6 +4,7 @@ import { clientToArtboard } from '@/editor/coordinates'
 import { applyNodePosition, getShapeNodes, pathPointsToString, type ShapeNode } from '@/editor/path-nodes'
 import type { Shape } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
+import { UI_PATH_FILL, UI_PATH_STROKE, UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 import { cn } from '@/lib/utils'
 
@@ -84,7 +85,7 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
         <path
           d={pathData}
           fill="none"
-          stroke="#a855f7"
+          stroke={UI_PATH_STROKE}
           strokeWidth={1}
           strokeDasharray="4 3"
           opacity={0.6}
@@ -100,7 +101,7 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
                   y1={point.y}
                   x2={point.handleIn.x}
                   y2={point.handleIn.y}
-                  stroke="#a855f7"
+                  stroke={UI_PATH_STROKE}
                   strokeWidth={1}
                   opacity={0.7}
                 />
@@ -111,7 +112,7 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
                   y1={point.y}
                   x2={point.handleOut.x}
                   y2={point.handleOut.y}
-                  stroke="#a855f7"
+                  stroke={UI_PATH_STROKE}
                   strokeWidth={1}
                   opacity={0.7}
                 />
@@ -131,8 +132,9 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
               cx={node.x}
               cy={node.y}
               r={4}
-              className="cursor-pointer fill-[#c084fc]"
-              stroke={isSelected ? '#38bdf8' : '#a855f7'}
+              className="cursor-pointer"
+              fill={UI_PATH_FILL}
+              stroke={isSelected ? UI_STROKE : UI_PATH_STROKE}
               strokeWidth={1.5}
               onPointerDown={(event) => {
                 if (node.index !== undefined) {
@@ -154,7 +156,7 @@ export function NodeOverlay({ layerId, shape }: NodeOverlayProps) {
             width={8}
             height={8}
             className={cn('cursor-pointer', isSelected ? 'fill-primary' : 'fill-white')}
-            stroke={isSelected ? '#38bdf8' : '#a855f7'}
+            stroke={isSelected ? UI_STROKE : UI_PATH_STROKE}
             strokeWidth={1.5}
             onPointerDown={(event) => {
               if (node.index !== undefined) {

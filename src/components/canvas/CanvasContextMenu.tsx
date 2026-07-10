@@ -77,7 +77,7 @@ export function CanvasContextMenu({ children, onPrepare }: CanvasContextMenuProp
   const canPasteStyle = Boolean(styleClipboard) && hasSelection
   const isPlaying = playbackState === 'playing'
 
-  const zoomViewport = () => document.querySelector('[data-stage-viewport]')
+  const zoomViewport = () => document.querySelector('[data-canvas-viewport]')
 
   return (
     <ContextMenu>

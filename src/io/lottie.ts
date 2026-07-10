@@ -31,7 +31,18 @@ function readStaticVector(value: LottieAnimatedTrack | undefined, fallback: numb
   return value[0].s
 }
 
-function lottieEasingHandles(easing: Keyframe['easing']): Pick<LottieKeyframe, 'i' | 'o'> {
+function lottieEasingHandles(
+  easing: Keyframe['easing'],
+  bezier?: Keyframe['bezier'],
+): Pick<LottieKeyframe, 'i' | 'o'> {
+  if (easing === 'custom' && bezier) {
+    const [x1, y1, x2, y2] = bezier
+    return {
+      o: { x: [x1], y: [y1] },
+      i: { x: [x2], y: [y2] },
+    }
+  }
+
   switch (easing) {
     case 'easeIn':
       return { i: { x: [0.42], y: [0] }, o: { x: [1], y: [1] } }
@@ -95,7 +106,7 @@ function buildPropertyKeyframes(
   return track.map((keyframe) => ({
     t: Math.round(keyframe.time * frameRate),
     s: mapValue(keyframe.value as number, layer.shape),
-    ...lottieEasingHandles(keyframe.easing),
+    ...lottieEasingHandles(keyframe.easing, keyframe.bezier),
   }))
 }
 

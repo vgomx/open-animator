@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
-import { getCanvasChromeInsets } from '@/editor/viewport-chrome'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
 import { NodeOverlay } from '@/components/canvas/NodeOverlay'
@@ -11,13 +10,15 @@ import { SnapLinesLayer } from '@/components/canvas/SnapLinesLayer'
 import { ToolPalette } from '@/components/canvas/ToolPalette'
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu'
 import { EyedropperHint } from '@/components/canvas/EyedropperHint'
+import { TextEditOverlay } from '@/components/canvas/TextEditOverlay'
 import { getShapeBounds } from '@/editor/bounds'
+import { createPathPointWithHandle } from '@/editor/path-nodes'
 import { clientToArtboard } from '@/editor/coordinates'
 import { sampleColorFromArtboard } from '@/editor/eyedropper'
-import { TextEditOverlay } from '@/components/canvas/TextEditOverlay'
-import { createPathPointWithHandle } from '@/editor/path-nodes'
+import { getCanvasChromeInsets, getViewportPoint } from '@/editor/viewport-chrome'
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
 import { useEditorStore } from '@/editor/store'
+import { UI_STROKE } from '@/lib/brand-colors'
 import { wheelZoomFactor } from '@/editor/viewport'
 
 type DrawDraft = {
@@ -43,7 +44,21 @@ export function Stage() {
   const [drawDraft, setDrawDraft] = useState<DrawDraft | null>(null)
   const [penPreview, setPenPreview] = useState<{ x: number; y: number } | null>(null)
   const [penDrag, setPenDrag] = useState<{ anchor: { x: number; y: number } } | null>(null)
-  const penDragRef = useRef<{ anchor: { x: number; y: number } } | null>(null)
+  const drawDraftRef = useRef<DrawDraft | null>(null)
+  const marqueeRef = useRef(marquee)
+  const penDragRef = useRef(penDrag)
+
+  useEffect(() => {
+    drawDraftRef.current = drawDraft
+  }, [drawDraft])
+
+  useEffect(() => {
+    marqueeRef.current = marquee
+  }, [marquee])
+
+  useEffect(() => {
+    penDragRef.current = penDrag
+  }, [penDrag])
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(
     null,
   )
@@ -56,7 +71,10 @@ export function Stage() {
   const activeTool = useEditorStore((state) => state.activeTool)
   const penDraft = useEditorStore((state) => state.penDraft)
   const showRulers = useEditorStore((state) => state.showRulers)
+  const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
+  const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
   const onionSkinEnabled = useEditorStore((state) => state.onionSkinEnabled)
+  const onionSkinSettings = useEditorStore((state) => state.onionSkinSettings)
   const selectLayer = useEditorStore((state) => state.selectLayer)
   const selectLayers = useEditorStore((state) => state.selectLayers)
   const clearSelection = useEditorStore((state) => state.clearSelection)
@@ -80,7 +98,8 @@ export function Stage() {
   const editingTextLayerId = useEditorStore((state) => state.editingTextLayerId)
 
   const { width, height } = project.artboard
-  const onionOffset = 1 / 30
+  const frameStep = 1 / 30
+  const panelChrome = { showLayersPanel, showPropertiesPanel }
   const toolDef = getToolDefinition(activeTool)
   const isPanning = spacePressed || activeTool === 'hand'
   const cursor = eyedropperActive
@@ -96,10 +115,23 @@ export function Stage() {
       return null
     }
 
-    const frames = [
-      { time: currentTime - onionOffset, opacity: 0.28 },
-      { time: currentTime + onionOffset, opacity: 0.18 },
-    ]
+    const frames: Array<{ time: number; opacity: number; tint: string }> = []
+
+    for (let index = 1; index <= onionSkinSettings.framesBefore; index += 1) {
+      frames.push({
+        time: currentTime - index * frameStep,
+        opacity: onionSkinSettings.opacityBefore / index,
+        tint: onionSkinSettings.tintBefore,
+      })
+    }
+
+    for (let index = 1; index <= onionSkinSettings.framesAfter; index += 1) {
+      frames.push({
+        time: currentTime + index * frameStep,
+        opacity: onionSkinSettings.opacityAfter / index,
+        tint: onionSkinSettings.tintAfter,
+      })
+    }
 
     return frames.flatMap((frame) =>
       project.layers.map((layer) => {
@@ -109,10 +141,22 @@ export function Stage() {
 
         const time = Math.max(0, Math.min(frame.time, project.duration))
         const animatedShape = getAnimatedShape(layer, time)
+        const bounds = getShapeBounds(animatedShape)
 
         return (
-          <g key={`${layer.id}-${time}`} opacity={frame.opacity} pointerEvents="none">
-            <ShapeView shape={animatedShape} />
+          <g key={`${layer.id}-${time}`} pointerEvents="none">
+            <g opacity={frame.opacity}>
+              <ShapeView shape={animatedShape} />
+            </g>
+            <rect
+              x={bounds.x}
+              y={bounds.y}
+              width={bounds.width}
+              height={bounds.height}
+              fill={frame.tint}
+              opacity={0.18}
+              pointerEvents="none"
+            />
           </g>
         )
       }),
@@ -180,23 +224,59 @@ export function Stage() {
       return
     }
 
+    let zoomFrame: number | null = null
+    let pendingZoom: {
+      deltaY: number
+      deltaMode: number
+      clientX: number
+      clientY: number
+    } | null = null
+
+    const applyPendingZoom = () => {
+      zoomFrame = null
+      const pending = pendingZoom
+      pendingZoom = null
+      if (!pending) {
+        return
+      }
+
+      const viewport = canvasViewportRef.current
+      if (!viewport) {
+        return
+      }
+
+      const point = getViewportPoint(viewport, pending.clientX, pending.clientY)
+      zoomAtPoint(
+        wheelZoomFactor(pending.deltaY, pending.deltaMode),
+        point.x,
+        point.y,
+        point.width,
+        point.height,
+      )
+    }
+
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
 
-      const rect = container.getBoundingClientRect()
-      const { left: chromeLeft, top: chromeTop } = getCanvasChromeInsets(showRulers)
-      const pointX = event.clientX - rect.left - chromeLeft
-      const pointY = event.clientY - rect.top - chromeTop
       const shouldZoom = event.ctrlKey || event.altKey
 
       if (shouldZoom) {
-        zoomAtPoint(
-          wheelZoomFactor(event.deltaY),
-          pointX,
-          pointY,
-          rect.width - chromeLeft,
-          rect.height - chromeTop,
-        )
+        if (pendingZoom) {
+          pendingZoom.deltaY += event.deltaY
+          pendingZoom.clientX = event.clientX
+          pendingZoom.clientY = event.clientY
+        } else {
+          pendingZoom = {
+            deltaY: event.deltaY,
+            deltaMode: event.deltaMode,
+            clientX: event.clientX,
+            clientY: event.clientY,
+          }
+        }
+
+        if (zoomFrame === null) {
+          zoomFrame = requestAnimationFrame(applyPendingZoom)
+        }
         return
       }
 
@@ -204,158 +284,71 @@ export function Stage() {
     }
 
     container.addEventListener('wheel', onWheel, { passive: false })
-    return () => container.removeEventListener('wheel', onWheel)
-  }, [panBy, showRulers, zoomAtPoint])
+    return () => {
+      container.removeEventListener('wheel', onWheel)
+      if (zoomFrame !== null) {
+        cancelAnimationFrame(zoomFrame)
+      }
+    }
+  }, [panBy, zoomAtPoint])
 
-  useEffect(() => {
-    if (!marquee) {
+  const finishMarquee = () => {
+    const current = marqueeRef.current
+    if (!current) {
       return
     }
 
-    const onPointerMove = (event: PointerEvent) => {
-      const svg = svgRef.current
-      if (!svg) {
-        return
-      }
+    const left = Math.min(current.startX, current.currentX)
+    const right = Math.max(current.startX, current.currentX)
+    const top = Math.min(current.startY, current.currentY)
+    const bottom = Math.max(current.startY, current.currentY)
 
-      const point = clientToArtboard(svg, event.clientX, event.clientY)
-      setMarquee((current) =>
-        current
-          ? {
-              ...current,
-              currentX: point.x,
-              currentY: point.y,
-            }
-          : null,
-      )
+    const hits = project.layers
+      .filter((layer) => layer.visible)
+      .filter((layer) => {
+        const bounds = getShapeBounds(getAnimatedShape(layer, currentTime))
+        return bounds.x < right && bounds.x + bounds.width > left && bounds.y < bottom && bounds.y + bounds.height > top
+      })
+      .map((layer) => layer.id)
+
+    if (hits.length > 0) {
+      selectLayers(hits)
+    } else {
+      clearSelection()
     }
 
-    const onPointerUp = () => {
-      const svg = svgRef.current
-      if (!svg || !marquee) {
-        setMarquee(null)
-        return
-      }
+    setMarquee(null)
+  }
 
-      const left = Math.min(marquee.startX, marquee.currentX)
-      const right = Math.max(marquee.startX, marquee.currentX)
-      const top = Math.min(marquee.startY, marquee.currentY)
-      const bottom = Math.max(marquee.startY, marquee.currentY)
-
-      const hits = project.layers
-        .filter((layer) => layer.visible)
-        .filter((layer) => {
-          const bounds = getShapeBounds(getAnimatedShape(layer, currentTime))
-          return bounds.x < right && bounds.x + bounds.width > left && bounds.y < bottom && bounds.y + bounds.height > top
-        })
-        .map((layer) => layer.id)
-
-      if (hits.length > 0) {
-        selectLayers(hits)
-      } else {
-        clearSelection()
-      }
-
-      setMarquee(null)
-    }
-
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-    }
-  }, [clearSelection, currentTime, getAnimatedShape, marquee, project.layers, selectLayers])
-
-  useEffect(() => {
-    if (!drawDraft) {
+  const finishDrawDraft = () => {
+    const draft = drawDraftRef.current
+    if (!draft) {
       return
     }
 
-    const onPointerMove = (event: PointerEvent) => {
-      const svg = svgRef.current
-      if (!svg) {
-        return
-      }
+    const left = Math.min(draft.startX, draft.currentX)
+    const top = Math.min(draft.startY, draft.currentY)
+    const widthPx = Math.abs(draft.currentX - draft.startX)
+    const heightPx = Math.abs(draft.currentY - draft.startY)
 
-      const point = clientToArtboard(svg, event.clientX, event.clientY)
-      setDrawDraft((current) =>
-        current
-          ? {
-              ...current,
-              currentX: point.x,
-              currentY: point.y,
-            }
-          : null,
-      )
+    if (widthPx > 4 && heightPx > 4) {
+      createShapeInBounds(draft.kind, left, top, widthPx, heightPx)
     }
 
-    const onPointerUp = () => {
-      if (!drawDraft) {
-        return
-      }
+    setDrawDraft(null)
+  }
 
-      const left = Math.min(drawDraft.startX, drawDraft.currentX)
-      const top = Math.min(drawDraft.startY, drawDraft.currentY)
-      const widthPx = Math.abs(drawDraft.currentX - drawDraft.startX)
-      const heightPx = Math.abs(drawDraft.currentY - drawDraft.startY)
-
-      if (widthPx > 4 && heightPx > 4) {
-        createShapeInBounds(drawDraft.kind, left, top, widthPx, heightPx)
-      }
-
-      setDrawDraft(null)
-    }
-
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-    }
-  }, [createShapeInBounds, drawDraft])
-
-  useEffect(() => {
-    if (!penDrag) {
-      penDragRef.current = null
+  const finishPenDrag = (svg: SVGSVGElement, clientX: number, clientY: number) => {
+    const drag = penDragRef.current
+    if (!drag) {
       return
     }
 
-    penDragRef.current = penDrag
-
-    const onPointerMove = (event: PointerEvent) => {
-      const svg = svgRef.current
-      if (!svg) {
-        return
-      }
-
-      const point = clientToArtboard(svg, event.clientX, event.clientY)
-      setPenPreview(point)
-    }
-
-    const onPointerUp = (event: PointerEvent) => {
-      const svg = svgRef.current
-      const drag = penDragRef.current
-      if (!svg || !drag) {
-        setPenDrag(null)
-        setPenPreview(null)
-        return
-      }
-
-      const point = clientToArtboard(svg, event.clientX, event.clientY)
-      const pathPoint = createPathPointWithHandle(drag.anchor, point)
-      addPenDraftPoint(pathPoint)
-      setPenDrag(null)
-      setPenPreview(null)
-    }
-
-    window.addEventListener('pointermove', onPointerMove)
-    window.addEventListener('pointerup', onPointerUp)
-    return () => {
-      window.removeEventListener('pointermove', onPointerMove)
-      window.removeEventListener('pointerup', onPointerUp)
-    }
-  }, [addPenDraftPoint, penDrag])
+    const point = clientToArtboard(svg, clientX, clientY)
+    addPenDraftPoint(createPathPointWithHandle(drag.anchor, point))
+    setPenDrag(null)
+    setPenPreview(null)
+  }
 
   const beginPan = (event: React.PointerEvent) => {
     event.preventDefault()
@@ -396,26 +389,25 @@ export function Stage() {
 
     if (activeTool === 'zoom') {
       event.preventDefault()
-      const rect = containerRef.current?.getBoundingClientRect()
-      if (!rect) {
+      const viewport = canvasViewportRef.current
+      if (!viewport) {
         return
       }
 
-      const { left: chromeLeft, top: chromeTop } = getCanvasChromeInsets(showRulers)
-      const pointX = event.clientX - rect.left - chromeLeft
-      const pointY = event.clientY - rect.top - chromeTop
+      const point = getViewportPoint(viewport, event.clientX, event.clientY)
       zoomAtPoint(
         event.altKey ? 0.8 : 1.25,
-        pointX,
-        pointY,
-        rect.width - chromeLeft,
-        rect.height - chromeTop,
+        point.x,
+        point.y,
+        point.width,
+        point.height,
       )
       return
     }
 
     if (activeTool === 'pen') {
       event.preventDefault()
+      event.currentTarget.setPointerCapture(event.pointerId)
       const first = penDraft?.[0]
       if (first && penDraft && penDraft.length >= 2) {
         const distance = Math.hypot(point.x - first.x, point.y - first.y)
@@ -439,6 +431,7 @@ export function Stage() {
 
     if (isDrawTool(activeTool)) {
       event.preventDefault()
+      event.currentTarget.setPointerCapture(event.pointerId)
       setDrawDraft({
         startX: point.x,
         startY: point.y,
@@ -450,6 +443,7 @@ export function Stage() {
     }
 
     if (activeTool === 'select') {
+      event.currentTarget.setPointerCapture(event.pointerId)
       setMarquee({
         startX: point.x,
         startY: point.y,
@@ -465,15 +459,66 @@ export function Stage() {
   }
 
   const handleArtboardPointerMove = (event: React.PointerEvent<SVGSVGElement>) => {
-    if (activeTool !== 'pen' || penDrag) {
-      if (!penDrag) {
-        setPenPreview(null)
-      }
+    const svg = event.currentTarget
+    const point = clientToArtboard(svg, event.clientX, event.clientY)
+
+    if (drawDraftRef.current) {
+      setDrawDraft((current) =>
+        current
+          ? {
+              ...current,
+              currentX: point.x,
+              currentY: point.y,
+            }
+          : null,
+      )
       return
     }
 
-    const point = clientToArtboard(event.currentTarget, event.clientX, event.clientY)
-    setPenPreview(point)
+    if (marqueeRef.current) {
+      setMarquee((current) =>
+        current
+          ? {
+              ...current,
+              currentX: point.x,
+              currentY: point.y,
+            }
+          : null,
+      )
+      return
+    }
+
+    if (penDragRef.current) {
+      setPenPreview(point)
+      return
+    }
+
+    if (activeTool === 'pen') {
+      setPenPreview(point)
+      return
+    }
+
+    setPenPreview(null)
+  }
+
+  const handleArtboardPointerUp = (event: React.PointerEvent<SVGSVGElement>) => {
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId)
+    }
+
+    if (drawDraftRef.current) {
+      finishDrawDraft()
+      return
+    }
+
+    if (marqueeRef.current) {
+      finishMarquee()
+      return
+    }
+
+    if (penDragRef.current) {
+      finishPenDrag(event.currentTarget, event.clientX, event.clientY)
+    }
   }
 
   const penPreviewPoint =
@@ -532,7 +577,7 @@ export function Stage() {
     }
   }
 
-  const chromeInsets = getCanvasChromeInsets(showRulers)
+  const chromeInsets = getCanvasChromeInsets(showRulers, panelChrome)
 
   return (
     <div
@@ -570,7 +615,13 @@ export function Stage() {
               className="artboard-surface block"
               onPointerDown={handleArtboardPointerDown}
               onPointerMove={handleArtboardPointerMove}
-              onPointerLeave={() => setPenPreview(null)}
+              onPointerUp={handleArtboardPointerUp}
+              onPointerCancel={handleArtboardPointerUp}
+              onPointerLeave={() => {
+                if (!penDragRef.current) {
+                  setPenPreview(null)
+                }
+              }}
             >
               <GuidesLayer width={width} height={height} />
               <SnapLinesLayer width={width} height={height} />
@@ -648,8 +699,8 @@ export function Stage() {
                   y={marqueeRect.y}
                   width={marqueeRect.width}
                   height={marqueeRect.height}
-                  fill="rgba(56,189,248,0.12)"
-                  stroke="#38bdf8"
+                  fill="rgba(242, 84, 45, 0.12)"
+                  stroke={UI_STROKE}
                   strokeWidth={1}
                   strokeDasharray="4 3"
                   pointerEvents="none"
@@ -664,8 +715,9 @@ export function Stage() {
 
       <div
         ref={canvasViewportRef}
-        className="pointer-events-none absolute right-0 bottom-0"
-        style={{ left: chromeInsets.left, top: chromeInsets.top }}
+        data-canvas-viewport
+        className="pointer-events-none absolute bottom-0"
+        style={{ left: chromeInsets.left, top: chromeInsets.top, right: chromeInsets.right }}
       />
 
       <CanvasRulers svgRef={svgRef} canvasViewportRef={canvasViewportRef} />

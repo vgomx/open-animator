@@ -151,12 +151,17 @@ function Ruler({ axis, svgRef, canvasViewportRef }: RulerProps) {
 
 export function CanvasRulers({ svgRef, canvasViewportRef }: CanvasRulersProps) {
   const showRulers = useEditorStore((state) => state.showRulers)
+  const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
+  const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
 
   if (!showRulers) {
     return null
   }
 
-  const { left: chromeLeft, top: chromeTop } = getCanvasChromeInsets(true)
+  const { left: chromeLeft, top: chromeTop, right: chromeRight } = getCanvasChromeInsets(true, {
+    showLayersPanel,
+    showPropertiesPanel,
+  })
 
   return (
     <>
@@ -166,7 +171,7 @@ export function CanvasRulers({ svgRef, canvasViewportRef }: CanvasRulersProps) {
       />
       <div
         className="absolute z-20 min-h-0 min-w-0 overflow-hidden"
-        style={{ left: chromeLeft, top: 0, right: 0, height: RULER_X_SIZE }}
+        style={{ left: chromeLeft, top: 0, right: chromeRight, height: RULER_X_SIZE }}
       >
         <Ruler axis="x" svgRef={svgRef} canvasViewportRef={canvasViewportRef} />
       </div>

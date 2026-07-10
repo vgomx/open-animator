@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 
+import { DEFAULT_CUSTOM_BEZIER } from '@/editor/easing'
 import { getAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
 import { applyPresetToLayers, type PresetId, type PresetOptions } from '@/editor/presets'
@@ -29,18 +30,21 @@ import type { PathPoint } from '@/editor/types'
 import { clampZoom, zoomAtPoint } from '@/editor/viewport'
 import type {
   AnimatableProperty,
+  BezierHandle,
   EasingType,
   Guide,
   GuideAxis,
   Keyframe,
   Layer,
+  OnionSkinSettings,
   PlaybackState,
   Project,
   Shape,
   ShapeType,
   SnapLine,
 } from '@/editor/types'
-import { isColorProperty, isNumericProperty } from '@/editor/types'
+import { isColorProperty, isNumericProperty, DEFAULT_ONION_SKIN_SETTINGS } from '@/editor/types'
+import { UI_STROKE } from '@/lib/brand-colors'
 import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
 
@@ -72,7 +76,10 @@ type EditorStore = {
   panY: number
   snapEnabled: boolean
   showRulers: boolean
+  showLayersPanel: boolean
+  showPropertiesPanel: boolean
   onionSkinEnabled: boolean
+  onionSkinSettings: OnionSkinSettings
   activeSnapLines: SnapLine[]
   guideDraft: Pick<Guide, 'axis' | 'position'> | null
   history: HistoryStacks
@@ -120,12 +127,16 @@ type EditorStore = {
   fitToScreen: (viewportWidth: number, viewportHeight: number) => void
   resetViewport: () => void
   setProject: (project: Project) => void
+  importSvgLayers: (layers: Layer[], artboard?: { width: number; height: number }) => void
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
-  setKeyframeEasing: (property: AnimatableProperty, easing: EasingType) => void
+  setKeyframeEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
   moveKeyframe: (keyframeId: string, time: number, options?: { skipHistory?: boolean }) => void
   toggleSnapEnabled: () => void
   toggleShowRulers: () => void
+  toggleLayersPanel: () => void
+  togglePropertiesPanel: () => void
   toggleOnionSkinEnabled: () => void
+  setOnionSkinSettings: (patch: Partial<OnionSkinSettings>) => void
   setActiveSnapLines: (lines: SnapLine[]) => void
   setGuideDraft: (draft: Pick<Guide, 'axis' | 'position'> | null) => void
   addGuide: (axis: GuideAxis, position: number) => void
@@ -326,7 +337,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   panY: 0,
   snapEnabled: true,
   showRulers: true,
+  showLayersPanel: true,
+  showPropertiesPanel: true,
   onionSkinEnabled: false,
+  onionSkinSettings: { ...DEFAULT_ONION_SKIN_SETTINGS },
   activeSnapLines: [],
   guideDraft: null,
   history: { past: [], future: [] },
@@ -921,7 +935,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })
     }),
 
-  setKeyframeEasing: (property, easing) =>
+  setKeyframeEasing: (property, easing, bezier) =>
     set((state) => {
       const layer = state.project.layers.find((item) => item.id === state.selectedLayerId)
       if (!layer) {
@@ -952,16 +966,44 @@ export const useEditorStore = create<EditorStore>((set) => ({
             }
 
             const keyframes = [...item.keyframes]
-            keyframes[existingIndex] = {
+            const nextKeyframe = {
               ...keyframes[existingIndex],
               easing,
             }
+
+            if (easing === 'custom') {
+              nextKeyframe.bezier = bezier ?? DEFAULT_CUSTOM_BEZIER
+            } else {
+              delete nextKeyframe.bezier
+            }
+
+            keyframes[existingIndex] = nextKeyframe
 
             return { ...item, keyframes }
           }),
         }
 
         return { project }
+      })
+    }),
+
+  importSvgLayers: (layers, artboard) =>
+    set((state) => {
+      if (layers.length === 0) {
+        return state
+      }
+
+      return withHistory(state, (current) => {
+        const project = {
+          ...current.project,
+          layers: [...current.project.layers, ...layers],
+          artboard: artboard ?? current.project.artboard,
+        }
+
+        return {
+          project,
+          ...syncSelection(layers.map((layer) => layer.id)),
+        }
       })
     }),
 
@@ -997,7 +1039,20 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   toggleShowRulers: () => set((state) => ({ showRulers: !state.showRulers })),
 
+  toggleLayersPanel: () => set((state) => ({ showLayersPanel: !state.showLayersPanel })),
+
+  togglePropertiesPanel: () =>
+    set((state) => ({ showPropertiesPanel: !state.showPropertiesPanel })),
+
   toggleOnionSkinEnabled: () => set((state) => ({ onionSkinEnabled: !state.onionSkinEnabled })),
+
+  setOnionSkinSettings: (patch) =>
+    set((state) => ({
+      onionSkinSettings: {
+        ...state.onionSkinSettings,
+        ...patch,
+      },
+    })),
 
   setActiveSnapLines: (activeSnapLines) => set({ activeSnapLines }),
 
@@ -1329,7 +1384,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
                 id: createId(),
                 name: `Marker ${markerNumber}`,
                 time: current.currentTime,
-                color: '#38bdf8',
+                color: UI_STROKE,
               },
             ],
           },

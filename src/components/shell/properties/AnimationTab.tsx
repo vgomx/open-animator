@@ -11,7 +11,7 @@ import {
   formatAnimationValue,
 } from '@/components/shell/properties/AnimationPropertyField'
 import { PanelSection } from '@/components/shell/properties/PanelSection'
-import type { AnimatableProperty, EasingType, Layer, Shape } from '@/editor/types'
+import type { AnimatableProperty, BezierHandle, EasingType, Layer, Shape } from '@/editor/types'
 import { isColorProperty } from '@/editor/types'
 
 const TRANSFORM_PROPERTIES: AnimatableProperty[] = ['x', 'y', 'rotation', 'scale']
@@ -24,7 +24,7 @@ type AnimationTabProps = {
   recordMode: boolean
   currentTime: number
   onAddKeyframe: (property: AnimatableProperty) => void
-  onSetEasing: (property: AnimatableProperty, easing: EasingType) => void
+  onSetEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
   onUpdateShape: (patch: Partial<Shape>) => void
 }
 
@@ -57,7 +57,7 @@ function PropertySection({
   shape: Shape
   currentTime: number
   onAddKeyframe: (property: AnimatableProperty) => void
-  onSetEasing: (property: AnimatableProperty, easing: EasingType) => void
+  onSetEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
   onUpdateShape: (patch: Partial<Shape>) => void
   className?: string
 }) {
@@ -78,8 +78,9 @@ function PropertySection({
               colorValue={isColorProperty(property) ? String(shape[property]) : undefined}
               keyframeAtTime={Boolean(keyframeAtTime)}
               easing={keyframeAtTime?.easing ?? 'linear'}
+              bezier={keyframeAtTime?.bezier}
               onAddKeyframe={() => onAddKeyframe(property)}
-              onSetEasing={(easing) => onSetEasing(property, easing)}
+              onSetEasing={(nextEasing, nextBezier) => onSetEasing(property, nextEasing, nextBezier)}
               onColorChange={
                 isColorProperty(property)
                   ? (value) => onUpdateShape({ [property]: value } as Partial<Shape>)
