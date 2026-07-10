@@ -44,6 +44,13 @@ type DragMode =
       handle: ResizeHandle
       anchor: ShapeBounds
     }
+  | {
+      type: 'rotate'
+      centerX: number
+      centerY: number
+      startAngle: number
+      originRotation: number
+    }
 
 export function SelectionOverlay({ layerId, shape, interactive = true }: SelectionOverlayProps) {
   const updateShape = useEditorStore((state) => state.updateShape)
@@ -98,6 +105,17 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
         updateShape(
           layerId,
           shapePatchFromBoundsDelta(currentShape, snapped.bounds),
+          { skipHistory: true },
+        )
+        return
+      }
+
+      if (drag.type === 'rotate') {
+        const angle = Math.atan2(point.y - drag.centerY, point.x - drag.centerX)
+        const delta = ((angle - drag.startAngle) * 180) / Math.PI
+        updateShape(
+          layerId,
+          { rotation: drag.originRotation + delta },
           { skipHistory: true },
         )
         return
@@ -207,6 +225,40 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
           }}
         />
       ))}
+      <circle
+        cx={bounds.x + bounds.width / 2}
+        cy={bounds.y - 24}
+        r={5}
+        fill="#ffffff"
+        stroke="#38bdf8"
+        strokeWidth={1.5}
+        className="cursor-grab"
+        onPointerDown={(event) => {
+          const svg = event.currentTarget.ownerSVGElement
+          if (!svg) {
+            return
+          }
+          const point = clientToArtboard(svg, event.clientX, event.clientY)
+          const centerX = bounds.x + bounds.width / 2
+          const centerY = bounds.y + bounds.height / 2
+          beginPointer(event, {
+            type: 'rotate',
+            centerX,
+            centerY,
+            startAngle: Math.atan2(point.y - centerY, point.x - centerX),
+            originRotation: shape.rotation,
+          })
+        }}
+      />
+      <line
+        x1={bounds.x + bounds.width / 2}
+        y1={bounds.y}
+        x2={bounds.x + bounds.width / 2}
+        y2={bounds.y - 24}
+        stroke="#38bdf8"
+        strokeWidth={1}
+        pointerEvents="none"
+      />
         </>
       )}
     </g>

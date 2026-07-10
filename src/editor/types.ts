@@ -39,7 +39,18 @@ export type EasingType =
   | 'back'
   | 'hold'
 
-export type ShapeType = 'rect' | 'ellipse' | 'text'
+export type ShapeType = 'rect' | 'ellipse' | 'text' | 'path'
+
+export type PathPoint = {
+  x: number
+  y: number
+}
+
+export type PathShape = BaseShape & {
+  type: 'path'
+  points: PathPoint[]
+  closed: boolean
+}
 
 export type BaseShape = {
   id: string
@@ -73,7 +84,7 @@ export type TextShape = BaseShape & {
   fontFamily: string
 }
 
-export type Shape = RectShape | EllipseShape | TextShape
+export type Shape = RectShape | EllipseShape | TextShape | PathShape
 
 export type Keyframe = {
   id: string

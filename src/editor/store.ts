@@ -22,7 +22,10 @@ import {
   undoSnapshot,
   type HistoryStacks,
 } from '@/editor/history'
-import { cloneLayer, createId, createLayer } from '@/editor/scene'
+import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape } from '@/editor/scene'
+import type { EditorTool } from '@/editor/tools'
+import { deletePathNodes } from '@/editor/path-nodes'
+import type { PathPoint } from '@/editor/types'
 import { clampZoom, zoomAtPoint } from '@/editor/viewport'
 import type {
   AnimatableProperty,
@@ -73,6 +76,11 @@ type EditorStore = {
   guideDraft: Pick<Guide, 'axis' | 'position'> | null
   history: HistoryStacks
   keyframeClipboard: Keyframe[]
+  activeTool: EditorTool
+  selectedNodeIndices: number[]
+  penDraft: PathPoint[] | null
+  eyedropperActive: boolean
+  eyedropperHandler: ((color: string) => void) | null
   setSelectedLayerId: (layerId: string | null) => void
   selectLayer: (layerId: string, options?: { additive?: boolean }) => void
   selectLayers: (layerIds: string[]) => void
@@ -128,6 +136,25 @@ type EditorStore = {
   groupSelectedLayers: () => void
   ungroupSelectedLayers: () => void
   zoomToSelection: (viewportWidth: number, viewportHeight: number) => void
+  setActiveTool: (tool: EditorTool) => void
+  selectNodes: (indices: number[], options?: { additive?: boolean }) => void
+  clearNodeSelection: () => void
+  addPenDraftPoint: (point: PathPoint) => void
+  finishPenPath: (closed?: boolean) => void
+  cancelPenDraft: () => void
+  deleteSelectedNodes: () => void
+  addLayerWithShape: (shape: Shape) => void
+  createShapeInBounds: (
+    type: 'rect' | 'ellipse',
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+  ) => void
+  createTextAt: (x: number, y: number) => void
+  startEyedropper: (handler: (color: string) => void) => void
+  cancelEyedropper: () => void
+  completeEyedropper: (color: string) => void
   undo: () => void
   redo: () => void
   beginHistoryTransaction: () => void
@@ -188,6 +215,10 @@ function applyAutoKeyframes(
     }
 
     if (isColorProperty(property as AnimatableProperty) && typeof value !== 'string') {
+      continue
+    }
+
+    if (typeof value !== 'number' && typeof value !== 'string') {
       continue
     }
 
@@ -288,27 +319,170 @@ export const useEditorStore = create<EditorStore>((set) => ({
   guideDraft: null,
   history: { past: [], future: [] },
   keyframeClipboard: [],
+  activeTool: 'select',
+  selectedNodeIndices: [],
+  penDraft: null,
+  eyedropperActive: false,
+  eyedropperHandler: null,
 
   setSelectedLayerId: (layerId) =>
     set(layerId ? syncSelection([layerId]) : syncSelection([])),
 
   selectLayer: (layerId, options) =>
     set((state) => {
-      if (!options?.additive) {
-        return syncSelection([layerId])
-      }
+      const next =
+        !options?.additive
+          ? syncSelection([layerId])
+          : state.selectedLayerIds.includes(layerId)
+            ? syncSelection(state.selectedLayerIds.filter((id) => id !== layerId))
+            : syncSelection([...state.selectedLayerIds, layerId])
 
-      if (state.selectedLayerIds.includes(layerId)) {
-        const nextIds = state.selectedLayerIds.filter((id) => id !== layerId)
-        return syncSelection(nextIds)
-      }
-
-      return syncSelection([...state.selectedLayerIds, layerId])
+      return { ...next, selectedNodeIndices: [] }
     }),
 
-  clearSelection: () => set(syncSelection([])),
+  clearSelection: () => set({ ...syncSelection([]), selectedNodeIndices: [] }),
 
-  selectLayers: (layerIds) => set(syncSelection([...layerIds])),
+  selectLayers: (layerIds) => set({ ...syncSelection([...layerIds]), selectedNodeIndices: [] }),
+
+  setActiveTool: (tool) =>
+    set((state) => ({
+      activeTool: tool,
+      selectedNodeIndices: tool === 'node' ? state.selectedNodeIndices : [],
+      penDraft: tool === 'pen' ? state.penDraft : null,
+    })),
+
+  selectNodes: (indices, options) =>
+    set((state) => {
+      if (!options?.additive) {
+        return { selectedNodeIndices: [...indices] }
+      }
+
+      const next = new Set(state.selectedNodeIndices)
+      for (const index of indices) {
+        if (next.has(index)) {
+          next.delete(index)
+        } else {
+          next.add(index)
+        }
+      }
+
+      return { selectedNodeIndices: [...next] }
+    }),
+
+  clearNodeSelection: () => set({ selectedNodeIndices: [] }),
+
+  addPenDraftPoint: (point) =>
+    set((state) => ({
+      penDraft: [...(state.penDraft ?? []), point],
+    })),
+
+  finishPenPath: (closed = false) =>
+    set((state) => {
+      if (!state.penDraft || state.penDraft.length < 2) {
+        return { penDraft: null }
+      }
+
+      const shape = createPathShape(state.penDraft, closed)
+      const layer = createLayerFromShape(shape, state.project.layers.length)
+
+      return withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          layers: [...current.project.layers, layer],
+        },
+        ...syncSelection([layer.id]),
+        penDraft: null,
+        activeTool: 'select',
+      }))
+    }),
+
+  cancelPenDraft: () => set({ penDraft: null }),
+
+  deleteSelectedNodes: () =>
+    set((state) => {
+      if (!state.selectedLayerId || state.selectedNodeIndices.length === 0) {
+        return state
+      }
+
+      return withHistory(state, (current) => {
+        const layer = current.project.layers.find((item) => item.id === current.selectedLayerId)
+        if (!layer || layer.shape.type !== 'path') {
+          return {}
+        }
+
+        const patch = deletePathNodes(layer.shape, current.selectedNodeIndices)
+        if (!patch) {
+          return {
+            project: {
+              ...current.project,
+              layers: current.project.layers.filter((item) => item.id !== layer.id),
+            },
+            ...syncSelection([]),
+            selectedNodeIndices: [],
+          }
+        }
+
+        return {
+          project: {
+            ...current.project,
+            layers: current.project.layers.map((item) =>
+              item.id === layer.id
+                ? { ...item, shape: { ...item.shape, ...patch } as Shape }
+                : item,
+            ),
+          },
+          selectedNodeIndices: [],
+        }
+      })
+    }),
+
+  addLayerWithShape: (shape) =>
+    set((state) =>
+      withHistory(state, (current) => {
+        const layer = createLayerFromShape(shape, current.project.layers.length)
+        return {
+          project: {
+            ...current.project,
+            layers: [...current.project.layers, layer],
+          },
+          ...syncSelection([layer.id]),
+          activeTool: 'select',
+        }
+      }),
+    ),
+
+  createShapeInBounds: (type, x, y, width, height) => {
+    const shape =
+      type === 'rect'
+        ? createRectShape(x, y, width, height)
+        : createEllipseShape(x, y, width, height)
+    useEditorStore.getState().addLayerWithShape(shape)
+  },
+
+  createTextAt: (x, y) => {
+    useEditorStore.getState().addLayerWithShape(createTextShape(x, y))
+  },
+
+  startEyedropper: (handler) =>
+    set({
+      eyedropperActive: true,
+      eyedropperHandler: handler,
+    }),
+
+  cancelEyedropper: () =>
+    set({
+      eyedropperActive: false,
+      eyedropperHandler: null,
+    }),
+
+  completeEyedropper: (color) =>
+    set((state) => {
+      state.eyedropperHandler?.(color)
+      return {
+        eyedropperActive: false,
+        eyedropperHandler: null,
+      }
+    }),
 
   addShape: (type) =>
     set((state) =>

@@ -32,15 +32,37 @@ export function getShapeBounds(shape: Shape): ShapeBounds {
     }
   }
 
-  const width = shape.rx * 2 * shape.scale
-  const height = shape.ry * 2 * shape.scale
-
-  return {
-    x: shape.x - shape.rx * shape.scale,
-    y: shape.y - shape.ry * shape.scale,
-    width,
-    height,
+  if (shape.type === 'path') {
+    if (shape.points.length === 0) {
+      return { x: shape.x, y: shape.y, width: 0, height: 0 }
+    }
+    const xs = shape.points.map((point) => point.x)
+    const ys = shape.points.map((point) => point.y)
+    const minX = Math.min(...xs)
+    const minY = Math.min(...ys)
+    const maxX = Math.max(...xs)
+    const maxY = Math.max(...ys)
+    return {
+      x: minX,
+      y: minY,
+      width: maxX - minX,
+      height: maxY - minY,
+    }
   }
+
+  if (shape.type === 'ellipse') {
+    const width = shape.rx * 2 * shape.scale
+    const height = shape.ry * 2 * shape.scale
+
+    return {
+      x: shape.x - shape.rx * shape.scale,
+      y: shape.y - shape.ry * shape.scale,
+      width,
+      height,
+    }
+  }
+
+  return { x: 0, y: 0, width: 0, height: 0 }
 }
 
 export type ResizeHandle = 'nw' | 'ne' | 'sw' | 'se'
@@ -113,32 +135,36 @@ export function applyResize(
     }
   }
 
-  let left = anchor.x
-  let top = anchor.y
-  let right = anchor.x + anchor.width
-  let bottom = anchor.y + anchor.height
+  if (shape.type === 'ellipse') {
+    let left = anchor.x
+    let top = anchor.y
+    let right = anchor.x + anchor.width
+    let bottom = anchor.y + anchor.height
 
-  if (handle.includes('w')) {
-    left = Math.min(pointerX, right - minSize)
-  }
-  if (handle.includes('e')) {
-    right = Math.max(pointerX, left + minSize)
-  }
-  if (handle.includes('n')) {
-    top = Math.min(pointerY, bottom - minSize)
-  }
-  if (handle.includes('s')) {
-    bottom = Math.max(pointerY, top + minSize)
+    if (handle.includes('w')) {
+      left = Math.min(pointerX, right - minSize)
+    }
+    if (handle.includes('e')) {
+      right = Math.max(pointerX, left + minSize)
+    }
+    if (handle.includes('n')) {
+      top = Math.min(pointerY, bottom - minSize)
+    }
+    if (handle.includes('s')) {
+      bottom = Math.max(pointerY, top + minSize)
+    }
+
+    const scale = shape.scale || 1
+    const centerX = (left + right) / 2
+    const centerY = (top + bottom) / 2
+
+    return {
+      x: centerX,
+      y: centerY,
+      rx: (right - left) / 2 / scale,
+      ry: (bottom - top) / 2 / scale,
+    }
   }
 
-  const scale = shape.scale || 1
-  const centerX = (left + right) / 2
-  const centerY = (top + bottom) / 2
-
-  return {
-    x: centerX,
-    y: centerY,
-    rx: (right - left) / 2 / scale,
-    ry: (bottom - top) / 2 / scale,
-  }
+  return {}
 }

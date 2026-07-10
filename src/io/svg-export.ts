@@ -43,6 +43,14 @@ function shapeMarkup(shape: Shape, className?: string, animated = false): string
     return `<text${classAttr} x="${shape.x}" y="${shape.y}" font-size="${shape.fontSize}" font-family="${escapeXml(shape.fontFamily)}" fill="${escapeXml(shape.fill)}" opacity="${shape.opacity}">${escapeXml(shape.text)}</text>`
   }
 
+  if (shape.type === 'path') {
+    const d = shape.points
+      .map((point, index) => `${index === 0 ? 'M' : 'L'} ${point.x} ${point.y}`)
+      .join(' ')
+    const close = shape.closed ? ' Z' : ''
+    return `<path${classAttr} ${shared.join(' ')} d="${d}${close}" />`
+  }
+
   return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
 }
 

@@ -1,4 +1,5 @@
 import type { Shape } from '@/editor/types'
+import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
 
 type ShapeViewProps = {
@@ -32,6 +33,26 @@ export function ShapeView({ shape }: ShapeViewProps) {
       >
         {shape.text}
       </text>
+    )
+  }
+
+  if (shape.type === 'path') {
+    const pathData = pathPointsToString(shape.points, shape.closed)
+    if (!pathData) {
+      return null
+    }
+
+    return (
+      <path
+        d={pathData}
+        transform={transform}
+        fill={shape.fill === 'none' ? 'none' : shape.fill}
+        stroke={shape.stroke}
+        strokeWidth={shape.strokeWidth}
+        opacity={shape.opacity}
+        strokeLinejoin="round"
+        strokeLinecap="round"
+      />
     )
   }
 

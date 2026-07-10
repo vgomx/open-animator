@@ -13,7 +13,7 @@ export function SnapLinesLayer({ width, height }: SnapLinesLayerProps) {
   }
 
   return (
-    <g pointerEvents="none">
+    <g data-eyedropper-ignore pointerEvents="none">
       {activeSnapLines.map((line, index) =>
         line.axis === 'x' ? (
           <line

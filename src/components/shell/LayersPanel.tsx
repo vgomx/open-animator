@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { Eye, EyeOff, GripVertical, Lock, Unlock } from 'lucide-react'
+import { Eye, EyeOff, GripVertical, Group, Lock, Timer, Unlock, Ungroup } from 'lucide-react'
 
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
 
@@ -18,24 +19,65 @@ export function LayersPanel() {
   const [dragIndex, setDragIndex] = useState<number | null>(null)
 
   const displayLayers = [...layers].reverse()
+  const canGroupOrStagger = selectedLayerIds.length >= 2
+  const canUngroup = selectedLayerIds.some((id) => {
+    const layer = layers.find((item) => item.id === id)
+    return Boolean(layer?.groupId)
+  })
 
   const toActualIndex = (displayIndex: number) => layers.length - 1 - displayIndex
 
   return (
-    <aside className="glass-panel absolute inset-y-0 left-0 z-10 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border/50">
-      <div className="glass-panel-header shrink-0 border-b px-3 py-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+    <aside className="glass-chrome absolute inset-y-0 left-0 z-10 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border/50">
+      <div className="glass-panel-header shrink-0 border-b px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
           <span>Layers</span>
-          <div className="flex gap-1">
-            <Button variant="ghost" size="icon-xs" title="Group" onClick={() => groupSelectedLayers()}>
-              G
-            </Button>
-            <Button variant="ghost" size="icon-xs" title="Ungroup" onClick={() => ungroupSelectedLayers()}>
-              U
-            </Button>
-            <Button variant="ghost" size="icon-xs" title="Stagger 0.1s" onClick={() => staggerSelectedLayers(0.1)}>
-              S
-            </Button>
+          <div className="flex gap-0.5">
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={!canGroupOrStagger}
+                  onClick={() => groupSelectedLayers()}
+                >
+                  <Group className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Group selected layers
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={!canUngroup}
+                  onClick={() => ungroupSelectedLayers()}
+                >
+                  <Ungroup className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Ungroup selected layers
+              </TooltipContent>
+            </Tooltip>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  disabled={!canGroupOrStagger}
+                  onClick={() => staggerSelectedLayers(0.1)}
+                >
+                  <Timer className="size-3.5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent side="bottom">
+                Stagger animation by 0.1s per layer
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       </div>
@@ -94,28 +136,42 @@ export function LayersPanel() {
                   >
                     {layer.name}
                   </button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() =>
-                      updateLayer(layer.id, {
-                        locked: !layer.locked,
-                      })
-                    }
-                  >
-                    {layer.locked ? <Lock /> : <Unlock />}
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon-xs"
-                    onClick={() =>
-                      updateLayer(layer.id, {
-                        visible: !layer.visible,
-                      })
-                    }
-                  >
-                    {layer.visible ? <Eye /> : <EyeOff />}
-                  </Button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          updateLayer(layer.id, {
+                            locked: !layer.locked,
+                          })
+                        }
+                      >
+                        {layer.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {layer.locked ? 'Unlock layer' : 'Lock layer'}
+                    </TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        onClick={() =>
+                          updateLayer(layer.id, {
+                            visible: !layer.visible,
+                          })
+                        }
+                      >
+                        {layer.visible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {layer.visible ? 'Hide layer' : 'Show layer'}
+                    </TooltipContent>
+                  </Tooltip>
                 </div>
               )
             })

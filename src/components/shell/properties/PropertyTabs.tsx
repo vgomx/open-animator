@@ -1,4 +1,5 @@
 import { AlignSection } from '@/components/shell/properties/AlignSection'
+import { ColorField } from '@/components/shell/properties/ColorField'
 import { PanelSection } from '@/components/shell/properties/PanelSection'
 import { PropertyField, PropertyGrid } from '@/components/shell/properties/PropertyField'
 import { Input } from '@/components/ui/input'
@@ -11,37 +12,6 @@ type DesignTabProps = {
   shape: Shape
   onRename: (name: string) => void
   onUpdateShape: (patch: Partial<Shape>) => void
-}
-
-function ColorField({
-  label,
-  value,
-  onChange,
-}: {
-  label: string
-  value: string
-  onChange: (value: string) => void
-}) {
-  return (
-    <label className="flex min-w-0 flex-col gap-1">
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-        {label}
-      </span>
-      <div className="flex items-center gap-2">
-        <Input
-          type="color"
-          value={value}
-          className="h-7 w-10 shrink-0 cursor-pointer p-1"
-          onChange={(event) => onChange(event.target.value)}
-        />
-        <Input
-          value={value}
-          className="h-7 min-w-0 flex-1 px-2 font-mono text-xs uppercase"
-          onChange={(event) => onChange(event.target.value)}
-        />
-      </div>
-    </label>
-  )
 }
 
 export function DesignTab({
@@ -93,7 +63,7 @@ export function DesignTab({
                 onChange={(value) => onUpdateShape({ fontSize: Number(value) })}
               />
             </>
-          ) : (
+          ) : shape.type === 'ellipse' ? (
             <>
               <PropertyField
                 label="RX"
@@ -108,6 +78,13 @@ export function DesignTab({
                 onChange={(value) => onUpdateShape({ ry: Number(value) })}
               />
             </>
+          ) : (
+            <PropertyField
+              label="Points"
+              value={shape.points.length}
+              disabled
+              onChange={() => undefined}
+            />
           )}
         </PropertyGrid>
         <PropertyGrid columns={3}>
@@ -115,17 +92,28 @@ export function DesignTab({
             label="Rotation"
             value={shape.rotation}
             suffix="°"
+            decimals={1}
+            step={1}
+            shiftStep={15}
             onChange={(value) => onUpdateShape({ rotation: Number(value) })}
           />
           <PropertyField
             label="Scale"
             value={shape.scale}
+            decimals={2}
+            step={0.01}
+            shiftStep={0.1}
+            min={0.01}
             onChange={(value) => onUpdateShape({ scale: Number(value) })}
           />
           <PropertyField
             label="Opacity"
             value={Math.round(shape.opacity * 100)}
             suffix="%"
+            min={0}
+            max={100}
+            step={1}
+            shiftStep={10}
             onChange={(value) => onUpdateShape({ opacity: Number(value) / 100 })}
           />
         </PropertyGrid>
@@ -149,6 +137,7 @@ export function DesignTab({
         <ColorField
           label="Color"
           value={shape.stroke}
+          allowNone
           onChange={(value) => onUpdateShape({ stroke: value })}
         />
         <PropertyField

@@ -1,5 +1,6 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { RULER_X_SIZE } from '@/editor/layout-constants'
 import { AnimationTab } from '@/components/shell/properties/AnimationTab'
 import { DesignTab } from '@/components/shell/properties/PropertyTabs'
 import { getAnimatedShape } from '@/editor/animation'
@@ -8,6 +9,7 @@ import { Layers2, Sparkles } from 'lucide-react'
 
 export function PropertiesPanel() {
   const selectedLayer = useSelectedLayer()
+  const showRulers = useEditorStore((state) => state.showRulers)
   const selectedCount = useEditorStore((state) => state.selectedLayerIds.length)
   const currentTime = useEditorStore((state) => state.currentTime)
   const recordMode = useEditorStore((state) => state.recordMode)
@@ -16,9 +18,17 @@ export function PropertiesPanel() {
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
 
+  const panelStyle = {
+    top: showRulers ? RULER_X_SIZE : 0,
+    bottom: 0,
+  } as const
+
   if (!selectedLayer) {
     return (
-      <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50">
+      <aside
+        className="glass-chrome absolute right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50"
+        style={panelStyle}
+      >
         <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Layers2 className="size-3.5 text-muted-foreground" />
@@ -37,7 +47,10 @@ export function PropertiesPanel() {
   const shape = getAnimatedShape(selectedLayer, currentTime)
 
   return (
-    <aside className="glass-panel absolute inset-y-0 right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50">
+    <aside
+      className="glass-chrome absolute right-0 z-10 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50"
+      style={panelStyle}
+    >
       <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Layers2 className="size-3.5 text-muted-foreground" />

@@ -1,6 +1,8 @@
 import type {
   EllipseShape,
   Layer,
+  PathPoint,
+  PathShape,
   Project,
   RectShape,
   Shape,
@@ -70,6 +72,24 @@ function baseShape(type: ShapeType): Shape {
     return shape
   }
 
+  if (type === 'path') {
+    const shape: PathShape = {
+      id,
+      type: 'path',
+      x: 0,
+      y: 0,
+      rotation: 0,
+      points: [],
+      closed: false,
+      fill: 'none',
+      stroke: '#a855f7',
+      strokeWidth: 2,
+      opacity: 1,
+      scale: 1,
+    }
+    return shape
+  }
+
   const shape: RectShape = {
     id,
     type: 'rect',
@@ -85,6 +105,93 @@ function baseShape(type: ShapeType): Shape {
     scale: 1,
   }
   return shape
+}
+
+export function createLayerFromShape(shape: Shape, index: number, name?: string): Layer {
+  return {
+    id: createId(),
+    name: name ?? getLayerName(shape.type, index),
+    visible: true,
+    locked: false,
+    groupId: null,
+    delay: 0,
+    shape,
+    keyframes: [],
+  }
+}
+
+export function createRectShape(x: number, y: number, width: number, height: number): RectShape {
+  return {
+    id: createId(),
+    type: 'rect',
+    x,
+    y,
+    width: Math.max(1, width),
+    height: Math.max(1, height),
+    rotation: 0,
+    fill: '#22d3ee',
+    stroke: '#155e75',
+    strokeWidth: 2,
+    opacity: 1,
+    scale: 1,
+  }
+}
+
+export function createEllipseShape(
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+): EllipseShape {
+  return {
+    id: createId(),
+    type: 'ellipse',
+    x: x + width / 2,
+    y: y + height / 2,
+    rotation: 0,
+    rx: Math.max(1, width / 2),
+    ry: Math.max(1, height / 2),
+    fill: '#6366f1',
+    stroke: '#312e81',
+    strokeWidth: 2,
+    opacity: 1,
+    scale: 1,
+  }
+}
+
+export function createTextShape(x: number, y: number): TextShape {
+  return {
+    id: createId(),
+    type: 'text',
+    x,
+    y,
+    rotation: 0,
+    text: 'Text',
+    fontSize: 48,
+    fontFamily: 'Geist, system-ui, sans-serif',
+    fill: '#f8fafc',
+    stroke: 'none',
+    strokeWidth: 0,
+    opacity: 1,
+    scale: 1,
+  }
+}
+
+export function createPathShape(points: PathPoint[], closed = false): PathShape {
+  return {
+    id: createId(),
+    type: 'path',
+    x: 0,
+    y: 0,
+    rotation: 0,
+    points,
+    closed,
+    fill: 'none',
+    stroke: '#a855f7',
+    strokeWidth: 2,
+    opacity: 1,
+    scale: 1,
+  }
 }
 
 export function createLayer(type: ShapeType, index: number): Layer {
@@ -131,6 +238,9 @@ export function getLayerName(type: ShapeType, index: number): string {
   }
   if (type === 'text') {
     return `Text ${index + 1}`
+  }
+  if (type === 'path') {
+    return `Path ${index + 1}`
   }
   return `Ellipse ${index + 1}`
 }
