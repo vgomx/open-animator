@@ -137,7 +137,7 @@ export function GuidesLayer({ width, height }: GuidesLayerProps) {
   const guideDraft = useEditorStore((state) => state.guideDraft)
 
   return (
-    <g>
+    <g data-eyedropper-ignore>
       {guides.map((guide) => (
         <GuideLine key={guide.id} guide={guide} width={width} height={height} />
       ))}

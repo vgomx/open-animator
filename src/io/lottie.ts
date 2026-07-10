@@ -136,12 +136,19 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
           s: { a: 0, k: [shape.rx * 2, shape.ry * 2] },
           p: { a: 0, k: [0, 0, 0] },
         }
-        : {
-          ty: 'rc',
-          d: 1,
-          s: { a: 0, k: [100, shape.fontSize] },
-          p: { a: 0, k: [0, 0, 0] },
-        }
+        : shape.type === 'text'
+          ? {
+            ty: 'rc',
+            d: 1,
+            s: { a: 0, k: [100, shape.fontSize] },
+            p: { a: 0, k: [0, 0, 0] },
+          }
+          : {
+            ty: 'rc',
+            d: 1,
+            s: { a: 0, k: [120, 120] },
+            p: { a: 0, k: [0, 0, 0] },
+          }
 
   return {
     ddd: 0,

@@ -1,5 +1,6 @@
 import { useEffect } from 'react'
 
+import { EDITOR_TOOLS } from '@/editor/tools'
 import { useEditorStore } from '@/editor/store'
 
 type KeyboardShortcutsProps = {
@@ -16,6 +17,14 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const nudgeSelectedKeyframes = useEditorStore((state) => state.nudgeSelectedKeyframes)
   const setPlaybackState = useEditorStore((state) => state.setPlaybackState)
   const playbackState = useEditorStore((state) => state.playbackState)
+  const setActiveTool = useEditorStore((state) => state.setActiveTool)
+  const activeTool = useEditorStore((state) => state.activeTool)
+  const deleteSelectedNodes = useEditorStore((state) => state.deleteSelectedNodes)
+  const selectedNodeIndices = useEditorStore((state) => state.selectedNodeIndices)
+  const finishPenPath = useEditorStore((state) => state.finishPenPath)
+  const cancelPenDraft = useEditorStore((state) => state.cancelPenDraft)
+  const eyedropperActive = useEditorStore((state) => state.eyedropperActive)
+  const cancelEyedropper = useEditorStore((state) => state.cancelEyedropper)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -29,6 +38,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
       }
 
       const mod = event.metaKey || event.ctrlKey
+      const key = event.key.toLowerCase()
 
       if (event.key === '?' && !mod) {
         event.preventDefault()
@@ -36,37 +46,46 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
         return
       }
 
-      if (mod && event.key.toLowerCase() === 'z' && !event.shiftKey) {
+      if (!mod) {
+        const tool = EDITOR_TOOLS.find((item) => item.shortcut.toLowerCase() === key)
+        if (tool) {
+          event.preventDefault()
+          setActiveTool(tool.id)
+          return
+        }
+      }
+
+      if (mod && key === 'z' && !event.shiftKey) {
         event.preventDefault()
         undo()
         return
       }
 
-      if (mod && ((event.key.toLowerCase() === 'z' && event.shiftKey) || event.key.toLowerCase() === 'y')) {
+      if (mod && ((key === 'z' && event.shiftKey) || key === 'y')) {
         event.preventDefault()
         redo()
         return
       }
 
-      if (mod && event.key.toLowerCase() === 'd') {
+      if (mod && key === 'd') {
         event.preventDefault()
         duplicateSelectedLayer()
         return
       }
 
-      if (mod && event.key.toLowerCase() === 'c') {
+      if (mod && key === 'c') {
         event.preventDefault()
         copyKeyframesAtCurrentTime()
         return
       }
 
-      if (mod && event.key.toLowerCase() === 'v') {
+      if (mod && key === 'v') {
         event.preventDefault()
         pasteKeyframesAtCurrentTime()
         return
       }
 
-      if (event.key.toLowerCase() === 'k' && !mod) {
+      if (key === 'k' && !mod) {
         event.preventDefault()
         setPlaybackState(playbackState === 'playing' ? 'paused' : 'playing')
         return
@@ -86,21 +105,49 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
+        if (activeTool === 'node' && selectedNodeIndices.length > 0) {
+          deleteSelectedNodes()
+          return
+        }
         removeSelectedLayer()
+        return
+      }
+
+      if (event.key === 'Escape') {
+        if (eyedropperActive) {
+          event.preventDefault()
+          cancelEyedropper()
+          return
+        }
+
+        cancelPenDraft()
+      }
+
+      if (event.key === 'Enter' && activeTool === 'pen') {
+        event.preventDefault()
+        finishPenPath(false)
       }
     }
 
     window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [
+    activeTool,
+    cancelEyedropper,
+    cancelPenDraft,
     copyKeyframesAtCurrentTime,
+    deleteSelectedNodes,
     duplicateSelectedLayer,
+    eyedropperActive,
+    finishPenPath,
     nudgeSelectedKeyframes,
     onOpenShortcuts,
     pasteKeyframesAtCurrentTime,
     playbackState,
     redo,
     removeSelectedLayer,
+    selectedNodeIndices.length,
+    setActiveTool,
     setPlaybackState,
     undo,
   ])

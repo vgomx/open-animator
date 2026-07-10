@@ -257,6 +257,15 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
     }
   }
 
+  if (shape.type === 'path') {
+    return {
+      ...base,
+      type: 'path',
+      points: shape.points,
+      closed: shape.closed,
+    }
+  }
+
   return {
     ...base,
     type: 'ellipse',

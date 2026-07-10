@@ -12,10 +12,21 @@ type KeyboardShortcutsDialogProps = {
 }
 
 const SHORTCUTS = [
+  { keys: 'V', action: 'Select tool' },
+  { keys: 'H', action: 'Hand / pan tool' },
+  { keys: 'Z', action: 'Zoom tool (Alt+click to zoom out)' },
+  { keys: 'A', action: 'Node edit tool' },
+  { keys: 'P', action: 'Pen tool (Enter to finish, Esc to cancel)' },
+  { keys: 'R', action: 'Rectangle tool' },
+  { keys: 'O', action: 'Ellipse tool' },
+  { keys: 'T', action: 'Text tool' },
   { keys: '⌘Z', action: 'Undo' },
   { keys: '⌘⇧Z / ⌘Y', action: 'Redo' },
   { keys: '⌘D', action: 'Duplicate layer' },
-  { keys: 'Delete / Backspace', action: 'Delete selected layer' },
+  { keys: '⌘C', action: 'Copy keyframes at playhead' },
+  { keys: '⌘V', action: 'Paste keyframes at playhead' },
+  { keys: 'K', action: 'Play / pause' },
+  { keys: 'Delete / Backspace', action: 'Delete layer or selected nodes' },
   { keys: 'Space + drag', action: 'Pan canvas' },
   { keys: 'Middle mouse drag', action: 'Pan canvas' },
   { keys: 'Pinch / ⌃ scroll', action: 'Zoom canvas' },

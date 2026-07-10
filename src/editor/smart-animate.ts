@@ -40,7 +40,7 @@ export function snapshotFromShape(layer: Layer, shape: Shape): LayerStateSnapsho
   } else if (shape.type === 'ellipse') {
     snapshot.rx = shape.rx
     snapshot.ry = shape.ry
-  } else {
+  } else if (shape.type === 'text') {
     snapshot.text = shape.text
     snapshot.fontSize = shape.fontSize
     snapshot.fontFamily = shape.fontFamily

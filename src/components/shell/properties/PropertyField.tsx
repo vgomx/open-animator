@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 
+import { NumberInput, useNumberScrub, type NumberInputProps } from '@/components/ui/number-input'
 import { Input } from '@/components/ui/input'
 import { cn } from '@/lib/utils'
 
@@ -9,8 +10,9 @@ type PropertyFieldProps = {
   suffix?: string
   type?: 'number' | 'text' | 'color'
   className?: string
+  disabled?: boolean
   onChange: (value: number | string) => void
-}
+} & Pick<NumberInputProps, 'step' | 'shiftStep' | 'min' | 'max' | 'decimals'>
 
 export function PropertyField({
   label,
@@ -18,29 +20,58 @@ export function PropertyField({
   suffix,
   type = 'number',
   className,
+  disabled = false,
+  step,
+  shiftStep,
+  min,
+  max,
+  decimals,
   onChange,
 }: PropertyFieldProps) {
+  const numericValue = typeof value === 'number' ? value : Number(value)
+  const { scrubProps } = useNumberScrub({
+    value: numericValue,
+    onChange: (next) => onChange(next),
+    step,
+    shiftStep,
+    min,
+    max,
+    disabled: disabled || type !== 'number',
+  })
+
   return (
-    <label className={cn('group flex min-w-0 flex-col gap-1', className)}>
-      <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+    <div className={cn('group flex min-w-0 flex-col gap-1', className)}>
+      <span
+        className={cn(
+          'text-[10px] font-medium uppercase tracking-wide text-muted-foreground',
+          type === 'number' && !disabled && scrubProps.className,
+        )}
+        onPointerDown={type === 'number' && !disabled ? scrubProps.onPointerDown : undefined}
+      >
         {label}
       </span>
-      <div className="relative">
+      {type === 'number' ? (
+        <NumberInput
+          value={numericValue}
+          suffix={suffix}
+          step={step}
+          shiftStep={shiftStep}
+          min={min}
+          max={max}
+          decimals={decimals}
+          disabled={disabled}
+          onChange={(next) => onChange(next)}
+        />
+      ) : (
         <Input
           type={type}
           value={value}
-          className={cn('h-7 px-2 text-xs', suffix && 'pr-7')}
-          onChange={(event) =>
-            onChange(type === 'number' ? Number(event.target.value) : event.target.value)
-          }
+          disabled={disabled}
+          className="h-7 px-2 text-xs"
+          onChange={(event) => onChange(event.target.value)}
         />
-        {suffix ? (
-          <span className="pointer-events-none absolute top-1/2 right-2 -translate-y-1/2 text-[10px] text-muted-foreground">
-            {suffix}
-          </span>
-        ) : null}
-      </div>
-    </label>
+      )}
+    </div>
   )
 }
 

@@ -1,7 +1,6 @@
 import { lazy, Suspense, useState } from 'react'
 
 import {
-  Circle,
   CircleDot,
   Copy,
   Download,
@@ -20,9 +19,7 @@ import {
   Ruler,
   Save,
   Sparkles,
-  Square,
   Trash2,
-  Type,
   Undo2,
   Video,
   Wand2,
@@ -44,7 +41,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
-import { Separator } from '@/components/ui/separator'
+import { ToolbarDivider } from '@/components/ui/toolbar-divider'
 import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEditorStore } from '@/editor/store'
@@ -90,7 +87,6 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
   const canUndo = useEditorStore((state) => state.history.past.length > 0)
   const canRedo = useEditorStore((state) => state.history.future.length > 0)
   const zoom = useEditorStore((state) => state.zoom)
-  const addShape = useEditorStore((state) => state.addShape)
   const removeSelectedLayer = useEditorStore((state) => state.removeSelectedLayer)
   const duplicateSelectedLayer = useEditorStore((state) => state.duplicateSelectedLayer)
   const setPlaybackState = useEditorStore((state) => state.setPlaybackState)
@@ -211,33 +207,9 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+        <span className="px-2 text-sm font-semibold tracking-tight">Open Animator</span>
+        <ToolbarDivider />
         <div className="flex items-center gap-1">
-          <span className="px-2 text-sm font-semibold tracking-tight">Open Animator</span>
-          <Separator orientation="vertical" className="mx-1 h-6" />
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={() => addShape('rect')}>
-                <Square />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add rectangle</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={() => addShape('ellipse')}>
-                <Circle />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add ellipse</TooltipContent>
-          </Tooltip>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Button variant="ghost" size="icon-sm" onClick={() => addShape('text')}>
-                <Type />
-              </Button>
-            </TooltipTrigger>
-            <TooltipContent>Add text</TooltipContent>
-          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={() => setPresetsOpen(true)}>
@@ -264,7 +236,7 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
           </Tooltip>
         </div>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <ToolbarDivider />
 
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -299,7 +271,7 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
           </Tooltip>
         </div>
 
-        <Separator orientation="vertical" className="mx-1 h-6" />
+        <ToolbarDivider />
 
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -430,7 +402,7 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
             </TooltipTrigger>
             <TooltipContent>{showRulers ? 'Hide rulers' : 'Show rulers'}</TooltipContent>
           </Tooltip>
-          <Separator orientation="vertical" className="mx-1 h-6" />
+          <ToolbarDivider />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={() => downloadProject(project)}>
