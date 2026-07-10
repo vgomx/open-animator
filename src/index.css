@@ -76,11 +76,33 @@
   .glass-panel-header {
     @apply border-border/40 bg-card/20;
   }
+
+  .canvas-backdrop {
+    background-color: var(--canvas-backdrop);
+  }
+
+  .artboard-surface {
+    background-color: var(--artboard-surface);
+    background-image:
+      linear-gradient(45deg, var(--artboard-grid) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--artboard-grid) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--artboard-grid) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--artboard-grid) 75%);
+    background-size: 20px 20px;
+    background-position:
+      0 0,
+      0 10px,
+      10px -10px,
+      -10px 0;
+  }
 }
 
 :root {
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
+  --canvas-backdrop: oklch(0.95 0.01 260);
+  --artboard-surface: oklch(0.99 0 0);
+  --artboard-grid: oklch(0.9 0.01 260);
   --card: oklch(1 0 0);
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
@@ -116,6 +138,9 @@
 .dark {
   --background: oklch(0.145 0 0);
   --foreground: oklch(0.985 0 0);
+  --canvas-backdrop: oklch(0.12 0.02 260);
+  --artboard-surface: oklch(0.2 0.02 260);
+  --artboard-grid: oklch(0.28 0.02 260);
   --card: oklch(0.205 0 0);
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);

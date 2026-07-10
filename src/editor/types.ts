@@ -1,4 +1,17 @@
-export const PROJECT_VERSION = 3 as const
+export const PROJECT_VERSION = 4 as const
+
+export type GuideAxis = 'x' | 'y'
+
+export type Guide = {
+  id: string
+  axis: GuideAxis
+  position: number
+}
+
+export type SnapLine = {
+  axis: GuideAxis
+  position: number
+}
 
 export type NumericAnimatableProperty = 'x' | 'y' | 'opacity' | 'scale' | 'rotation'
 export type ColorAnimatableProperty = 'fill' | 'stroke'
@@ -59,6 +72,7 @@ export type Project = {
   }
   duration: number
   layers: Layer[]
+  guides: Guide[]
 }
 
 export type PlaybackState = 'idle' | 'playing' | 'paused'

@@ -13,12 +13,15 @@ import { clampZoom, zoomAtPoint } from '@/editor/viewport'
 import type {
   AnimatableProperty,
   EasingType,
+  Guide,
+  GuideAxis,
   Keyframe,
   Layer,
   PlaybackState,
   Project,
   Shape,
   ShapeType,
+  SnapLine,
 } from '@/editor/types'
 import { isColorProperty, isNumericProperty } from '@/editor/types'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
@@ -43,6 +46,10 @@ type EditorStore = {
   zoom: number
   panX: number
   panY: number
+  snapEnabled: boolean
+  showRulers: boolean
+  activeSnapLines: SnapLine[]
+  guideDraft: Pick<Guide, 'axis' | 'position'> | null
   history: HistoryStacks
   setSelectedLayerId: (layerId: string | null) => void
   addShape: (type: ShapeType) => void
@@ -70,6 +77,13 @@ type EditorStore = {
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
   setKeyframeEasing: (property: AnimatableProperty, easing: EasingType) => void
   moveKeyframe: (keyframeId: string, time: number, options?: { skipHistory?: boolean }) => void
+  toggleSnapEnabled: () => void
+  toggleShowRulers: () => void
+  setActiveSnapLines: (lines: SnapLine[]) => void
+  setGuideDraft: (draft: Pick<Guide, 'axis' | 'position'> | null) => void
+  addGuide: (axis: GuideAxis, position: number) => void
+  updateGuide: (guideId: string, position: number, options?: { skipHistory?: boolean }) => void
+  removeGuide: (guideId: string) => void
   undo: () => void
   redo: () => void
   beginHistoryTransaction: () => void
@@ -180,6 +194,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
   zoom: 1,
   panX: 0,
   panY: 0,
+  snapEnabled: true,
+  showRulers: true,
+  activeSnapLines: [],
+  guideDraft: null,
   history: { past: [], future: [] },
 
   setSelectedLayerId: (layerId) => set({ selectedLayerId: layerId }),
@@ -463,6 +481,62 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
       return withHistory(state, applyMove)
     }),
+
+  toggleSnapEnabled: () => set((state) => ({ snapEnabled: !state.snapEnabled })),
+
+  toggleShowRulers: () => set((state) => ({ showRulers: !state.showRulers })),
+
+  setActiveSnapLines: (activeSnapLines) => set({ activeSnapLines }),
+
+  setGuideDraft: (guideDraft) => set({ guideDraft }),
+
+  addGuide: (axis, position) =>
+    set((state) =>
+      withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          guides: [
+            ...current.project.guides,
+            {
+              id: createId(),
+              axis,
+              position,
+            },
+          ],
+        },
+      })),
+    ),
+
+  updateGuide: (guideId, position, options) =>
+    set((state) => {
+      const applyUpdate = (current: EditorStore): Partial<EditorStore> => ({
+        project: {
+          ...current.project,
+          guides: current.project.guides.map((guide) =>
+            guide.id === guideId ? { ...guide, position } : guide,
+          ),
+        },
+      })
+
+      if (options?.skipHistory) {
+        const next = applyUpdate(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyUpdate)
+    }),
+
+  removeGuide: (guideId) =>
+    set((state) =>
+      withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          guides: current.project.guides.filter((guide) => guide.id !== guideId),
+        },
+      })),
+    ),
 
   undo: () =>
     set((state) => {

@@ -6,6 +6,14 @@ import {
   type ResizeHandle,
   type ShapeBounds,
 } from '@/editor/bounds'
+import { clientToArtboard } from '@/editor/coordinates'
+import {
+  collectSnapTargets,
+  shapePatchFromBoundsDelta,
+  snapBounds,
+  snapPoint,
+  snapThresholdForZoom,
+} from '@/editor/snap'
 import type { Shape } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
 import { saveProjectToStorage } from '@/io/project'
@@ -22,22 +30,23 @@ const handlePositions: Array<{ handle: ResizeHandle; x: number; y: number }> = [
   { handle: 'se', x: 1, y: 1 },
 ]
 
-function clientToSvg(svg: SVGSVGElement, clientX: number, clientY: number) {
-  const point = svg.createSVGPoint()
-  point.x = clientX
-  point.y = clientY
-  const transformed = point.matrixTransform(svg.getScreenCTM()?.inverse())
-  return { x: transformed.x, y: transformed.y }
-}
-
-type DragMode = { type: 'move'; startX: number; startY: number; originX: number; originY: number } | {
-  type: 'resize'
-  handle: ResizeHandle
-  anchor: ShapeBounds
-}
+type DragMode =
+  | {
+      type: 'move'
+      startX: number
+      startY: number
+      boundsOriginX: number
+      boundsOriginY: number
+    }
+  | {
+      type: 'resize'
+      handle: ResizeHandle
+      anchor: ShapeBounds
+    }
 
 export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
   const updateShape = useEditorStore((state) => state.updateShape)
+  const setActiveSnapLines = useEditorStore((state) => state.setActiveSnapLines)
   const svgRef = useRef<SVGSVGElement | null>(null)
   const dragRef = useRef<DragMode | null>(null)
 
@@ -59,23 +68,46 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
       }
 
       const currentShape = store.getAnimatedShape(layer, store.currentTime)
-      const point = clientToSvg(svg, event.clientX, event.clientY)
+      const point = clientToArtboard(svg, event.clientX, event.clientY)
+      const threshold = store.snapEnabled ? snapThresholdForZoom(store.zoom) : 0
+      const targets = store.snapEnabled
+        ? collectSnapTargets({
+            artboardWidth: store.project.artboard.width,
+            artboardHeight: store.project.artboard.height,
+            guides: store.project.guides,
+            layers: store.project.layers,
+            currentTime: store.currentTime,
+            excludeLayerId: layerId,
+            getAnimatedShape: store.getAnimatedShape,
+          })
+        : []
 
       if (drag.type === 'move') {
-        const deltaX = point.x - drag.startX
-        const deltaY = point.y - drag.startY
+        const currentBounds = getShapeBounds(currentShape)
+        const proposedBounds = {
+          ...currentBounds,
+          x: drag.boundsOriginX + (point.x - drag.startX),
+          y: drag.boundsOriginY + (point.y - drag.startY),
+        }
+        const snapped = snapBounds(proposedBounds, targets, threshold)
+        setActiveSnapLines(snapped.lines)
         updateShape(
           layerId,
-          {
-            x: drag.originX + deltaX,
-            y: drag.originY + deltaY,
-          },
+          shapePatchFromBoundsDelta(currentShape, snapped.bounds),
           { skipHistory: true },
         )
         return
       }
 
-      const patch = applyResize(currentShape, drag.handle, point.x, point.y, drag.anchor)
+      const snappedPoint = snapPoint(point.x, point.y, targets, threshold)
+      setActiveSnapLines(snappedPoint.lines)
+      const patch = applyResize(
+        currentShape,
+        drag.handle,
+        snappedPoint.x,
+        snappedPoint.y,
+        drag.anchor,
+      )
       updateShape(layerId, patch, { skipHistory: true })
     }
 
@@ -85,6 +117,7 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
       }
 
       dragRef.current = null
+      setActiveSnapLines([])
       saveProjectToStorage(useEditorStore.getState().project)
     }
 
@@ -95,12 +128,9 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [layerId, updateShape])
+  }, [layerId, setActiveSnapLines, updateShape])
 
-  const beginPointer = (
-    event: React.PointerEvent<SVGElement>,
-    mode: DragMode,
-  ) => {
+  const beginPointer = (event: React.PointerEvent<SVGElement>, mode: DragMode) => {
     event.stopPropagation()
     const svg = event.currentTarget.ownerSVGElement
     if (!svg) {
@@ -134,18 +164,17 @@ export function SelectionOverlay({ layerId, shape }: SelectionOverlayProps) {
         fill="transparent"
         className="cursor-move"
         onPointerDown={(event) => {
-          const target = event.currentTarget as SVGRectElement
-          const svg = target.ownerSVGElement
+          const svg = event.currentTarget.ownerSVGElement
           if (!svg) {
             return
           }
-          const point = clientToSvg(svg, event.clientX, event.clientY)
+          const point = clientToArtboard(svg, event.clientX, event.clientY)
           beginPointer(event, {
             type: 'move',
             startX: point.x,
             startY: point.y,
-            originX: shape.x,
-            originY: shape.y,
+            boundsOriginX: bounds.x,
+            boundsOriginY: bounds.y,
           })
         }}
       />

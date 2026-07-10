@@ -12,10 +12,13 @@ export function deserializeProject(raw: string): Project {
   const parsed = JSON.parse(raw) as Project & { version: number }
 
   if (parsed.version === PROJECT_VERSION) {
-    return parsed
+    return {
+      ...parsed,
+      guides: parsed.guides ?? [],
+    }
   }
 
-  if (parsed.version === 1 || parsed.version === 2) {
+  if (parsed.version === 1 || parsed.version === 2 || parsed.version === 3) {
     return migrateProject(parsed)
   }
 

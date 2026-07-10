@@ -8,12 +8,14 @@ import {
   Expand,
   FolderOpen,
   Info,
+  Magnet,
   MoreHorizontal,
   Pause,
   Play,
   RectangleHorizontal,
   Redo2,
   Repeat,
+  Ruler,
   Save,
   Square,
   Trash2,
@@ -25,6 +27,7 @@ import {
 
 import { AboutDialog } from '@/components/shell/AboutDialog'
 import { AcknowledgmentsDialog } from '@/components/shell/AcknowledgmentsDialog'
+import { ThemeToggle } from '@/components/shell/ThemeToggle'
 
 import { Button } from '@/components/ui/button'
 import {
@@ -74,6 +77,10 @@ export function Toolbar() {
   const fitToScreen = useEditorStore((state) => state.fitToScreen)
   const resetViewport = useEditorStore((state) => state.resetViewport)
   const setProject = useEditorStore((state) => state.setProject)
+  const snapEnabled = useEditorStore((state) => state.snapEnabled)
+  const showRulers = useEditorStore((state) => state.showRulers)
+  const toggleSnapEnabled = useEditorStore((state) => state.toggleSnapEnabled)
+  const toggleShowRulers = useEditorStore((state) => state.toggleShowRulers)
 
   const isPlaying = playbackState === 'playing'
 
@@ -229,6 +236,31 @@ export function Toolbar() {
         <Button variant="ghost" size="sm" onClick={resetViewport}>
           100%
         </Button>
+        <ThemeToggle />
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={snapEnabled ? 'secondary' : 'ghost'}
+              size="icon-sm"
+              onClick={toggleSnapEnabled}
+            >
+              <Magnet />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{snapEnabled ? 'Snapping on' : 'Snapping off'}</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant={showRulers ? 'secondary' : 'ghost'}
+              size="icon-sm"
+              onClick={toggleShowRulers}
+            >
+              <Ruler />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>{showRulers ? 'Hide rulers' : 'Show rulers'}</TooltipContent>
+        </Tooltip>
         <Separator orientation="vertical" className="mx-1 h-6" />
         <Tooltip>
           <TooltipTrigger asChild>

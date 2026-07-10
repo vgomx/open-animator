@@ -327,13 +327,14 @@ export function importLottie(raw: string): Project | null {
     }
 
     return {
-      version: 3,
+      version: 4,
       artboard: {
         width: data.w ?? 800,
         height: data.h ?? 600,
       },
       duration,
       layers,
+      guides: [],
     }
   } catch {
     return null

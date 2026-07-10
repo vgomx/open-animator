@@ -11,4 +11,5 @@ export const APP_LICENSE = 'MIT'
 export const STORAGE_KEYS = {
   project: `${APP_SLUG}:project`,
   legacyProject: 'svg-animator:project',
+  theme: `${APP_SLUG}:theme`,
 } as const

@@ -21,6 +21,7 @@ export function createDefaultProject(): Project {
     },
     duration: 3,
     layers: [],
+    guides: [],
   }
 }
 
