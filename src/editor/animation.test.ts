@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { applyEasing, samplePropertyAtTime } from '@/editor/animation'
+import { applyEasing, lerpColor, sampleColorAtTime, samplePropertyAtTime } from '@/editor/animation'
 import type { Keyframe } from '@/editor/types'
 
 describe('samplePropertyAtTime', () => {
@@ -35,6 +35,32 @@ describe('samplePropertyAtTime', () => {
     ]
 
     expect(samplePropertyAtTime(keyframes, 'opacity', 1, 1)).toBe(0.75)
+  })
+
+  it('interpolates rotation keyframes', () => {
+    const keyframes: Keyframe[] = [
+      { id: 'a', time: 0, property: 'rotation', value: 0 },
+      { id: 'b', time: 2, property: 'rotation', value: 90 },
+    ]
+
+    expect(samplePropertyAtTime(keyframes, 'rotation', 1, 0)).toBe(45)
+  })
+})
+
+describe('sampleColorAtTime', () => {
+  it('interpolates fill colors between keyframes', () => {
+    const keyframes: Keyframe[] = [
+      { id: 'a', time: 0, property: 'fill', value: '#000000' },
+      { id: 'b', time: 2, property: 'fill', value: '#ffffff' },
+    ]
+
+    expect(sampleColorAtTime(keyframes, 'fill', 1, '#000000')).toBe('#808080')
+  })
+})
+
+describe('lerpColor', () => {
+  it('blends two hex colors', () => {
+    expect(lerpColor('#000000', '#ffffff', 0.5)).toBe('#808080')
   })
 })
 

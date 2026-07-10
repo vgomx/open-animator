@@ -20,6 +20,8 @@ npm run dev
 
 Open the local URL from Vite (usually `http://localhost:5173`).
 
+**Live demo:** [vgomx.github.io/open-animator](https://vgomx.github.io/open-animator/)
+
 ## Scripts
 
 | Command | Description |
@@ -36,7 +38,7 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 - Add rectangle / ellipse shapes; duplicate layers (`⌘D`)
 - Edit position, size, fill, stroke, and opacity
 - Canvas resize handles and drag-to-move selection
-- Keyframe `x`, `y`, `opacity`, and `scale` with **linear**, **ease-in**, **ease-out**, and **ease-in-out** segments
+- Keyframe `x`, `y`, `rotation`, `opacity`, `scale`, `fill`, and `stroke` with easing segments
 - Record mode (auto-keyframe on property change)
 - Playback with loop toggle; click-to-scrub timeline
 - Undo/redo (`⌘Z` / `⌘⇧Z`)

@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 
-import { samplePropertyAtTime } from '@/editor/animation'
+import { getAnimatedShape } from '@/editor/animation'
 import {
   createSnapshot,
   pushSnapshot,
@@ -20,9 +20,18 @@ import type {
   Shape,
   ShapeType,
 } from '@/editor/types'
+import { isColorProperty, isNumericProperty } from '@/editor/types'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
 
-const animatableProperties = new Set<AnimatableProperty>(['x', 'y', 'opacity', 'scale'])
+const animatableProperties = new Set<AnimatableProperty>([
+  'x',
+  'y',
+  'opacity',
+  'scale',
+  'rotation',
+  'fill',
+  'stroke',
+])
 
 type EditorStore = {
   project: Project
@@ -60,6 +69,7 @@ type EditorStore = {
   setProject: (project: Project) => void
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
   setKeyframeEasing: (property: AnimatableProperty, easing: EasingType) => void
+  moveKeyframe: (keyframeId: string, time: number, options?: { skipHistory?: boolean }) => void
   undo: () => void
   redo: () => void
   beginHistoryTransaction: () => void
@@ -74,7 +84,7 @@ function upsertKeyframe(
   layer: Layer,
   time: number,
   property: AnimatableProperty,
-  value: number,
+  value: number | string,
 ): Keyframe[] {
   const existingIndex = layer.keyframes.findIndex(
     (keyframe) =>
@@ -115,7 +125,11 @@ function applyAutoKeyframes(
       continue
     }
 
-    if (typeof value !== 'number') {
+    if (isNumericProperty(property as AnimatableProperty) && typeof value !== 'number') {
+      continue
+    }
+
+    if (isColorProperty(property as AnimatableProperty) && typeof value !== 'string') {
       continue
     }
 
@@ -357,7 +371,11 @@ export const useEditorStore = create<EditorStore>((set) => ({
           return {}
         }
 
-        const value = selected.shape[property]
+        const value = selected.shape[property as keyof Shape]
+        if (typeof value !== 'number' && typeof value !== 'string') {
+          return {}
+        }
+
         const project = {
           ...current.project,
           layers: current.project.layers.map((item) =>
@@ -418,6 +436,34 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })
     }),
 
+  moveKeyframe: (keyframeId, time, options) =>
+    set((state) => {
+      const clampedTime = Math.max(0, Math.min(time, state.project.duration))
+
+      const applyMove = (current: EditorStore): Partial<EditorStore> => {
+        const project = {
+          ...current.project,
+          layers: current.project.layers.map((layer) => ({
+            ...layer,
+            keyframes: layer.keyframes.map((keyframe) =>
+              keyframe.id === keyframeId ? { ...keyframe, time: clampedTime } : keyframe,
+            ),
+          })),
+        }
+
+        return { project }
+      }
+
+      if (options?.skipHistory) {
+        const next = applyMove(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyMove)
+    }),
+
   undo: () =>
     set((state) => {
       const result = undoSnapshot(state.history, createSnapshot(state.project, state.selectedLayerId))
@@ -449,16 +495,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
       history: pushSnapshot(state.history, createSnapshot(state.project, state.selectedLayerId)),
     })),
 
-  getAnimatedShape: (layer, time) => {
-    const { shape, keyframes } = layer
-    return {
-      ...shape,
-      x: samplePropertyAtTime(keyframes, 'x', time, shape.x),
-      y: samplePropertyAtTime(keyframes, 'y', time, shape.y),
-      opacity: samplePropertyAtTime(keyframes, 'opacity', time, shape.opacity),
-      scale: samplePropertyAtTime(keyframes, 'scale', time, shape.scale),
-    }
-  },
+  getAnimatedShape,
 }))
 
 export function useSelectedLayer(): Layer | null {

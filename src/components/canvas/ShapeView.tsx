@@ -1,11 +1,12 @@
 import type { Shape } from '@/editor/types'
+import { buildShapeTransform } from '@/editor/transforms'
 
 type ShapeViewProps = {
   shape: Shape
 }
 
 export function ShapeView({ shape }: ShapeViewProps) {
-  const transform = `translate(${shape.x} ${shape.y}) scale(${shape.scale})`
+  const transform = buildShapeTransform(shape)
   const sharedProps = {
     transform,
     fill: shape.fill,

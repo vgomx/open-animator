@@ -1,4 +1,5 @@
 import type { AnimatableProperty, Keyframe, Layer, Project } from '@/editor/types'
+import { isNumericProperty } from '@/editor/types'
 import { createId } from '@/editor/scene'
 
 type LottieKeyframe = {
@@ -49,6 +50,10 @@ function buildPropertyKeyframes(
   frameRate: number,
   mapValue: (value: number, shape: Layer['shape']) => number[],
 ): LottieKeyframe[] {
+  if (!isNumericProperty(property)) {
+    return []
+  }
+
   const baseValue = layer.shape[property]
   const track = layer.keyframes
     .filter((keyframe) => keyframe.property === property)
@@ -60,7 +65,7 @@ function buildPropertyKeyframes(
 
   return track.map((keyframe) => ({
     t: Math.round(keyframe.time * frameRate),
-    s: mapValue(keyframe.value, layer.shape),
+    s: mapValue(keyframe.value as number, layer.shape),
     ...lottieEasingHandles(keyframe.easing),
   }))
 }
@@ -84,6 +89,7 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
 
   const opacity = buildPropertyKeyframes(layer, 'opacity', frameRate, (value) => [value * 100])
   const scale = buildPropertyKeyframes(layer, 'scale', frameRate, (value) => [value * 100, value * 100, 100])
+  const rotation = buildPropertyKeyframes(layer, 'rotation', frameRate, (value) => [value])
 
   const shapeItem =
     shape.type === 'rect'
@@ -109,7 +115,7 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
     sr: 1,
     ks: {
       o: { a: opacity.length > 1 ? 1 : 0, k: opacity },
-      r: { a: 0, k: 0 },
+      r: { a: rotation.length > 1 ? 1 : 0, k: rotation },
       p: { a: position.length > 1 ? 1 : 0, k: position },
       a: { a: 0, k: [0, 0, 0] },
       s: { a: scale.length > 1 ? 1 : 0, k: scale },
@@ -251,6 +257,7 @@ export function importLottie(raw: string): Project | null {
               type: 'ellipse' as const,
               x: firstPosition[0],
               y: firstPosition[1],
+              rotation: 0,
               rx: (shapeNode.s?.k?.[0] ?? 100) / 2,
               ry: (shapeNode.s?.k?.[1] ?? 100) / 2,
               fill,
@@ -264,6 +271,7 @@ export function importLottie(raw: string): Project | null {
               type: 'rect' as const,
               x: firstPosition[0],
               y: firstPosition[1],
+              rotation: 0,
               width: shapeNode.s?.k?.[0] ?? 100,
               height: shapeNode.s?.k?.[1] ?? 100,
               fill,
@@ -319,7 +327,7 @@ export function importLottie(raw: string): Project | null {
     }
 
     return {
-      version: 2,
+      version: 3,
       artboard: {
         width: data.w ?? 800,
         height: data.h ?? 600,

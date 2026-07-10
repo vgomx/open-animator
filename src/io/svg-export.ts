@@ -1,19 +1,9 @@
-import type { Layer, Project, Shape } from '@/editor/types'
-import { samplePropertyAtTime } from '@/editor/animation'
-
-function getAnimatedShapeAtTime(layer: Layer, time: number): Shape {
-  const { shape, keyframes } = layer
-  return {
-    ...shape,
-    x: samplePropertyAtTime(keyframes, 'x', time, shape.x),
-    y: samplePropertyAtTime(keyframes, 'y', time, shape.y),
-    opacity: samplePropertyAtTime(keyframes, 'opacity', time, shape.opacity),
-    scale: samplePropertyAtTime(keyframes, 'scale', time, shape.scale),
-  }
-}
+import type { Project, Shape } from '@/editor/types'
+import { getAnimatedShape } from '@/editor/animation'
+import { buildShapeTransform } from '@/editor/transforms'
 
 function shapeAttributes(shape: Shape): string {
-  const transform = `translate(${shape.x} ${shape.y}) scale(${shape.scale})`
+  const transform = buildShapeTransform(shape)
 
   const shared = [
     `transform="${transform}"`,
@@ -33,7 +23,7 @@ function shapeAttributes(shape: Shape): string {
 export function exportSvgAtTime(project: Project, time: number): string {
   const visibleLayers = project.layers.filter((layer) => layer.visible)
   const shapes = visibleLayers
-    .map((layer) => shapeAttributes(getAnimatedShapeAtTime(layer, time)))
+    .map((layer) => shapeAttributes(getAnimatedShape(layer, time)))
     .join('\n    ')
 
   return `<?xml version="1.0" encoding="UTF-8"?>

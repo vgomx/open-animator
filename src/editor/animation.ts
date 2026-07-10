@@ -1,4 +1,12 @@
-import type { AnimatableProperty, EasingType, Keyframe } from '@/editor/types'
+import type {
+  AnimatableProperty,
+  ColorAnimatableProperty,
+  EasingType,
+  Keyframe,
+  Layer,
+  NumericAnimatableProperty,
+  Shape,
+} from '@/editor/types'
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -28,25 +36,29 @@ export function getKeyframesForProperty(
     .sort((a, b) => a.time - b.time)
 }
 
-export function samplePropertyAtTime(
-  keyframes: Keyframe[],
-  property: AnimatableProperty,
+function sampleSegmentValue(
+  track: Keyframe[],
   time: number,
   fallback: number,
+  interpolate: (current: Keyframe, next: Keyframe, easedProgress: number) => number,
 ): number {
-  const track = getKeyframesForProperty(keyframes, property)
-
   if (track.length === 0) {
     return fallback
   }
 
+  const firstValue = track[0].value
+  if (typeof firstValue !== 'number') {
+    return fallback
+  }
+
   if (time <= track[0].time) {
-    return track[0].value
+    return firstValue
   }
 
   const lastKeyframe = track[track.length - 1]
-  if (time >= lastKeyframe.time) {
-    return lastKeyframe.value
+  const lastValue = lastKeyframe.value
+  if (time >= lastKeyframe.time && typeof lastValue === 'number') {
+    return lastValue
   }
 
   for (let index = 0; index < track.length - 1; index += 1) {
@@ -55,15 +67,133 @@ export function samplePropertyAtTime(
 
     if (time >= current.time && time <= next.time) {
       const span = next.time - current.time
-      if (span === 0) {
-        return next.value
+      if (span === 0 || typeof current.value !== 'number' || typeof next.value !== 'number') {
+        return typeof next.value === 'number' ? next.value : fallback
       }
 
       const progress = (time - current.time) / span
       const eased = applyEasing(progress, current.easing)
-      return lerp(current.value, next.value, eased)
+      return interpolate(current, next, eased)
     }
   }
 
   return fallback
+}
+
+export function samplePropertyAtTime(
+  keyframes: Keyframe[],
+  property: NumericAnimatableProperty,
+  time: number,
+  fallback: number,
+): number {
+  const track = getKeyframesForProperty(keyframes, property)
+  return sampleSegmentValue(track, time, fallback, (current, next, eased) =>
+    lerp(current.value as number, next.value as number, eased),
+  )
+}
+
+function normalizeHex(color: string): string {
+  const value = color.trim().replace('#', '')
+  if (value.length === 3) {
+    return value
+      .split('')
+      .map((char) => char + char)
+      .join('')
+  }
+
+  return value.padStart(6, '0').slice(0, 6)
+}
+
+export function parseColor(color: string): [number, number, number] {
+  const normalized = normalizeHex(color)
+  return [
+    Number.parseInt(normalized.slice(0, 2), 16),
+    Number.parseInt(normalized.slice(2, 4), 16),
+    Number.parseInt(normalized.slice(4, 6), 16),
+  ]
+}
+
+export function formatColor([r, g, b]: [number, number, number]): string {
+  const toHex = (channel: number) =>
+    Math.round(Math.max(0, Math.min(255, channel)))
+      .toString(16)
+      .padStart(2, '0')
+
+  return `#${toHex(r)}${toHex(g)}${toHex(b)}`
+}
+
+export function lerpColor(from: string, to: string, progress: number): string {
+  const [r1, g1, b1] = parseColor(from)
+  const [r2, g2, b2] = parseColor(to)
+
+  return formatColor([
+    lerp(r1, r2, progress),
+    lerp(g1, g2, progress),
+    lerp(b1, b2, progress),
+  ])
+}
+
+export function sampleColorAtTime(
+  keyframes: Keyframe[],
+  property: ColorAnimatableProperty,
+  time: number,
+  fallback: string,
+): string {
+  const track = getKeyframesForProperty(keyframes, property)
+
+  if (track.length === 0) {
+    return fallback
+  }
+
+  const firstValue = track[0].value
+  if (typeof firstValue !== 'string') {
+    return fallback
+  }
+
+  if (time <= track[0].time) {
+    return firstValue
+  }
+
+  const lastKeyframe = track[track.length - 1]
+  const lastValue = lastKeyframe.value
+  if (time >= lastKeyframe.time && typeof lastValue === 'string') {
+    return lastValue
+  }
+
+  for (let index = 0; index < track.length - 1; index += 1) {
+    const current = track[index]
+    const next = track[index + 1]
+
+    if (time >= current.time && time <= next.time) {
+      const span = next.time - current.time
+      if (
+        span === 0 ||
+        typeof current.value !== 'string' ||
+        typeof next.value !== 'string'
+      ) {
+        return typeof next.value === 'string' ? next.value : fallback
+      }
+
+      const progress = (time - current.time) / span
+      const eased = applyEasing(progress, current.easing)
+      return lerpColor(current.value, next.value, eased)
+    }
+  }
+
+  return fallback
+}
+
+export function getAnimatedShape(layer: Layer, time: number): Shape {
+  const { shape, keyframes } = layer
+
+  return {
+    ...shape,
+    x: samplePropertyAtTime(keyframes, 'x', time, shape.x),
+    y: samplePropertyAtTime(keyframes, 'y', time, shape.y),
+    rotation: samplePropertyAtTime(keyframes, 'rotation', time, shape.rotation),
+    opacity: samplePropertyAtTime(keyframes, 'opacity', time, shape.opacity),
+    scale: samplePropertyAtTime(keyframes, 'scale', time, shape.scale),
+    fill: sampleColorAtTime(keyframes, 'fill', time, shape.fill),
+    stroke: sampleColorAtTime(keyframes, 'stroke', time, shape.stroke),
+  }
 }

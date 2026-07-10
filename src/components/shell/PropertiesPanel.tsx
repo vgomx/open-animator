@@ -1,3 +1,5 @@
+import type { ReactNode } from 'react'
+
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -5,10 +7,12 @@ import { ScrollArea } from '@/components/ui/scroll-area'
 import { Separator } from '@/components/ui/separator'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import type { AnimatableProperty, EasingType } from '@/editor/types'
-import { EASING_OPTIONS } from '@/editor/types'
+import {
+  ANIMATABLE_PROPERTIES,
+  EASING_OPTIONS,
+  isColorProperty,
+} from '@/editor/types'
 import { useEditorStore, useSelectedLayer } from '@/editor/store'
-
-const animatableProperties: AnimatableProperty[] = ['x', 'y', 'opacity', 'scale']
 
 function NumberField({
   label,
@@ -27,6 +31,51 @@ function NumberField({
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
       />
+    </div>
+  )
+}
+
+function AnimationPropertyRow({
+  property,
+  displayValue,
+  keyframeAtTime,
+  onAddKeyframe,
+  onSetEasing,
+  easing,
+}: {
+  property: AnimatableProperty
+  displayValue: ReactNode
+  keyframeAtTime: boolean
+  onAddKeyframe: () => void
+  onSetEasing: (easing: EasingType) => void
+  easing: EasingType
+}) {
+  return (
+    <div className="space-y-2 rounded-md border border-border px-3 py-2">
+      <div className="flex items-center justify-between gap-2">
+        <div>
+          <p className="text-sm font-medium uppercase">{property}</p>
+          <p className="text-xs text-muted-foreground">{displayValue}</p>
+        </div>
+        <Button size="sm" variant="secondary" onClick={onAddKeyframe}>
+          Keyframe
+        </Button>
+      </div>
+      <div className="space-y-1">
+        <Label className="text-xs text-muted-foreground">Segment easing</Label>
+        <select
+          className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
+          value={easing}
+          disabled={!keyframeAtTime}
+          onChange={(event) => onSetEasing(event.target.value as EasingType)}
+        >
+          {EASING_OPTIONS.map((option) => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </div>
     </div>
   )
 }
@@ -91,6 +140,11 @@ export function PropertiesPanel() {
                 onChange={(value) => updateShape(selectedLayer.id, { y: value })}
               />
             </div>
+            <NumberField
+              label="Rotation"
+              value={shape.rotation}
+              onChange={(value) => updateShape(selectedLayer.id, { rotation: value })}
+            />
             {shape.type === 'rect' ? (
               <div className="grid grid-cols-2 gap-3">
                 <NumberField
@@ -159,52 +213,43 @@ export function PropertiesPanel() {
                 ? 'Record mode is on — property edits at the current time create keyframes automatically.'
                 : 'Record mode is off — scrub the timeline, adjust a value, then add a keyframe manually.'}
             </p>
-            {animatableProperties.map((property) => {
+            {ANIMATABLE_PROPERTIES.map((property) => {
               const keyframeAtTime = selectedLayer.keyframes.find(
                 (keyframe) =>
                   keyframe.property === property &&
                   Math.abs(keyframe.time - currentTime) < 0.001,
               )
+              const displayValue = isColorProperty(property)
+                ? String(shape[property])
+                : Number(shape[property]).toFixed(property === 'rotation' ? 1 : 2)
 
               return (
-              <div
-                key={property}
-                className="space-y-2 rounded-md border border-border px-3 py-2"
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-medium uppercase">{property}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {shape[property].toFixed(2)}
-                    </p>
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={() => addKeyframeAtCurrentTime(property)}
-                  >
-                    Keyframe
-                  </Button>
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Segment easing</Label>
-                  <select
-                    className="h-8 w-full rounded-md border border-input bg-background px-2 text-sm"
-                    value={keyframeAtTime?.easing ?? 'linear'}
-                    disabled={!keyframeAtTime}
-                    onChange={(event) =>
-                      setKeyframeEasing(property, event.target.value as EasingType)
-                    }
-                  >
-                    {EASING_OPTIONS.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-            )})}
+                <AnimationPropertyRow
+                  key={property}
+                  property={property}
+                  displayValue={
+                    isColorProperty(property) ? (
+                      <span className="inline-flex items-center gap-2">
+                        <span
+                          className="inline-block size-3 rounded-full border border-border"
+                          style={{ backgroundColor: shape[property] }}
+                        />
+                        {displayValue}
+                      </span>
+                    ) : (
+                      displayValue
+                    )
+                  }
+                  keyframeAtTime={Boolean(keyframeAtTime)}
+                  easing={keyframeAtTime?.easing ?? 'linear'}
+                  onAddKeyframe={() => addKeyframeAtCurrentTime(property)}
+                  onSetEasing={(easing) => setKeyframeEasing(property, easing)}
+                />
+              )
+            })}
+            <p className="text-xs text-muted-foreground">
+              Drag keyframe dots on the timeline to retime animations.
+            </p>
           </TabsContent>
         </ScrollArea>
       </Tabs>

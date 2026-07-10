@@ -1,6 +1,8 @@
-export const PROJECT_VERSION = 2 as const
+export const PROJECT_VERSION = 3 as const
 
-export type AnimatableProperty = 'x' | 'y' | 'opacity' | 'scale'
+export type NumericAnimatableProperty = 'x' | 'y' | 'opacity' | 'scale' | 'rotation'
+export type ColorAnimatableProperty = 'fill' | 'stroke'
+export type AnimatableProperty = NumericAnimatableProperty | ColorAnimatableProperty
 
 export type EasingType = 'linear' | 'easeIn' | 'easeOut' | 'easeInOut'
 
@@ -11,6 +13,7 @@ export type BaseShape = {
   type: ShapeType
   x: number
   y: number
+  rotation: number
   fill: string
   stroke: string
   strokeWidth: number
@@ -36,7 +39,7 @@ export type Keyframe = {
   id: string
   time: number
   property: AnimatableProperty
-  value: number
+  value: number | string
   easing?: EasingType
 }
 
@@ -60,9 +63,34 @@ export type Project = {
 
 export type PlaybackState = 'idle' | 'playing' | 'paused'
 
+export const NUMERIC_ANIMATABLE_PROPERTIES: NumericAnimatableProperty[] = [
+  'x',
+  'y',
+  'opacity',
+  'scale',
+  'rotation',
+]
+
+export const COLOR_ANIMATABLE_PROPERTIES: ColorAnimatableProperty[] = ['fill', 'stroke']
+
+export const ANIMATABLE_PROPERTIES: AnimatableProperty[] = [
+  ...NUMERIC_ANIMATABLE_PROPERTIES,
+  ...COLOR_ANIMATABLE_PROPERTIES,
+]
+
 export const EASING_OPTIONS: Array<{ value: EasingType; label: string }> = [
   { value: 'linear', label: 'Linear' },
   { value: 'easeIn', label: 'Ease in' },
   { value: 'easeOut', label: 'Ease out' },
   { value: 'easeInOut', label: 'Ease in-out' },
 ]
+
+export function isColorProperty(property: AnimatableProperty): property is ColorAnimatableProperty {
+  return property === 'fill' || property === 'stroke'
+}
+
+export function isNumericProperty(
+  property: AnimatableProperty,
+): property is NumericAnimatableProperty {
+  return !isColorProperty(property)
+}

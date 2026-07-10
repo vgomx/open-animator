@@ -1,9 +1,11 @@
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { Slider } from '@/components/ui/slider'
 import type { AnimatableProperty } from '@/editor/types'
+import { ANIMATABLE_PROPERTIES } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
+import { saveProjectToStorage } from '@/io/project'
 
 function formatTime(seconds: number): string {
   return `${seconds.toFixed(2)}s`
@@ -14,37 +16,75 @@ const propertyLabels: Record<AnimatableProperty, string> = {
   y: 'Y',
   opacity: 'Opacity',
   scale: 'Scale',
+  rotation: 'Rotation',
+  fill: 'Fill',
+  stroke: 'Stroke',
 }
 
 export function Timeline() {
   const duration = useEditorStore((state) => state.project.duration)
   const currentTime = useEditorStore((state) => state.currentTime)
   const setCurrentTime = useEditorStore((state) => state.setCurrentTime)
+  const moveKeyframe = useEditorStore((state) => state.moveKeyframe)
+  const beginHistoryTransaction = useEditorStore((state) => state.beginHistoryTransaction)
   const selectedLayer = useEditorStore((state) =>
     state.project.layers.find((layer) => layer.id === state.selectedLayerId),
   )
   const trackRef = useRef<HTMLDivElement>(null)
+  const dragKeyframeRef = useRef<string | null>(null)
 
-  const scrubToClientX = (clientX: number) => {
+  const timeFromClientX = (clientX: number): number => {
     const track = trackRef.current
     if (!track || duration === 0) {
-      return
+      return 0
     }
 
     const rect = track.getBoundingClientRect()
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    setCurrentTime(ratio * duration)
+    return ratio * duration
   }
 
+  const scrubToClientX = (clientX: number) => {
+    setCurrentTime(timeFromClientX(clientX))
+  }
+
+  useEffect(() => {
+    const onPointerMove = (event: PointerEvent) => {
+      const keyframeId = dragKeyframeRef.current
+      if (!keyframeId) {
+        return
+      }
+
+      moveKeyframe(keyframeId, timeFromClientX(event.clientX), { skipHistory: true })
+    }
+
+    const onPointerUp = () => {
+      if (!dragKeyframeRef.current) {
+        return
+      }
+
+      dragKeyframeRef.current = null
+      saveProjectToStorage(useEditorStore.getState().project)
+    }
+
+    window.addEventListener('pointermove', onPointerMove)
+    window.addEventListener('pointerup', onPointerUp)
+
+    return () => {
+      window.removeEventListener('pointermove', onPointerMove)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
+  }, [duration, moveKeyframe])
+
   const keyframesByProperty = selectedLayer
-    ? (['x', 'y', 'opacity', 'scale'] as AnimatableProperty[]).map((property) => ({
+    ? ANIMATABLE_PROPERTIES.map((property) => ({
         property,
         keyframes: selectedLayer.keyframes.filter((keyframe) => keyframe.property === property),
       }))
     : []
 
   return (
-    <footer className="flex h-44 shrink-0 flex-col border-t border-border bg-card">
+    <footer className="flex h-52 shrink-0 flex-col border-t border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
           Timeline
@@ -65,8 +105,12 @@ export function Timeline() {
 
         <div
           ref={trackRef}
-          className="relative cursor-pointer rounded-md border border-border bg-background/60"
+          className="relative cursor-pointer overflow-y-auto rounded-md border border-border bg-background/60"
           onPointerDown={(event) => {
+            if (dragKeyframeRef.current) {
+              return
+            }
+
             scrubToClientX(event.clientX)
           }}
         >
@@ -78,7 +122,7 @@ export function Timeline() {
           />
 
           {!selectedLayer ? (
-            <div className="flex h-24 items-center justify-center text-sm text-muted-foreground">
+            <div className="flex h-32 items-center justify-center text-sm text-muted-foreground">
               Select a layer to view keyframes.
             </div>
           ) : (
@@ -89,15 +133,29 @@ export function Timeline() {
                     {propertyLabels[property]}
                   </span>
                   {keyframes.map((keyframe) => (
-                    <div
+                    <button
                       key={keyframe.id}
+                      type="button"
                       className={cn(
-                        'absolute top-1/2 z-20 size-2 -translate-x-1/2 -translate-y-1/2 rounded-full bg-sky-400 ring-2 ring-sky-400/20',
+                        'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-sky-400 ring-2 ring-sky-400/20 active:cursor-grabbing',
+                        property === 'fill' || property === 'stroke'
+                          ? 'ring-offset-1 ring-offset-background'
+                          : '',
                       )}
                       style={{
                         left: `${(keyframe.time / duration) * 100}%`,
+                        backgroundColor:
+                          property === 'fill' || property === 'stroke'
+                            ? String(keyframe.value)
+                            : undefined,
                       }}
                       title={`${keyframe.property} @ ${formatTime(keyframe.time)}`}
+                      onPointerDown={(event) => {
+                        event.stopPropagation()
+                        beginHistoryTransaction()
+                        dragKeyframeRef.current = keyframe.id
+                        event.currentTarget.setPointerCapture(event.pointerId)
+                      }}
                     />
                   ))}
                 </div>
