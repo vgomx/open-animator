@@ -18,6 +18,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const pasteStyleToSelection = useEditorStore((state) => state.pasteStyleToSelection)
   const toggleLockSelectedLayers = useEditorStore((state) => state.toggleLockSelectedLayers)
   const toggleVisibilitySelectedLayers = useEditorStore((state) => state.toggleVisibilitySelectedLayers)
+  const toggleLayersPanel = useEditorStore((state) => state.toggleLayersPanel)
+  const togglePropertiesPanel = useEditorStore((state) => state.togglePropertiesPanel)
   const nudgeSelectedKeyframes = useEditorStore((state) => state.nudgeSelectedKeyframes)
   const setPlaybackState = useEditorStore((state) => state.setPlaybackState)
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -105,7 +107,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
 
       if (mod && key === '2' && selectedLayerIds.length > 0) {
         event.preventDefault()
-        const viewport = document.querySelector('[data-stage-viewport]')
+        const viewport = document.querySelector('[data-canvas-viewport]')
         if (viewport) {
           zoomToSelection(viewport.clientWidth, viewport.clientHeight)
         }
@@ -121,6 +123,18 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
       if (mod && event.shiftKey && key === 'h') {
         event.preventDefault()
         toggleVisibilitySelectedLayers()
+        return
+      }
+
+      if (key === '[' && !mod) {
+        event.preventDefault()
+        toggleLayersPanel()
+        return
+      }
+
+      if (key === ']' && !mod) {
+        event.preventDefault()
+        togglePropertiesPanel()
         return
       }
 
@@ -191,6 +205,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     selectedNodeIndices.length,
     setActiveTool,
     setPlaybackState,
+    toggleLayersPanel,
+    togglePropertiesPanel,
     toggleLockSelectedLayers,
     toggleVisibilitySelectedLayers,
     undo,

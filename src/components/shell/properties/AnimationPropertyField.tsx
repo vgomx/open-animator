@@ -1,10 +1,12 @@
 import type { ReactNode } from 'react'
 import { CircleDot } from 'lucide-react'
 
+import { BezierEasingEditor } from '@/components/shell/properties/BezierEasingEditor'
 import { ColorField } from '@/components/shell/properties/ColorField'
 import { Button } from '@/components/ui/button'
 import { Label } from '@/components/ui/label'
-import type { AnimatableProperty, EasingType } from '@/editor/types'
+import { DEFAULT_CUSTOM_BEZIER } from '@/editor/easing'
+import type { AnimatableProperty, BezierHandle, EasingType } from '@/editor/types'
 import { EASING_OPTIONS, isColorProperty } from '@/editor/types'
 import { cn } from '@/lib/utils'
 
@@ -29,8 +31,9 @@ type AnimationPropertyFieldProps = {
   colorValue?: string
   keyframeAtTime: boolean
   easing: EasingType
+  bezier?: BezierHandle
   onAddKeyframe: () => void
-  onSetEasing: (easing: EasingType) => void
+  onSetEasing: (easing: EasingType, bezier?: BezierHandle) => void
   onColorChange?: (value: string) => void
 }
 
@@ -40,10 +43,13 @@ export function AnimationPropertyField({
   colorValue,
   keyframeAtTime,
   easing,
+  bezier,
   onAddKeyframe,
   onSetEasing,
   onColorChange,
 }: AnimationPropertyFieldProps) {
+  const activeBezier = bezier ?? DEFAULT_CUSTOM_BEZIER
+
   return (
     <div
       className={cn(
@@ -88,7 +94,10 @@ export function AnimationPropertyField({
           className="h-7 w-full rounded-md border border-input bg-background px-2 text-xs"
           value={easing}
           disabled={!keyframeAtTime}
-          onChange={(event) => onSetEasing(event.target.value as EasingType)}
+          onChange={(event) => {
+            const next = event.target.value as EasingType
+            onSetEasing(next, next === 'custom' ? activeBezier : undefined)
+          }}
         >
           {EASING_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
@@ -96,6 +105,12 @@ export function AnimationPropertyField({
             </option>
           ))}
         </select>
+        {keyframeAtTime && easing === 'custom' ? (
+          <BezierEasingEditor
+            value={activeBezier}
+            onChange={(next) => onSetEasing('custom', next)}
+          />
+        ) : null}
       </div>
     </div>
   )

@@ -1,5 +1,11 @@
 import type { Project } from '@/editor/types'
 import { createId } from '@/editor/scene'
+import {
+  SHAPE_FILL_PRIMARY,
+  SHAPE_FILL_SECONDARY,
+  SHAPE_STROKE_PRIMARY,
+  SHAPE_STROKE_SECONDARY,
+} from '@/lib/brand-colors'
 import { projectDefaults } from '@/lib/project-defaults'
 
 export type ProjectTemplate = {
@@ -29,8 +35,8 @@ function bouncingBallProject(): Project {
           rotation: 0,
           rx: 40,
           ry: 40,
-          fill: '#f97316',
-          stroke: '#9a3412',
+          fill: SHAPE_FILL_PRIMARY,
+          stroke: SHAPE_STROKE_PRIMARY,
           strokeWidth: 2,
           opacity: 1,
           scale: 1,
@@ -65,8 +71,8 @@ function fadeRevealProject(): Project {
           rotation: 0,
           width: 300,
           height: 200,
-          fill: '#6366f1',
-          stroke: '#312e81',
+          fill: SHAPE_FILL_PRIMARY,
+          stroke: SHAPE_STROKE_PRIMARY,
           strokeWidth: 2,
           opacity: 0,
           scale: 0.8,
@@ -104,8 +110,8 @@ function spinnerProject(): Project {
           rotation: 0,
           width: 80,
           height: 80,
-          fill: '#22d3ee',
-          stroke: '#155e75',
+          fill: SHAPE_FILL_SECONDARY,
+          stroke: SHAPE_STROKE_SECONDARY,
           strokeWidth: 2,
           opacity: 1,
           scale: 1,

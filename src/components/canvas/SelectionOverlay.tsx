@@ -16,6 +16,7 @@ import {
 } from '@/editor/snap'
 import type { Shape } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
+import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 
 type SelectionOverlayProps = {
@@ -182,7 +183,7 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
         width={bounds.width + padding * 2}
         height={bounds.height + padding * 2}
         fill="none"
-        stroke={locked ? '#f59e0b' : '#38bdf8'}
+        stroke={locked ? '#f59e0b' : UI_STROKE}
         strokeWidth={1.5}
         strokeDasharray="4 3"
         pointerEvents="none"
@@ -249,7 +250,7 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
           cy={bounds.y + bounds.height * y}
           r={5}
           fill="#ffffff"
-          stroke="#38bdf8"
+          stroke={UI_STROKE}
           strokeWidth={1.5}
           className="cursor-nwse-resize"
           onPointerDown={(event) => {
@@ -266,7 +267,7 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
         cy={bounds.y - 24}
         r={5}
         fill="#ffffff"
-        stroke="#38bdf8"
+        stroke={UI_STROKE}
         strokeWidth={1.5}
         className="cursor-grab"
         onPointerDown={(event) => {
@@ -291,7 +292,7 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
         y1={bounds.y}
         x2={bounds.x + bounds.width / 2}
         y2={bounds.y - 24}
-        stroke="#38bdf8"
+        stroke={UI_STROKE}
         strokeWidth={1}
         pointerEvents="none"
       />

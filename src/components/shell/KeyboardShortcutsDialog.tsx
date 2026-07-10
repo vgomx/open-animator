@@ -29,6 +29,7 @@ const SHORTCUTS = [
   { keys: '⌘⇧L', action: 'Toggle lock on selection' },
   { keys: '⌘⇧H', action: 'Toggle visibility on selection' },
   { keys: 'Alt+drag', action: 'Duplicate while dragging' },
+  { keys: '[ / ]', action: 'Toggle layers / properties panels' },
   { keys: 'Double-click text', action: 'Edit text inline on canvas' },
   { keys: '⌘C', action: 'Copy keyframes at playhead' },
   { keys: '⌘V', action: 'Paste keyframes at playhead' },

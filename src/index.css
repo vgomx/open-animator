@@ -40,6 +40,8 @@
   --color-card: var(--card);
   --color-foreground: var(--foreground);
   --color-background: var(--background);
+  --color-brand: var(--brand-accent);
+  --color-brand-foreground: var(--brand-accent-foreground);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -77,15 +79,43 @@
 @layer components {
   .glass-chrome,
   .glass-panel {
-    @apply bg-card/40 backdrop-blur-xl backdrop-saturate-150 supports-[backdrop-filter]:bg-card/30;
+    background-color: color-mix(in oklab, var(--card) 24%, transparent);
+    border-color: color-mix(in oklab, var(--border) 55%, transparent);
+    backdrop-filter: blur(40px) saturate(160%);
+    -webkit-backdrop-filter: blur(40px) saturate(160%);
+  }
+
+  .dark .glass-chrome,
+  .dark .glass-panel {
+    background-color: rgb(255 255 255 / 0.08);
+    border-color: rgb(255 255 255 / 0.1);
   }
 
   .glass-panel-header {
-    @apply border-border/40 bg-card/20;
+    border-color: color-mix(in oklab, var(--border) 40%, transparent);
+    background-color: color-mix(in oklab, var(--card) 16%, transparent);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+  }
+
+  .dark .glass-panel-header {
+    background-color: rgb(255 255 255 / 0.05);
+    border-color: rgb(255 255 255 / 0.08);
   }
 
   .canvas-backdrop {
     background-color: var(--canvas-backdrop);
+    background-image:
+      linear-gradient(45deg, var(--canvas-grid) 25%, transparent 25%),
+      linear-gradient(-45deg, var(--canvas-grid) 25%, transparent 25%),
+      linear-gradient(45deg, transparent 75%, var(--canvas-grid) 75%),
+      linear-gradient(-45deg, transparent 75%, var(--canvas-grid) 75%);
+    background-size: 20px 20px;
+    background-position:
+      0 0,
+      0 10px,
+      10px -10px,
+      -10px 0;
   }
 
   .artboard-surface {
@@ -109,76 +139,80 @@
 }
 
 :root {
-  --background: oklch(1 0 0);
-  --foreground: oklch(0.145 0 0);
-  --canvas-backdrop: oklch(0.95 0.01 260);
-  --artboard-surface: oklch(0.99 0 0);
-  --artboard-grid: oklch(0.9 0.01 260);
-  --card: oklch(1 0 0);
-  --card-foreground: oklch(0.145 0 0);
-  --popover: oklch(1 0 0);
-  --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
-  --primary-foreground: oklch(0.985 0 0);
-  --secondary: oklch(0.97 0 0);
-  --secondary-foreground: oklch(0.205 0 0);
-  --muted: oklch(0.97 0 0);
-  --muted-foreground: oklch(0.556 0 0);
-  --accent: oklch(0.97 0 0);
-  --accent-foreground: oklch(0.205 0 0);
-  --destructive: oklch(0.577 0.245 27.325);
-  --border: oklch(0.922 0 0);
-  --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
+  --brand-accent: #F2542D;
+  --brand-accent-foreground: #ffffff;
+  --background: #fdfcf9;
+  --foreground: #1c1b19;
+  --canvas-backdrop: #f4f3f0;
+  --canvas-grid: rgb(28 27 25 / 0.06);
+  --artboard-surface: #fdfcf9;
+  --artboard-grid: #e8e6e0;
+  --card: #ffffff;
+  --card-foreground: #1c1b19;
+  --popover: #ffffff;
+  --popover-foreground: #1c1b19;
+  --primary: var(--brand-accent);
+  --primary-foreground: var(--brand-accent-foreground);
+  --secondary: #f0efec;
+  --secondary-foreground: #1c1b19;
+  --muted: #f0efec;
+  --muted-foreground: #6b6860;
+  --accent: #f7e8e3;
+  --accent-foreground: #1c1b19;
+  --destructive: #dc2626;
+  --border: #e8e6e0;
+  --input: #e8e6e0;
+  --ring: color-mix(in oklab, var(--brand-accent) 55%, transparent);
+  --chart-1: #F2542D;
+  --chart-2: #E07A55;
+  --chart-3: #1c1b19;
+  --chart-4: #8a8780;
+  --chart-5: #e8e6e0;
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
-  --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.97 0 0);
-  --sidebar-accent-foreground: oklch(0.205 0 0);
-  --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar: #fdfcf9;
+  --sidebar-foreground: #1c1b19;
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f0efec;
+  --sidebar-accent-foreground: #1c1b19;
+  --sidebar-border: #e8e6e0;
+  --sidebar-ring: color-mix(in oklab, var(--brand-accent) 45%, transparent);
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --canvas-backdrop: oklch(0.12 0.02 260);
-  --artboard-surface: oklch(0.2 0.02 260);
-  --artboard-grid: oklch(0.28 0.02 260);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
-  --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
-  --chart-1: oklch(0.87 0 0);
-  --chart-2: oklch(0.556 0 0);
-  --chart-3: oklch(0.439 0 0);
-  --chart-4: oklch(0.371 0 0);
-  --chart-5: oklch(0.269 0 0);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --background: #0a0a0a;
+  --foreground: #f4f3f0;
+  --canvas-backdrop: #0a0a0a;
+  --canvas-grid: rgb(244 243 240 / 0.05);
+  --artboard-surface: #141312;
+  --artboard-grid: rgb(244 243 240 / 0.08);
+  --card: #141312;
+  --card-foreground: #f4f3f0;
+  --popover: #141312;
+  --popover-foreground: #f4f3f0;
+  --primary: var(--brand-accent);
+  --primary-foreground: #ffffff;
+  --secondary: #1c1b19;
+  --secondary-foreground: #f4f3f0;
+  --muted: #1c1b19;
+  --muted-foreground: #8a8780;
+  --accent: rgb(242 84 45 / 0.14);
+  --accent-foreground: #f4f3f0;
+  --destructive: #f87171;
+  --border: rgb(244 243 240 / 0.1);
+  --input: rgb(244 243 240 / 0.12);
+  --ring: color-mix(in oklab, var(--brand-accent) 65%, transparent);
+  --chart-1: #F2542D;
+  --chart-2: #E07A55;
+  --chart-3: #f4f3f0;
+  --chart-4: #8a8780;
+  --chart-5: #1c1b19;
+  --sidebar: #141312;
+  --sidebar-foreground: #f4f3f0;
+  --sidebar-primary: var(--brand-accent);
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #1c1b19;
+  --sidebar-accent-foreground: #f4f3f0;
+  --sidebar-border: rgb(244 243 240 / 0.1);
+  --sidebar-ring: color-mix(in oklab, var(--brand-accent) 55%, transparent);
 }

@@ -8,9 +8,10 @@ import {
   FolderOpen,
   Info,
   Keyboard,
-  Layers2,
   Magnet,
   MoreHorizontal,
+  PanelLeft,
+  PanelRight,
   Pause,
   Play,
   RectangleHorizontal,
@@ -28,7 +29,9 @@ import {
 } from 'lucide-react'
 
 import { AboutDialog } from '@/components/shell/AboutDialog'
+import { AppLogo } from '@/components/shell/AppLogo'
 import { AcknowledgmentsDialog } from '@/components/shell/AcknowledgmentsDialog'
+import { OnionSkinControls } from '@/components/shell/OnionSkinControls'
 import { ExportOptionsDialog } from '@/components/shell/ExportOptionsDialog'
 import { PresetsDialog } from '@/components/shell/PresetsDialog'
 import { TemplatesDialog } from '@/components/shell/TemplatesDialog'
@@ -39,6 +42,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ToolbarDivider } from '@/components/ui/toolbar-divider'
@@ -48,6 +52,7 @@ import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
 import { downloadProject, openProjectFile } from '@/io/project'
 import { downloadLottie, exportLottie, openLottieFile } from '@/io/lottie'
+import { createImportLayerIds, openSvgFile, svgImportToProject } from '@/io/svg-import'
 import {
   downloadAnimatedSvg,
   downloadStaticSvg,
@@ -100,14 +105,73 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
   const resetViewport = useEditorStore((state) => state.resetViewport)
   const zoomToSelection = useEditorStore((state) => state.zoomToSelection)
   const setProject = useEditorStore((state) => state.setProject)
+  const importSvgLayers = useEditorStore((state) => state.importSvgLayers)
+  const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
+  const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
+  const toggleLayersPanel = useEditorStore((state) => state.toggleLayersPanel)
+  const togglePropertiesPanel = useEditorStore((state) => state.togglePropertiesPanel)
   const snapEnabled = useEditorStore((state) => state.snapEnabled)
   const showRulers = useEditorStore((state) => state.showRulers)
-  const onionSkinEnabled = useEditorStore((state) => state.onionSkinEnabled)
   const toggleSnapEnabled = useEditorStore((state) => state.toggleSnapEnabled)
   const toggleShowRulers = useEditorStore((state) => state.toggleShowRulers)
-  const toggleOnionSkinEnabled = useEditorStore((state) => state.toggleOnionSkinEnabled)
 
   const isPlaying = playbackState === 'playing'
+
+  const fitCanvasToScreen = () => {
+    const viewport = document.querySelector('[data-canvas-viewport]')
+    if (!viewport) {
+      return
+    }
+
+    const rect = viewport.getBoundingClientRect()
+    fitToScreen(rect.width, rect.height)
+  }
+
+  const notifySvgImportResult = (
+    imported: Awaited<ReturnType<typeof openSvgFile>>,
+    mode: 'merge' | 'project',
+  ) => {
+    if (!imported) {
+      return
+    }
+
+    if (imported.layers.length === 0) {
+      showToast({
+        title: 'SVG import failed',
+        description: 'No supported shapes were found in that file.',
+        variant: 'error',
+      })
+      return
+    }
+
+    if (mode === 'merge') {
+      importSvgLayers(createImportLayerIds(imported.layers), imported.artboard)
+      showToast({
+        title: 'SVG imported',
+        description: `Added ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} to the current project.`,
+        variant: 'success',
+      })
+      return
+    }
+
+    setProject(svgImportToProject(imported))
+    requestAnimationFrame(fitCanvasToScreen)
+    showToast({
+      title: 'SVG opened',
+      description: `Loaded ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} as a new project.`,
+      variant: 'success',
+    })
+  }
+
+  const handleImportSvgIntoProject = async () => {
+    const imported = await openSvgFile()
+    notifySvgImportResult(imported, 'merge')
+  }
+
+  const handleOpenSvgAsProject = async () => {
+    const imported = await openSvgFile()
+    notifySvgImportResult(imported, 'project')
+  }
 
   const handleExport = async (options: ExportOptions) => {
     if (!exportKind) {
@@ -207,7 +271,9 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
-        <span className="px-2 text-sm font-semibold tracking-tight">Open Animator</span>
+        <div className="flex items-center px-2">
+          <AppLogo size={22} variant="accent" />
+        </div>
         <ToolbarDivider />
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -334,7 +400,7 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => {
-                  const viewport = document.querySelector('[data-stage-viewport]')
+                  const viewport = document.querySelector('[data-canvas-viewport]')
                   if (viewport) {
                     zoomToSelection(viewport.clientWidth, viewport.clientHeight)
                   }
@@ -351,7 +417,7 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
                 variant="ghost"
                 size="icon-sm"
                 onClick={() => {
-                  const viewport = document.querySelector('[data-stage-viewport]')
+                  const viewport = document.querySelector('[data-canvas-viewport]')
                   if (viewport) {
                     fitToScreen(viewport.clientWidth, viewport.clientHeight)
                   }
@@ -369,15 +435,28 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
-                variant={onionSkinEnabled ? 'secondary' : 'ghost'}
+                variant={showLayersPanel ? 'secondary' : 'ghost'}
                 size="icon-sm"
-                onClick={toggleOnionSkinEnabled}
+                onClick={toggleLayersPanel}
               >
-                <Layers2 />
+                <PanelLeft />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>{onionSkinEnabled ? 'Onion skin on' : 'Onion skin off'}</TooltipContent>
+            <TooltipContent>Toggle layers panel</TooltipContent>
           </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant={showPropertiesPanel ? 'secondary' : 'ghost'}
+                size="icon-sm"
+                onClick={togglePropertiesPanel}
+              >
+                <PanelRight />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Toggle properties panel</TooltipContent>
+          </Tooltip>
+          <OnionSkinControls />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -502,12 +581,29 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
                 <Play />
                 Preview as Lottie
               </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleImportSvgIntoProject}>
+                <FolderOpen />
+                Import SVG into project
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleOpenSvgAsProject}>
+                <FolderOpen />
+                Open SVG as new project
+              </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={async () => {
                   const imported = await openLottieFile()
-                  if (imported) {
-                    setProject(imported)
+                  if (!imported) {
+                    return
                   }
+
+                  setProject(imported)
+                  requestAnimationFrame(fitCanvasToScreen)
+                  showToast({
+                    title: 'Lottie opened',
+                    description: 'Loaded animation as a new project.',
+                    variant: 'success',
+                  })
                 }}
               >
                 <FolderOpen />

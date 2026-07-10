@@ -1,3 +1,5 @@
+import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
+
 export const PROJECT_VERSION = 7 as const
 
 export type GuideAxis = 'x' | 'y'
@@ -38,6 +40,28 @@ export type EasingType =
   | 'elastic'
   | 'back'
   | 'hold'
+  | 'custom'
+
+/** CSS cubic-bezier control points: x1, y1, x2, y2 */
+export type BezierHandle = [number, number, number, number]
+
+export type OnionSkinSettings = {
+  framesBefore: number
+  framesAfter: number
+  opacityBefore: number
+  opacityAfter: number
+  tintBefore: string
+  tintAfter: string
+}
+
+export const DEFAULT_ONION_SKIN_SETTINGS: OnionSkinSettings = {
+  framesBefore: 1,
+  framesAfter: 1,
+  opacityBefore: 0.28,
+  opacityAfter: 0.18,
+  tintBefore: BRAND.accent,
+  tintAfter: UI_PATH_STROKE,
+}
 
 export type ShapeType = 'rect' | 'ellipse' | 'text' | 'path'
 
@@ -94,6 +118,7 @@ export type Keyframe = {
   property: AnimatableProperty
   value: number | string
   easing?: EasingType
+  bezier?: BezierHandle
 }
 
 export type Layer = {
@@ -190,6 +215,7 @@ export const EASING_OPTIONS: Array<{ value: EasingType; label: string }> = [
   { value: 'elastic', label: 'Elastic' },
   { value: 'back', label: 'Back' },
   { value: 'hold', label: 'Hold (step)' },
+  { value: 'custom', label: 'Custom bezier' },
 ]
 
 export function isColorProperty(property: AnimatableProperty): property is ColorAnimatableProperty {

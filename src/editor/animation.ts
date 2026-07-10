@@ -1,5 +1,6 @@
 import type {
   AnimatableProperty,
+  BezierHandle,
   ColorAnimatableProperty,
   EasingType,
   Keyframe,
@@ -7,60 +8,18 @@ import type {
   NumericAnimatableProperty,
   Shape,
 } from '@/editor/types'
+import { sampleEasing } from '@/editor/easing'
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
 }
 
-export function applyEasing(progress: number, easing: EasingType = 'linear'): number {
-  const t = Math.max(0, Math.min(1, progress))
-
-  switch (easing) {
-    case 'easeIn':
-      return t * t
-    case 'easeOut':
-      return t * (2 - t)
-    case 'easeInOut':
-      return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t
-    case 'spring': {
-      const c4 = (2 * Math.PI) / 3
-      return t === 0 ? 0 : t === 1 ? 1 : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c4) + 1
-    }
-    case 'bounce': {
-      const n1 = 7.5625
-      const d1 = 2.75
-      if (t < 1 / d1) {
-        return n1 * t * t
-      }
-      if (t < 2 / d1) {
-        const v = t - 1.5 / d1
-        return n1 * v * v + 0.75
-      }
-      if (t < 2.5 / d1) {
-        const v = t - 2.25 / d1
-        return n1 * v * v + 0.9375
-      }
-      const v = t - 2.625 / d1
-      return n1 * v * v + 0.984375
-    }
-    case 'elastic': {
-      const c5 = (2 * Math.PI) / 4.5
-      return t === 0
-        ? 0
-        : t === 1
-          ? 1
-          : Math.pow(2, -10 * t) * Math.sin((t * 10 - 0.75) * c5) + 1
-    }
-    case 'back': {
-      const c1 = 1.70158
-      const c3 = c1 + 1
-      return c3 * t * t * t - c1 * t * t
-    }
-    case 'hold':
-      return 0
-    default:
-      return t
-  }
+export function applyEasing(
+  progress: number,
+  easing: EasingType = 'linear',
+  bezier?: BezierHandle,
+): number {
+  return sampleEasing(progress, easing, bezier)
 }
 
 export function getKeyframesForProperty(
@@ -108,7 +67,7 @@ function sampleSegmentValue(
       }
 
       const progress = (time - current.time) / span
-      const eased = applyEasing(progress, current.easing)
+      const eased = applyEasing(progress, current.easing, current.bezier)
       return interpolate(current, next, eased)
     }
   }
@@ -215,7 +174,7 @@ export function sampleColorAtTime(
       }
 
       const progress = (time - current.time) / span
-      const eased = applyEasing(progress, current.easing)
+      const eased = applyEasing(progress, current.easing, current.bezier)
       return lerpColor(current.value, next.value, eased)
     }
   }
