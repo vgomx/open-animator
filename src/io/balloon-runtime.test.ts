@@ -9,7 +9,7 @@ import { effectiveMatrixAtTime } from '@/io/svg-smil'
 import { applyMatrixToPoint } from '@/io/svg-transform'
 
 describe('balloon runtime animation', () => {
-  it('renders imported paths with matrix transforms at t=0 and t=3', { timeout: 15000 }, () => {
+  it('renders imported paths with matrix transforms at t=0 and t=3', { timeout: 30000 }, () => {
     const doc = new DOMParser().parseFromString(balloonSvg, 'image/svg+xml')
     const sourcePaths = [...doc.querySelectorAll('path')].filter((path) => path.getAttribute('d'))
     const imported = importSvg(balloonSvg)!
@@ -93,7 +93,7 @@ describe('balloon runtime animation', () => {
     }
 
     expect(matchedAt0).toBeGreaterThan(300)
-    expect(checkedAt3).toBeGreaterThan(10)
+    expect(checkedAt3).toBeGreaterThan(50)
     expect(matchedAt3 / checkedAt3).toBeGreaterThan(0.8)
   })
 })

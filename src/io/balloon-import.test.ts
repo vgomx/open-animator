@@ -29,7 +29,7 @@ describe('hot air balloon parallax import', () => {
     const animatedLayers = imported!.layers.filter((layer) =>
       matrixKeyframesHaveMotion(layer.matrixKeyframes),
     )
-    expect(animatedLayers.length).toBeGreaterThan(10)
+    expect(animatedLayers.length).toBeGreaterThan(50)
 
     const inViewLayers = imported!.layers.filter((layer) =>
       overlapsViewport(getShapeBounds(getAnimatedShape(layer, 0))),

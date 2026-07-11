@@ -112,3 +112,7 @@ export function decomposeMatrix(matrix: AffineMatrix): {
     scale: (scaleX + scaleY) / 2,
   }
 }
+
+export function formatMatrixAttribute(matrix: AffineMatrix): string {
+  return `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`
+}

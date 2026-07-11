@@ -60,4 +60,20 @@ describe('svg smil import', () => {
     expect(point.y).toBeCloseTo(0, 0)
     expect(point.x).toBeCloseTo(100, 0)
   })
+
+  it('imports rotate animateTransform value tracks into path matrix keyframes', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <path d="M 50 50 L 100 50 L 75 100 Z" fill="#000">
+          <animateTransform type="rotate" dur="4s" values="0;180;360" />
+        </path>
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    const layer = imported?.layers[0]
+
+    expect(layer?.matrixKeyframes?.length).toBeGreaterThan(1)
+    expect(imported?.duration).toBe(4)
+  })
 })

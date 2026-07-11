@@ -65,7 +65,7 @@ describe('balloon matrix animation', () => {
       matrixKeyframesHaveMotion(layer.matrixKeyframes),
     )
 
-    expect(animated.length).toBeGreaterThan(10)
+    expect(animated.length).toBeGreaterThan(50)
 
     let movedAt6 = 0
     for (const layer of animated) {
@@ -91,6 +91,6 @@ describe('balloon matrix animation', () => {
       }
     }
 
-    expect(movedAt6).toBeGreaterThan(10)
+    expect(movedAt6).toBeGreaterThan(50)
   })
 })
