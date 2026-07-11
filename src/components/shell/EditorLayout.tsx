@@ -81,6 +81,23 @@ export function EditorLayout() {
     })
   }, [])
 
+  useEffect(() => {
+    const project = useEditorStore.getState().project
+    const artboard = project.artboards[0]
+    if (!artboard || project.layers.length < 100) {
+      return
+    }
+
+    requestAnimationFrame(() => {
+      const viewport = document.querySelector('[data-stage-viewport]')?.getBoundingClientRect()
+      if (!viewport) {
+        return
+      }
+
+      useEditorStore.getState().fitToScreen(viewport.width, viewport.height)
+    })
+  }, [])
+
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">
       <PlaybackLoop />

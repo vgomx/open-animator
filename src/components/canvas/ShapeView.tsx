@@ -1,11 +1,9 @@
 import type { Shape } from '@/editor/types'
 import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
-import { importedMaskId } from '@/io/svg-masks'
 
 type ShapeViewProps = {
   shape: Shape
-  maskId?: string
 }
 
 function matrixToTransform(matrix: {
@@ -19,30 +17,7 @@ function matrixToTransform(matrix: {
   return `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`
 }
 
-export function ShapeView({ shape, maskId }: ShapeViewProps) {
-  if (shape.type === 'path' && maskId && shape.transformMatrix) {
-    const pathData = pathPointsToString(shape.points, shape.closed)
-    if (!pathData) {
-      return null
-    }
-
-    return (
-      <g transform={matrixToTransform(shape.transformMatrix)}>
-        <g mask={`url(#${importedMaskId(maskId)})`}>
-          <path
-            d={pathData}
-            fill={shape.fill === 'none' ? 'none' : shape.fill}
-            stroke={shape.stroke}
-            strokeWidth={shape.strokeWidth}
-            opacity={shape.opacity}
-            strokeLinejoin="round"
-            strokeLinecap="round"
-          />
-        </g>
-      </g>
-    )
-  }
-
+export function ShapeView({ shape }: ShapeViewProps) {
   const transform =
     shape.type === 'path' && shape.transformMatrix
       ? matrixToTransform(shape.transformMatrix)

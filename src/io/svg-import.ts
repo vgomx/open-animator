@@ -15,7 +15,7 @@ import {
   parseSvgGradients,
   resolvePaintValue,
 } from '@/io/svg-gradients'
-import { parseSvgMasks, resolveMaskId, createLocalSpaceMaskInstance, type ImportedMask } from '@/io/svg-masks'
+import { parseSvgMasks, resolveMaskId } from '@/io/svg-masks'
 import {
   isSvgFile,
   looksLikeSvgText,
@@ -431,7 +431,6 @@ function collectLayers(
   inheritedMatrix: AffineMatrix,
   inheritedMaskId: string | null,
   gradients: Record<string, ImportedGradient>,
-  masks: Record<string, ImportedMask>,
   layers: Layer[],
   startIndex: number,
 ): { nextIndex: number; duration: number } {
@@ -456,7 +455,6 @@ function collectLayers(
         matrix,
         maskId,
         gradients,
-        masks,
         layers,
         nextIndex,
       )
@@ -490,22 +488,7 @@ function collectLayers(
     const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
     layer.matrixKeyframes = matrixAnim.keyframes
     if (maskId) {
-      const referenceMatrix = matrixAnim.keyframes[0]
-      layer.svgMaskId =
-        referenceMatrix &&
-        (createLocalSpaceMaskInstance(
-          masks,
-          maskId,
-          String(nextIndex + 1),
-          {
-            a: referenceMatrix.a,
-            b: referenceMatrix.b,
-            c: referenceMatrix.c,
-            d: referenceMatrix.d,
-            e: referenceMatrix.e,
-            f: referenceMatrix.f,
-          },
-        ) ?? undefined)
+      layer.svgMaskId = maskId
     }
 
     layers.push(attachMatrixDisplayKeyframes(layer))
@@ -611,7 +594,7 @@ export function importSvg(raw: string): SvgImportResult | null {
   }
 
   const layers: Layer[] = []
-  const { duration } = collectLayers(svg, defaultStyle, IDENTITY_MATRIX, null, gradients, masks, layers, 0)
+  const { duration } = collectLayers(svg, defaultStyle, IDENTITY_MATRIX, null, gradients, layers, 0)
 
   if (layers.length === 0) {
     return null

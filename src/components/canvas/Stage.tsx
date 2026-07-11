@@ -24,6 +24,7 @@ import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
+import { importedMaskId } from '@/io/svg-masks'
 
 type DrawDraft = {
   startX: number
@@ -167,7 +168,7 @@ export function Stage() {
         return (
           <g key={`${layer.id}-${time}`} pointerEvents="none">
             <g opacity={frame.opacity}>
-              <ShapeView shape={animatedShape} maskId={layer.svgMaskId} />
+              <ShapeView shape={animatedShape} />
             </g>
             <rect
               x={bounds.x}
@@ -687,6 +688,9 @@ export function Stage() {
                 return (
                   <g
                     key={layer.id}
+                    mask={
+                      layer.svgMaskId ? `url(#${importedMaskId(layer.svgMaskId)})` : undefined
+                    }
                     onPointerDown={(event) => {
                       if (!allowLayerSelect || isPanning) {
                         return
@@ -708,7 +712,7 @@ export function Stage() {
                     className={allowLayerSelect ? 'cursor-pointer' : undefined}
                     style={{ pointerEvents: allowLayerSelect ? 'auto' : 'none' }}
                   >
-                    <ShapeView shape={animatedShape} maskId={layer.svgMaskId} />
+                    <ShapeView shape={animatedShape} />
                     <g data-eyedropper-ignore>
                       {isSelected && activeTool === 'select' ? (
                         <SelectionOverlay

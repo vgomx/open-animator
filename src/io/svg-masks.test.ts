@@ -15,10 +15,9 @@ describe('svg mask import', () => {
     const imported = importSvg(balloonSvg)!
 
     expect(Object.keys(masks).length).toBe(53)
-    expect(Object.keys(imported.masks).length).toBeGreaterThan(53)
+    expect(Object.keys(imported.masks).length).toBe(53)
 
     const maskedLayers = imported.layers.filter((layer) => layer.svgMaskId)
     expect(maskedLayers.length).toBe(53)
-    expect(maskedLayers.every((layer) => layer.svgMaskId?.includes('__'))).toBe(true)
   })
 })
