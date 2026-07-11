@@ -16,6 +16,7 @@ import {
   type ExportBackgroundMode,
   type ExportOptions,
 } from '@/io/export-options'
+import { loadEditorPreferences } from '@/lib/preferences'
 
 type ExportOptionsDialogProps = {
   open: boolean
@@ -34,7 +35,10 @@ export function ExportOptionsDialog({
   confirmLabel,
   onConfirm,
 }: ExportOptionsDialogProps) {
-  const [options, setOptions] = useState<ExportOptions>(DEFAULT_EXPORT_OPTIONS)
+  const [options, setOptions] = useState<ExportOptions>(() => ({
+    ...DEFAULT_EXPORT_OPTIONS,
+    fps: loadEditorPreferences().defaultExportFps,
+  }))
   const [isSubmitting, setIsSubmitting] = useState(false)
 
   const setBackground = (background: ExportBackgroundMode) => {

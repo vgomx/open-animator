@@ -1,3 +1,6 @@
+/** Matches Tailwind `w-14` (3.5rem) at default root font size. */
+export const ACTIVITY_RAIL_WIDTH = 56
+
 /** Matches Tailwind `w-56` (14rem) at default root font size. */
 export const LAYERS_PANEL_WIDTH = 224
 
