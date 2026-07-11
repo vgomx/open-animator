@@ -1,11 +1,10 @@
-import type { AnimatableProperty, Keyframe } from '@/editor/types'
+import type { Keyframe, Layer } from '@/editor/types'
 import { timeToPixel } from '@/editor/timeline-utils'
 import { TIMELINE_ROW_HEIGHT } from '@/editor/layout-constants'
 import { cn } from '@/lib/utils'
 
-type TimelinePropertyTrackProps = {
-  property: AnimatableProperty
-  keyframes: Keyframe[]
+type TimelineLayerTrackProps = {
+  layer: Layer
   duration: number
   contentWidth: number
   selectedKeyframeIds: string[]
@@ -15,19 +14,18 @@ type TimelinePropertyTrackProps = {
   ) => void
 }
 
-export function TimelinePropertyTrack({
-  property,
-  keyframes,
+export function TimelineLayerTrack({
+  layer,
   duration,
   contentWidth,
   selectedKeyframeIds,
   onKeyframePointerDown,
-}: TimelinePropertyTrackProps) {
-  const ordered = [...keyframes].sort((left, right) => left.time - right.time)
+}: TimelineLayerTrackProps) {
+  const ordered = [...layer.keyframes].sort((left, right) => left.time - right.time)
 
   return (
     <div
-      className="relative border-b border-border/30 bg-muted/5"
+      className="relative border-b border-border/40"
       style={{ height: TIMELINE_ROW_HEIGHT, width: contentWidth }}
     >
       {ordered.map((keyframe, index) => {
@@ -42,7 +40,7 @@ export function TimelinePropertyTrack({
         return (
           <div
             key={`${keyframe.id}-${next.id}`}
-            className="pointer-events-none absolute top-1/2 z-0 h-1 -translate-y-1/2 rounded-full bg-primary/20"
+            className="pointer-events-none absolute top-1/2 z-0 h-1 -translate-y-1/2 rounded-full bg-primary/15"
             style={{ left, width: Math.max(width, 0) }}
           />
         )
@@ -50,7 +48,7 @@ export function TimelinePropertyTrack({
 
       {ordered.map((keyframe) => {
         const selected = selectedKeyframeIds.includes(keyframe.id)
-        const isColor = property === 'fill' || property === 'stroke'
+        const isColor = keyframe.property === 'fill' || keyframe.property === 'stroke'
 
         return (
           <button
@@ -63,7 +61,6 @@ export function TimelinePropertyTrack({
               selected
                 ? 'bg-primary ring-2 ring-primary/40'
                 : 'bg-primary/90 ring-1 ring-primary/25 hover:ring-2 hover:ring-primary/40',
-              isColor && 'ring-offset-1 ring-offset-background',
             )}
             style={{
               left: timeToPixel(keyframe.time, duration, contentWidth),

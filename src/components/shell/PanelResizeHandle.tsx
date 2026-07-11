@@ -51,16 +51,22 @@ export function PanelResizeHandle({
 
   return (
     <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize panel"
       className={cn(
-        'absolute top-0 z-40 h-full w-1.5 cursor-col-resize touch-none',
+        'pointer-events-none absolute top-0 z-40 h-full w-3',
         edge === 'left' ? 'left-0 -translate-x-1/2' : 'right-0 translate-x-1/2',
-        'hover:bg-primary/20 active:bg-primary/30',
         className,
       )}
-      onPointerDown={onPointerDown}
-    />
+    >
+      <div
+        role="separator"
+        aria-orientation="vertical"
+        aria-label="Resize panel"
+        className={cn(
+          'pointer-events-auto absolute inset-y-0 left-1/2 w-1.5 -translate-x-1/2 cursor-col-resize touch-none',
+          'hover:bg-primary/20 active:bg-primary/30',
+        )}
+        onPointerDown={onPointerDown}
+      />
+    </div>
   )
 }

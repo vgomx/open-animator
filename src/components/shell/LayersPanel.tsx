@@ -18,6 +18,11 @@ import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { getArtboardLayers } from '@/editor/artboard-utils'
+import {
+  getGroupDisplayName,
+  getLayerTypeIcon,
+  GROUP_ICON,
+} from '@/editor/layer-display'
 import { useEditorStore } from '@/editor/store'
 import type { Layer } from '@/editor/types'
 import { cn } from '@/lib/utils'
@@ -80,20 +85,12 @@ function getDropIndexFromMarkers(list: HTMLElement, clientY: number, fallback: n
   return Number.isFinite(lastTarget) ? lastTarget : fallback
 }
 
-function mountFloatingPreview(
-  rowElement: HTMLDivElement,
-  layerName: string,
-  isSelected: boolean,
-): HTMLDivElement {
+function mountFloatingPreview(rowElement: HTMLDivElement): HTMLDivElement {
   const rect = rowElement.getBoundingClientRect()
-  const surface = getComputedStyle(document.documentElement).getPropertyValue('--card').trim()
+  const preview = rowElement.cloneNode(true) as HTMLDivElement
 
-  const preview = document.createElement('div')
   preview.setAttribute('data-layer-drag-preview', 'true')
-  preview.className = cn(
-    'layer-panel-drag-preview flex items-center gap-1 rounded-md border px-1.5 py-1.5 shadow-lg',
-    isSelected ? 'border-primary/40' : 'border-border',
-  )
+  preview.classList.remove('opacity-55')
   preview.style.position = 'fixed'
   preview.style.left = `${rect.left}px`
   preview.style.top = `${rect.top}px`
@@ -103,19 +100,16 @@ function mountFloatingPreview(
   preview.style.pointerEvents = 'none'
   preview.style.zIndex = '10000'
   preview.style.boxSizing = 'border-box'
-  preview.style.backgroundColor = surface || '#141312'
   preview.style.boxShadow = '0 10px 28px rgb(0 0 0 / 0.28)'
+  preview.style.opacity = '1'
+  preview.style.transform = 'scale(1.02)'
+  preview.style.transition = 'none'
 
-  const grip = document.createElement('span')
-  grip.className = 'text-muted-foreground'
-  grip.innerHTML =
-    '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="12" r="1"/><circle cx="9" cy="5" r="1"/><circle cx="9" cy="19" r="1"/><circle cx="15" cy="12" r="1"/><circle cx="15" cy="5" r="1"/><circle cx="15" cy="19" r="1"/></svg>'
+  preview.querySelectorAll('button, [role="button"]').forEach((node) => {
+    node.setAttribute('aria-hidden', 'true')
+    node.setAttribute('tabindex', '-1')
+  })
 
-  const label = document.createElement('span')
-  label.className = 'min-w-0 flex-1 truncate text-sm'
-  label.textContent = layerName
-
-  preview.append(grip, label)
   document.body.appendChild(preview)
   return preview
 }
@@ -147,12 +141,13 @@ function animateFloatingPreviewTo(
     finish()
   }
 
-  preview.style.transition = `top ${DROP_SETTLE_MS}ms ${DROP_EASING}, left ${DROP_SETTLE_MS}ms ${DROP_EASING}, width ${DROP_SETTLE_MS}ms ${DROP_EASING}, height ${DROP_SETTLE_MS}ms ${DROP_EASING}, box-shadow ${DROP_SETTLE_MS}ms ${DROP_EASING}`
+  preview.style.transition = `top ${DROP_SETTLE_MS}ms ${DROP_EASING}, left ${DROP_SETTLE_MS}ms ${DROP_EASING}, width ${DROP_SETTLE_MS}ms ${DROP_EASING}, height ${DROP_SETTLE_MS}ms ${DROP_EASING}, box-shadow ${DROP_SETTLE_MS}ms ${DROP_EASING}, transform ${DROP_SETTLE_MS}ms ${DROP_EASING}`
   preview.style.top = `${target.top}px`
   preview.style.left = `${target.left}px`
   preview.style.width = `${target.width}px`
   preview.style.height = `${target.height}px`
   preview.style.boxShadow = '0 2px 8px rgb(0 0 0 / 0.12)'
+  preview.style.transform = 'scale(1)'
 
   preview.addEventListener('transitionend', handleTransitionEnd)
   window.setTimeout(finish, DROP_SETTLE_MS + 40)
@@ -172,7 +167,7 @@ function LayerDropPlaceholder({ height, dropTarget, indented = false }: LayerDro
       data-drop-target={dropTarget}
       className={cn(
         'layer-panel-placeholder rounded-md border border-dashed border-primary/45 bg-primary/8',
-        indented ? 'ml-5' : '',
+        indented ? 'ml-3 border-l-2 border-l-border/60 pl-2' : '',
       )}
       style={{ height }}
       aria-hidden
@@ -187,8 +182,8 @@ type LayerListRowProps = {
   isSelected: boolean
   isDraggingList: boolean
   onSelect: (layerId: string, additive: boolean) => void
-  onToggleLock: (layerId: string, locked: boolean) => void
-  onToggleVisible: (layerId: string, visible: boolean) => void
+  onToggleLock: (layerId: string) => void
+  onToggleVisible: (layerId: string) => void
   onGripPointerDown: (
     flatIndex: number,
     rowElement: HTMLDivElement,
@@ -210,6 +205,7 @@ function LayerListRow({
   onMeasureRow,
 }: LayerListRowProps) {
   const rowRef = useRef<HTMLDivElement>(null)
+  const TypeIcon = getLayerTypeIcon(layer.shape.type)
 
   return (
     <div
@@ -221,7 +217,7 @@ function LayerListRow({
       data-drop-target={flatIndex}
       className={cn(
         'layer-panel-row relative flex items-center gap-1 rounded-md border px-1.5 py-1.5',
-        indented ? 'ml-5' : '',
+        indented ? 'ml-3 border-l-2 border-l-border/60 pl-2' : '',
         isSelected ? 'border-primary/40 bg-primary/10' : 'border-transparent hover:bg-muted/50',
         isDraggingList && 'opacity-55',
       )}
@@ -244,6 +240,7 @@ function LayerListRow({
       >
         <GripVertical className="size-3.5" />
       </div>
+      <TypeIcon className="size-3.5 shrink-0 text-muted-foreground" />
       <button
         type="button"
         className="min-w-0 flex-1 truncate text-left text-sm"
@@ -251,36 +248,51 @@ function LayerListRow({
           onSelect(layer.id, event.shiftKey || event.metaKey || event.ctrlKey)
         }
       >
-        {layer.name}
+        <span className="block truncate">{layer.name}</span>
+        <span className="block truncate text-[10px] text-muted-foreground capitalize">
+          {layer.shape.type}
+        </span>
       </button>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => onToggleLock(layer.id, layer.locked)}
-          >
-            {layer.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          {layer.locked ? 'Unlock layer' : 'Lock layer'}
-        </TooltipContent>
-      </Tooltip>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => onToggleVisible(layer.id, layer.visible)}
-          >
-            {layer.visible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
-          </Button>
-        </TooltipTrigger>
-        <TooltipContent side="right">
-          {layer.visible ? 'Hide layer' : 'Show layer'}
-        </TooltipContent>
-      </Tooltip>
+      <div className="relative z-50 flex shrink-0 items-center gap-0.5">
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={layer.locked ? 'Unlock layer' : 'Lock layer'}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleLock(layer.id)
+              }}
+            >
+              {layer.locked ? <Lock className="size-3.5" /> : <Unlock className="size-3.5" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {layer.locked ? 'Unlock layer' : 'Lock layer'}
+          </TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={layer.visible ? 'Hide layer' : 'Show layer'}
+              onPointerDown={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation()
+                onToggleVisible(layer.id)
+              }}
+            >
+              {layer.visible ? <Eye className="size-3.5" /> : <EyeOff className="size-3.5" />}
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="right">
+            {layer.visible ? 'Hide layer' : 'Show layer'}
+          </TooltipContent>
+        </Tooltip>
+      </div>
     </div>
   )
 }
@@ -325,6 +337,25 @@ export function LayersPanel() {
     floatingPreviewRef.current = null
     document.querySelectorAll('[data-layer-drag-preview]').forEach((node) => node.remove())
     document.body.classList.remove('cursor-grabbing')
+  }
+
+  const toggleLayerLock = (layerId: string) => {
+    const layer = useEditorStore.getState().project.layers.find((item) => item.id === layerId)
+    if (!layer) {
+      return
+    }
+
+    updateLayer(layerId, { locked: !layer.locked })
+  }
+
+  const toggleLayerVisibility = (layerId: string) => {
+    const layer = useEditorStore.getState().project.layers.find((item) => item.id === layerId)
+    if (!layer) {
+      return
+    }
+
+    updateLayer(layerId, { visible: !layer.visible })
+    removeFloatingPreview()
   }
 
   const displayLayers = [...layers].reverse()
@@ -536,11 +567,7 @@ export function LayersPanel() {
     rowStepRef.current = rowHeight + LAYER_ROW_GAP
     setRowStep(rowStepRef.current)
     pointerOffsetYRef.current = event.clientY - rect.top
-    floatingPreviewRef.current = mountFloatingPreview(
-      rowElement,
-      layer.name,
-      selectedLayerIds.includes(layer.id),
-    )
+    floatingPreviewRef.current = mountFloatingPreview(rowElement)
     document.body.classList.add('cursor-grabbing')
 
     setDragState({
@@ -556,12 +583,15 @@ export function LayersPanel() {
       return null
     }
 
+    const targetLayer = flatLayers[flatIndex]
+    const showIndented = indented || Boolean(targetLayer?.groupId)
+
     return (
       <LayerDropPlaceholder
         key={`placeholder-before-${flatIndex}`}
         height={drag.rowHeight}
         dropTarget={drag.overIndex}
-        indented={indented}
+        indented={showIndented}
       />
     )
   }
@@ -585,8 +615,8 @@ export function LayersPanel() {
           isSelected={selectedLayerIds.includes(layer.id)}
           isDraggingList={drag !== null && !isSettling}
           onSelect={(layerId, additive) => selectLayer(layerId, { additive })}
-          onToggleLock={(layerId, locked) => updateLayer(layerId, { locked: !locked })}
-          onToggleVisible={(layerId, visible) => updateLayer(layerId, { visible: !visible })}
+          onToggleLock={toggleLayerLock}
+          onToggleVisible={toggleLayerVisibility}
           onGripPointerDown={beginPointerDrag}
           onMeasureRow={measureRow}
         />
@@ -658,7 +688,7 @@ export function LayersPanel() {
       <ScrollArea className="panel-scroll">
         <div
           ref={listRef}
-          className={cn('space-y-1 p-2', (drag || isSettling) && 'layers-panel-dragging select-none')}
+          className={cn('space-y-1 p-2 pr-3', (drag || isSettling) && 'layers-panel-dragging select-none')}
         >
           {rows.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">
@@ -676,6 +706,7 @@ export function LayersPanel() {
                 const groupSelected = row.layers.some((layer) =>
                   selectedLayerIds.includes(layer.id),
                 )
+                const GroupIcon = GROUP_ICON
 
                 return (
                   <div key={row.groupId} className="space-y-1">
@@ -699,21 +730,28 @@ export function LayersPanel() {
                           <ChevronDown className="size-3.5" />
                         )}
                       </button>
-                      <Group className="size-3.5 shrink-0 text-muted-foreground" />
+                      <GroupIcon className="size-3.5 shrink-0 text-muted-foreground" />
                       <button
                         type="button"
                         className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground"
-                        onClick={() => selectLayer(row.layers[0]!.id)}
+                        onClick={() =>
+                          selectLayer(row.layers[0]!.id, {
+                            additive: false,
+                          })
+                        }
                       >
-                        Group · {row.layers.length}
+                        <span className="block truncate">{getGroupDisplayName(row.layers)}</span>
+                        <span className="block truncate text-[10px]">Nested group</span>
                       </button>
                     </div>
-                    {collapsed
-                      ? null
-                      : row.layers.map((layer) => {
+                    {collapsed ? null : (
+                      <div className="ml-2 space-y-1 border-l border-border/50 pl-1">
+                        {row.layers.map((layer) => {
                           const flatIndex = flatLayers.findIndex((item) => item.id === layer.id)
                           return renderLayerRow(layer, flatIndex, true)
                         })}
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -721,6 +759,7 @@ export function LayersPanel() {
                 <LayerDropPlaceholder
                   height={drag.rowHeight}
                   dropTarget={drag.overIndex}
+                  indented={Boolean(flatLayers[flatLayers.length - 1]?.groupId)}
                 />
               ) : null}
             </>

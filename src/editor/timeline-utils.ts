@@ -21,9 +21,38 @@ export function timeToPercent(time: number, duration: number): number {
   return (time / duration) * 100
 }
 
-export function timeFromClientX(clientX: number, rect: DOMRect, duration: number): number {
+export function timeFromClientX(
+  clientX: number,
+  rect: DOMRect,
+  duration: number,
+  options?: { scrollLeft?: number; contentWidth?: number },
+): number {
+  if (options?.contentWidth && options.contentWidth > 0) {
+    const x = clientX - rect.left + (options.scrollLeft ?? 0)
+    const ratio = Math.max(0, Math.min(1, x / options.contentWidth))
+    return ratio * duration
+  }
+
   const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
   return ratio * duration
+}
+
+export function timeToPixel(time: number, duration: number, contentWidth: number): number {
+  if (duration <= 0 || contentWidth <= 0) {
+    return 0
+  }
+
+  return (time / duration) * contentWidth
+}
+
+export function getTimelineContentWidth(
+  duration: number,
+  viewportWidth: number,
+  pxPerSecond: number,
+  zoom = 1,
+): number {
+  const scaled = Math.max(0, duration) * pxPerSecond * zoom
+  return Math.max(viewportWidth, scaled)
 }
 
 export function clampTimelineTime(time: number, duration: number): number {
