@@ -14,6 +14,7 @@ type TimelineRulerProps = {
   fps: number
   loopIn: number
   loopOut: number
+  isPlayheadDragging?: boolean
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
 }
 
@@ -21,13 +22,16 @@ function TimelineRulerPlayhead({
   duration,
   contentWidth,
   fps,
+  isDragging,
 }: {
   duration: number
   contentWidth: number
   fps: number
+  isDragging?: boolean
 }) {
+  const headRef = useRef<HTMLDivElement>(null)
   const lineRef = useRef<HTMLDivElement>(null)
-  const badgeRef = useRef<HTMLDivElement>(null)
+  const timeRef = useRef<HTMLSpanElement>(null)
 
   useEffect(() => {
     const sync = (currentTime: number) => {
@@ -35,9 +39,11 @@ function TimelineRulerPlayhead({
       if (lineRef.current) {
         lineRef.current.style.left = `${left}px`
       }
-      if (badgeRef.current) {
-        badgeRef.current.style.left = `${left}px`
-        badgeRef.current.textContent = formatTimelineTime(currentTime, fps)
+      if (headRef.current) {
+        headRef.current.style.left = `${left}px`
+      }
+      if (timeRef.current) {
+        timeRef.current.textContent = formatTimelineTime(currentTime, fps)
       }
     }
 
@@ -56,17 +62,43 @@ function TimelineRulerPlayhead({
     <>
       <div
         ref={lineRef}
-        className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
-        style={{ left: 0 }}
-      >
-        <div className="absolute -top-px left-1/2 z-30 size-0 -translate-x-1/2 border-x-[6px] border-t-[8px] border-x-transparent border-t-primary" />
-      </div>
-
-      <div
-        ref={badgeRef}
-        className="pointer-events-none absolute top-7 z-30 -translate-x-1/2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm"
+        className={cn(
+          'pointer-events-none absolute top-0 bottom-0 -translate-x-1/2 bg-primary transition-all duration-150 ease-out',
+          isDragging
+            ? 'z-50 w-[2px] shadow-[0_0_14px_3px_color-mix(in_srgb,var(--primary)_55%,transparent)]'
+            : 'z-20 w-px',
+        )}
         style={{ left: 0 }}
       />
+
+      <div
+        ref={headRef}
+        className={cn(
+          'pointer-events-none absolute top-0 z-50 flex -translate-x-1/2 flex-col items-center transition-all duration-150 ease-out',
+          isDragging && 'scale-[1.14] -translate-y-1',
+        )}
+        style={{ left: 0 }}
+      >
+        <div
+          className={cn(
+            'flex h-[9px] w-[14px] items-end justify-center transition-[filter] duration-150',
+            isDragging && '[filter:drop-shadow(0_5px_8px_rgba(0,0,0,0.45))]',
+          )}
+        >
+          <div className="size-0 border-x-[7px] border-t-[9px] border-x-transparent border-t-primary" />
+        </div>
+
+        <div
+          className={cn(
+            'mt-1 rounded-md bg-primary px-2 py-0.5 text-[10px] font-semibold text-primary-foreground transition-[box-shadow] duration-150',
+            isDragging
+              ? 'shadow-[0_12px_28px_-8px_rgba(0,0,0,0.55),0_4px_12px_-2px_rgba(0,0,0,0.35)] ring-1 ring-white/25'
+              : 'shadow-sm',
+          )}
+        >
+          <span ref={timeRef} />
+        </div>
+      </div>
     </>
   )
 }
@@ -77,6 +109,7 @@ export function TimelineRuler({
   fps,
   loopIn,
   loopOut,
+  isPlayheadDragging = false,
   onPointerDown,
 }: TimelineRulerProps) {
   const ticks = useMemo(() => getRulerTicks(duration), [duration])
@@ -85,7 +118,10 @@ export function TimelineRuler({
 
   return (
     <div
-      className="relative h-8 shrink-0 cursor-pointer border-b border-border/70 bg-muted/30 select-none"
+      className={cn(
+        'relative h-8 shrink-0 cursor-pointer border-b border-border/70 bg-muted/30 select-none',
+        isPlayheadDragging && 'z-50 overflow-visible',
+      )}
       style={{ width: contentWidth }}
       onPointerDown={onPointerDown}
     >
@@ -107,7 +143,12 @@ export function TimelineRuler({
         style={{ left: loopLeft, width: loopWidth }}
       />
 
-      <TimelineRulerPlayhead duration={duration} contentWidth={contentWidth} fps={fps} />
+      <TimelineRulerPlayhead
+        duration={duration}
+        contentWidth={contentWidth}
+        fps={fps}
+        isDragging={isPlayheadDragging}
+      />
 
       <LoopHandle
         side="in"
