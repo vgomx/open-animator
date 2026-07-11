@@ -7,7 +7,7 @@ import {
   createRectShape,
   createTextShape,
 } from '@/editor/scene'
-import type { Keyframe, Layer, PathPoint, Project, Shape, TextShape } from '@/editor/types'
+import type { Keyframe, Layer, LayerGroupMeta, PathPoint, Project, Shape, TextShape } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import {
@@ -16,6 +16,8 @@ import {
   resolvePaintValue,
 } from '@/io/svg-gradients'
 import { parseSvgMasks, resolveMaskId } from '@/io/svg-masks'
+import { parseSvgClipPaths, resolveClipPathId } from '@/io/svg-clippaths'
+import { parseSvgFilters, resolveFilterId } from '@/io/svg-filters'
 import {
   isSvgFile,
   looksLikeSvgText,
@@ -56,6 +58,9 @@ export type SvgImportResult = {
   artboard: { width: number; height: number }
   gradients: Record<string, ImportedGradient>
   masks: Record<string, { id: string; markup: string }>
+  clipPaths: Record<string, { id: string; markup: string }>
+  filters: Record<string, { id: string; cssFilter?: string }>
+  groups: Record<string, LayerGroupMeta>
   duration: number
 }
 
@@ -491,8 +496,12 @@ function collectLayers(
   inheritedStyle: SvgStyle,
   inheritedMatrix: AffineMatrix,
   inheritedMaskId: string | null,
+  inheritedClipPathId: string | null,
+  inheritedFilterId: string | null,
+  inheritedGroupId: string | null,
   gradients: Record<string, ImportedGradient>,
   classStyles: Record<string, SvgClassStyle>,
+  groups: Record<string, LayerGroupMeta>,
   layers: Layer[],
   startIndex: number,
 ): { nextIndex: number; duration: number } {
@@ -508,6 +517,21 @@ function collectLayers(
   const localMatrix = parseTransformAttribute(node.getAttribute('transform'))
   const matrix = multiplyMatrix(inheritedMatrix, localMatrix)
   const maskId = resolveMaskId(node.getAttribute('mask')) ?? inheritedMaskId
+  const clipPathId = resolveClipPathId(node.getAttribute('clip-path')) ?? inheritedClipPathId
+  const filterId = resolveFilterId(node.getAttribute('filter')) ?? inheritedFilterId
+
+  let activeGroupId = inheritedGroupId
+  if (tag === 'g') {
+    activeGroupId = createId()
+    const name =
+      node.getAttribute('id') ||
+      node.getAttribute('data-name') ||
+      `Group ${Object.keys(groups).length + 1}`
+    groups[activeGroupId] = {
+      name,
+      parentGroupId: inheritedGroupId,
+    }
+  }
 
   if (tag === 'g' || tag === 'svg') {
     for (const child of [...node.children]) {
@@ -516,8 +540,12 @@ function collectLayers(
         style,
         matrix,
         maskId,
+        clipPathId,
+        filterId,
+        activeGroupId,
         gradients,
         classStyles,
+        groups,
         layers,
         nextIndex,
       )
@@ -550,8 +578,15 @@ function collectLayers(
     const name = node.getAttribute('id') || node.getAttribute('data-name') || `${tag}-${nextIndex + 1}`
     const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
     layer.matrixKeyframes = matrixAnim.keyframes
+    layer.groupId = activeGroupId
     if (maskId) {
       layer.svgMaskId = maskId
+    }
+    if (clipPathId) {
+      layer.svgClipPathId = clipPathId
+    }
+    if (filterId) {
+      layer.svgFilterId = filterId
     }
 
     layers.push(attachMatrixDisplayKeyframes(layer))
@@ -566,8 +601,15 @@ function collectLayers(
   const name = node.getAttribute('id') || node.getAttribute('data-name') || `${tag}-${nextIndex + 1}`
   const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
   layer.keyframes = mergeKeyframes(layer.keyframes, smil.keyframes)
+  layer.groupId = activeGroupId
   if (maskId) {
     layer.svgMaskId = maskId
+  }
+  if (clipPathId) {
+    layer.svgClipPathId = clipPathId
+  }
+  if (filterId) {
+    layer.svgFilterId = filterId
   }
 
   layers.push(layer)
@@ -649,7 +691,10 @@ export function importSvg(raw: string): SvgImportResult | null {
 
   const gradients = parseSvgGradients(svg)
   const masks = parseSvgMasks(svg, gradients)
+  const clipPaths = parseSvgClipPaths(svg, gradients)
+  const filters = parseSvgFilters(svg)
   const classStyles = parseSvgClassStyles(svg)
+  const groups: Record<string, LayerGroupMeta> = {}
   const defaultStyle: SvgStyle = {
     fill: SHAPE_FILL_SECONDARY,
     stroke: 'none',
@@ -663,8 +708,12 @@ export function importSvg(raw: string): SvgImportResult | null {
     defaultStyle,
     IDENTITY_MATRIX,
     null,
+    null,
+    null,
+    null,
     gradients,
     classStyles,
+    groups,
     layers,
     0,
   )
@@ -678,6 +727,9 @@ export function importSvg(raw: string): SvgImportResult | null {
     artboard: readArtboard(svg),
     gradients,
     masks,
+    clipPaths,
+    filters,
+    groups,
     duration: duration > 0 ? duration : 0,
   }
 }
@@ -695,6 +747,11 @@ export function svgImportToProject(imported: SvgImportResult): Project {
   const artboard = createArtboard(imported.artboard)
   const duration = imported.duration > 0 ? imported.duration : 3
   const animatedLayerCount = imported.layers.filter(layerHasAnimation).length
+  const hasImportedDefs =
+    Object.keys(imported.gradients).length > 0 ||
+    Object.keys(imported.masks).length > 0 ||
+    Object.keys(imported.clipPaths).length > 0 ||
+    Object.keys(imported.filters).length > 0
 
   return {
     ...createDefaultProject(),
@@ -702,13 +759,15 @@ export function svgImportToProject(imported: SvgImportResult): Project {
     duration,
     loopOut: duration,
     layers: createImportLayerIds(imported.layers, artboard.id),
-    importedSvg:
-      Object.keys(imported.gradients).length > 0 || Object.keys(imported.masks).length > 0
-        ? {
-            gradients: imported.gradients,
-            ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
-          }
-        : undefined,
+    layerGroups: Object.keys(imported.groups).length > 0 ? imported.groups : undefined,
+    importedSvg: hasImportedDefs
+      ? {
+          gradients: imported.gradients,
+          ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
+          ...(Object.keys(imported.clipPaths).length > 0 ? { clipPaths: imported.clipPaths } : {}),
+          ...(Object.keys(imported.filters).length > 0 ? { filters: imported.filters } : {}),
+        }
+      : undefined,
     ...(animatedLayerCount > 0 ? { loopIn: 0 } : {}),
   }
 }
@@ -719,6 +778,8 @@ export function getSvgImportSummary(imported: SvgImportResult): {
   duration: number
   gradientCount: number
   maskCount: number
+  clipPathCount: number
+  groupCount: number
 } {
   return {
     layerCount: imported.layers.length,
@@ -726,6 +787,8 @@ export function getSvgImportSummary(imported: SvgImportResult): {
     duration: imported.duration > 0 ? imported.duration : 3,
     gradientCount: Object.keys(imported.gradients).length,
     maskCount: Object.keys(imported.masks).length,
+    clipPathCount: Object.keys(imported.clipPaths).length,
+    groupCount: Object.keys(imported.groups).length,
   }
 }
 
@@ -783,5 +846,7 @@ export function createImportLayerIds(layers: Layer[], artboardId: string): Layer
     })),
     matrixKeyframes: layer.matrixKeyframes?.map((keyframe) => ({ ...keyframe })),
     svgMaskId: layer.svgMaskId,
+    svgClipPathId: layer.svgClipPathId,
+    svgFilterId: layer.svgFilterId,
   }))
 }

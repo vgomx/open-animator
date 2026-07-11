@@ -193,6 +193,7 @@ type EditorStore = {
       artboard?: Partial<Artboard>
       duration?: number
       importedSvg?: Project['importedSvg']
+      layerGroups?: Project['layerGroups']
     },
   ) => void
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
@@ -1364,6 +1365,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
           duration: nextDuration,
           loopOut: Math.max(current.project.loopIn, nextDuration),
           importedSvg: options?.importedSvg ?? current.project.importedSvg,
+          layerGroups: options?.layerGroups ?? current.project.layerGroups,
           layers: [
             ...current.project.layers,
             ...layers.map((layer) => ({ ...layer, artboardId: layer.artboardId ?? activeArtboardId })),

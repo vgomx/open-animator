@@ -31,7 +31,15 @@ export function getLayerDisplayName(layer: Layer): string {
   return layer.name
 }
 
-export function getGroupDisplayName(layers: Layer[]): string {
+export function getGroupDisplayName(
+  layers: Layer[],
+  groupId?: string,
+  groupMeta?: Record<string, { name: string }>,
+): string {
+  if (groupId && groupMeta?.[groupId]?.name) {
+    return groupMeta[groupId].name
+  }
+
   const types = new Set(layers.map((layer) => layer.shape.type))
   const typeSummary =
     types.size === 1

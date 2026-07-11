@@ -131,4 +131,47 @@ describe('svg import', () => {
     expect(project?.artboards[0]).toMatchObject({ width: 500, height: 400 })
     expect(project?.layers[0]?.shape.type).toBe('ellipse')
   })
+
+  it('imports clipPath defs and assigns them to layers', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <clipPath id="circle-clip">
+            <circle cx="100" cy="100" r="60" />
+          </clipPath>
+        </defs>
+        <rect x="20" y="20" width="160" height="160" fill="#22d3ee" clip-path="url(#circle-clip)" />
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    expect(imported?.clipPaths['circle-clip']?.markup).toContain('circle')
+    expect(imported?.layers[0]?.svgClipPathId).toBe('circle-clip')
+
+    const project = svgImportToProject(imported!)
+    expect(project.importedSvg?.clipPaths?.['circle-clip']?.markup).toContain('circle')
+  })
+
+  it('preserves svg group hierarchy on import', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g id="shapes">
+          <rect x="10" y="10" width="40" height="30" fill="#f97316" />
+          <circle cx="120" cy="60" r="20" fill="#6366f1" />
+        </g>
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    expect(imported).not.toBeNull()
+    expect(Object.keys(imported!.groups)).toHaveLength(1)
+
+    const groupId = imported!.layers[0]!.groupId
+    expect(groupId).toBeTruthy()
+    expect(imported!.layers.every((layer) => layer.groupId === groupId)).toBe(true)
+    expect(imported!.groups[groupId!]?.name).toBe('shapes')
+
+    const project = svgImportToProject(imported!)
+    expect(project.layerGroups?.[groupId!]?.name).toBe('shapes')
+  })
 })

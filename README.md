@@ -20,7 +20,13 @@ npm run dev
 
 Open the local URL from Vite (usually `http://localhost:5173`).
 
-**Live demo:** [vgomx.github.io/open-animator](https://vgomx.github.io/open-animator/)
+## Demo
+
+**Live demo:** [vgomx.github.io/open-animator](https://vgomx.github.io/open-animator/) — open the editor in your browser and try the built-in **Train Performance** sample (File → Samples) to see layered SVG motion, gradients, and masks.
+
+![Open Animator preview](public/og-image.png)
+
+The demo showcases keyframe animation, SVG import fidelity (groups, masks, clip paths), and export to animated SVG, GIF, and Lottie JSON.
 
 ## Scripts
 
@@ -77,14 +83,15 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 Supported on import:
 
 - Shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` (including arc `A`/`a` commands), `text`
-- Groups: nested `<g>` elements (flattened into layers)
+- Groups: nested `<g>` elements preserved as collapsible layer groups
+- Clip paths and basic blur filters from imported SVG defs
 - Styles: inline `fill`, `stroke`, `stroke-width`, `opacity`; basic `<style>` blocks with `.className` selectors
 - Transforms: `translate`, `rotate`, `scale`, `matrix()`
 - SMIL animation: `animateTransform` and matrix-based path motion
 - Gradients and masks from imported SVG defs
 - Artboard: `viewBox` or `width` / `height`
 
-Not yet supported: complex CSS selectors, preserved group hierarchy, and full Illustrator/Figma fidelity.
+Not yet supported: complex CSS selectors and full Illustrator/Figma fidelity.
 
 ### Export
 

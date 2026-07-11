@@ -188,6 +188,15 @@ export type Layer = {
   matrixKeyframes?: MatrixKeyframe[]
   /** Inherited SVG mask from a parent group. */
   svgMaskId?: string
+  /** Inherited SVG clipPath from a parent group. */
+  svgClipPathId?: string
+  /** Inherited SVG filter from a parent group. */
+  svgFilterId?: string
+}
+
+export type LayerGroupMeta = {
+  name: string
+  parentGroupId: string | null
 }
 
 export type Marker = {
@@ -254,6 +263,8 @@ export type ImportedRadialGradient = {
 export type ImportedSvgDefs = {
   gradients: Record<string, ImportedLinearGradient | ImportedRadialGradient>
   masks?: Record<string, { id: string; markup: string }>
+  clipPaths?: Record<string, { id: string; markup: string }>
+  filters?: Record<string, { id: string; cssFilter?: string }>
 }
 
 export type Project = {
@@ -269,6 +280,8 @@ export type Project = {
   states: AnimationState[]
   markers: Marker[]
   importedSvg?: ImportedSvgDefs
+  /** Layer group metadata from SVG import or manual grouping. */
+  layerGroups?: Record<string, LayerGroupMeta>
 }
 
 export type PlaybackState = 'idle' | 'playing' | 'paused'

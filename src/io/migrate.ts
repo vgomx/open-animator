@@ -314,6 +314,7 @@ function migrateV10toV11(project: Project): Project {
     ...project,
     version: PROJECT_VERSION,
     importedSvg: project.importedSvg,
+    layerGroups: project.layerGroups,
   }
 }
 

@@ -189,14 +189,27 @@ export function Toolbar() {
     if (mode === 'merge') {
       const artboardId =
         activeArtboardId ?? useEditorStore.getState().project.artboards[0]?.id ?? ''
+      const hasImportedDefs =
+        Object.keys(imported.gradients).length > 0 ||
+        Object.keys(imported.masks).length > 0 ||
+        Object.keys(imported.clipPaths).length > 0 ||
+        Object.keys(imported.filters).length > 0
       importSvgLayers(createImportLayerIds(imported.layers, artboardId), {
         artboard: imported.artboard,
         duration: imported.duration,
-        importedSvg:
-          Object.keys(imported.gradients).length > 0 || Object.keys(imported.masks).length > 0
+        importedSvg: hasImportedDefs
+          ? {
+              gradients: imported.gradients,
+              ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
+              ...(Object.keys(imported.clipPaths).length > 0 ? { clipPaths: imported.clipPaths } : {}),
+              ...(Object.keys(imported.filters).length > 0 ? { filters: imported.filters } : {}),
+            }
+          : undefined,
+        layerGroups:
+          Object.keys(imported.groups).length > 0
             ? {
-                gradients: imported.gradients,
-                ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
+                ...useEditorStore.getState().project.layerGroups,
+                ...imported.groups,
               }
             : undefined,
       })

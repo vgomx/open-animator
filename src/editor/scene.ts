@@ -274,6 +274,8 @@ export function cloneLayer(layer: Layer, offset = 20): Layer {
     })),
     matrixKeyframes: layer.matrixKeyframes?.map((keyframe) => ({ ...keyframe })),
     svgMaskId: layer.svgMaskId,
+    svgClipPathId: layer.svgClipPathId,
+    svgFilterId: layer.svgFilterId,
   }
 }
 

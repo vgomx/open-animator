@@ -740,8 +740,10 @@ export function LayersPanel() {
                           })
                         }
                       >
-                        <span className="block truncate">{getGroupDisplayName(row.layers)}</span>
-                        <span className="block truncate text-[10px]">Nested group</span>
+                        <span className="block truncate">{getGroupDisplayName(row.layers, row.groupId, project.layerGroups)}</span>
+                        <span className="block truncate text-[10px]">
+                          {project.layerGroups?.[row.groupId] ? 'SVG group' : 'Nested group'}
+                        </span>
                       </button>
                     </div>
                     {collapsed ? null : (

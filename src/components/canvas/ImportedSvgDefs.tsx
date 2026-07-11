@@ -6,6 +6,7 @@ import type {
   ImportedSvgDefs as ImportedSvgDefsType,
 } from '@/editor/types'
 import { importedGradientId } from '@/io/svg-gradients'
+import { importedClipPathId } from '@/io/svg-clippaths'
 import { importedMaskId } from '@/io/svg-masks'
 
 type ImportedSvgDefsProps = {
@@ -15,10 +16,12 @@ type ImportedSvgDefsProps = {
 export const ImportedSvgDefs = memo(function ImportedSvgDefs({ defs }: ImportedSvgDefsProps) {
   const gradients = defs?.gradients ?? {}
   const masks = defs?.masks ?? {}
+  const clipPaths = defs?.clipPaths ?? {}
   const hasGradients = Object.keys(gradients).length > 0
   const hasMasks = Object.keys(masks).length > 0
+  const hasClipPaths = Object.keys(clipPaths).length > 0
 
-  if (!hasGradients && !hasMasks) {
+  if (!hasGradients && !hasMasks && !hasClipPaths) {
     return null
   }
 
@@ -69,6 +72,15 @@ export const ImportedSvgDefs = memo(function ImportedSvgDefs({ defs }: ImportedS
         >
           <g dangerouslySetInnerHTML={{ __html: mask.markup }} />
         </mask>
+      ))}
+      {Object.values(clipPaths).map((clipPath) => (
+        <clipPath
+          key={clipPath.id}
+          id={importedClipPathId(clipPath.id)}
+          clipPathUnits="userSpaceOnUse"
+        >
+          <g dangerouslySetInnerHTML={{ __html: clipPath.markup }} />
+        </clipPath>
       ))}
     </defs>
   )
