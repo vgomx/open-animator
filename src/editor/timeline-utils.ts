@@ -1,6 +1,11 @@
+import { TIMELINE_EDGE_INSET } from '@/editor/layout-constants'
 import { DEFAULT_PROJECT_FPS } from '@/editor/types'
 
 export const TIMELINE_FPS = DEFAULT_PROJECT_FPS
+
+export function getTimelineTrackWidth(contentWidth: number): number {
+  return Math.max(0, contentWidth - TIMELINE_EDGE_INSET * 2)
+}
 
 export function getFrameStep(fps: number): number {
   return 1 / Math.max(1, fps)
@@ -28,8 +33,13 @@ export function timeFromClientX(
   options?: { scrollLeft?: number; contentWidth?: number },
 ): number {
   if (options?.contentWidth && options.contentWidth > 0) {
-    const x = clientX - rect.left + (options.scrollLeft ?? 0)
-    const ratio = Math.max(0, Math.min(1, x / options.contentWidth))
+    const x = clientX - rect.left + (options.scrollLeft ?? 0) - TIMELINE_EDGE_INSET
+    const trackWidth = getTimelineTrackWidth(options.contentWidth)
+    if (trackWidth <= 0) {
+      return 0
+    }
+
+    const ratio = Math.max(0, Math.min(1, x / trackWidth))
     return ratio * duration
   }
 
@@ -38,11 +48,16 @@ export function timeFromClientX(
 }
 
 export function timeToPixel(time: number, duration: number, contentWidth: number): number {
-  if (duration <= 0 || contentWidth <= 0) {
-    return 0
+  if (contentWidth <= 0) {
+    return TIMELINE_EDGE_INSET
   }
 
-  return (time / duration) * contentWidth
+  if (duration <= 0) {
+    return TIMELINE_EDGE_INSET
+  }
+
+  const trackWidth = getTimelineTrackWidth(contentWidth)
+  return TIMELINE_EDGE_INSET + (time / duration) * trackWidth
 }
 
 export function getTimelineContentWidth(
@@ -51,8 +66,10 @@ export function getTimelineContentWidth(
   pxPerSecond: number,
   zoom = 1,
 ): number {
-  const scaled = Math.max(0, duration) * pxPerSecond * zoom
-  return Math.max(viewportWidth, scaled)
+  const scaledTrackWidth = Math.max(0, duration) * pxPerSecond * zoom
+  const minTrackWidth = Math.max(0, viewportWidth - TIMELINE_EDGE_INSET * 2)
+  const trackWidth = Math.max(minTrackWidth, scaledTrackWidth)
+  return trackWidth + TIMELINE_EDGE_INSET * 2
 }
 
 export function clampTimelineTime(time: number, duration: number): number {

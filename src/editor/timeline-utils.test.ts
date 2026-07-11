@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest'
 
+import { TIMELINE_EDGE_INSET } from '@/editor/layout-constants'
 import {
   getFrameStep,
   getRulerTicks,
+  getTimelineContentWidth,
   snapTimelineTime,
+  timeFromClientX,
   timeToPercent,
+  timeToPixel,
 } from '@/editor/timeline-utils'
 
 describe('timeline-utils', () => {
@@ -62,5 +66,24 @@ describe('timeline-utils', () => {
 
   it('uses a 30fps frame step', () => {
     expect(getFrameStep(30)).toBeCloseTo(1 / 30, 5)
+  })
+
+  it('insets timeline edges so centered handles at t=0 are visible', () => {
+    const contentWidth = getTimelineContentWidth(3, 400, 100, 1)
+
+    expect(timeToPixel(0, 3, contentWidth)).toBe(TIMELINE_EDGE_INSET)
+    expect(timeToPixel(3, 3, contentWidth)).toBe(contentWidth - TIMELINE_EDGE_INSET)
+  })
+
+  it('maps client x through timeline edge inset', () => {
+    const contentWidth = getTimelineContentWidth(3, 400, 100, 1)
+    const rect = { left: 100, width: contentWidth } as DOMRect
+
+    expect(
+      timeFromClientX(100 + TIMELINE_EDGE_INSET, rect, 3, {
+        contentWidth,
+        scrollLeft: 0,
+      }),
+    ).toBe(0)
   })
 })

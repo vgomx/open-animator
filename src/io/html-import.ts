@@ -1,4 +1,9 @@
 import { createId, createDefaultProject, createLayerFromShape } from '@/editor/scene'
+import {
+  HTML_FILE_ACCEPT,
+  isHtmlFile,
+  openTextFile,
+} from '@/io/file-picker'
 import { importSvgAsProject, parseShapeElement } from '@/io/svg-import'
 import type { AnimatableProperty, Keyframe, Layer, Project, Shape } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
@@ -346,26 +351,14 @@ export function importHtmlAnimation(raw: string): Project | null {
 }
 
 export async function openHtmlFile(): Promise<Project | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'text/html,.html,.htm'
+  const raw = await openTextFile(HTML_FILE_ACCEPT, isHtmlFile)
+  if (!raw) {
+    return null
+  }
 
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) {
-        resolve(null)
-        return
-      }
-
-      try {
-        resolve(importHtmlAnimation(await file.text()))
-      } catch {
-        resolve(null)
-      }
-    }
-
-    input.oncancel = () => resolve(null)
-    input.click()
-  })
+  try {
+    return importHtmlAnimation(raw)
+  } catch {
+    return null
+  }
 }
