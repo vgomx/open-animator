@@ -37,6 +37,7 @@ export function createViewportController(options: ViewportControllerOptions): Vi
   let flushedState = { ...liveState }
   let transformElement: HTMLElement | null = null
   let flushFrameId: number | null = null
+  let applyFrameId: number | null = null
   const listeners = new Set<(state: ViewportState) => void>()
 
   const notify = () => {
@@ -45,11 +46,24 @@ export function createViewportController(options: ViewportControllerOptions): Vi
     }
   }
 
-  const applyTransform = () => {
+  const applyTransformNow = () => {
     if (transformElement) {
       transformElement.style.transform = formatViewportTransform(liveState)
     }
-    notify()
+    if (listeners.size > 0) {
+      notify()
+    }
+  }
+
+  const scheduleApplyTransform = () => {
+    if (applyFrameId !== null) {
+      return
+    }
+
+    applyFrameId = window.requestAnimationFrame(() => {
+      applyFrameId = null
+      applyTransformNow()
+    })
   }
 
   const scheduleFlush = () => {
@@ -78,6 +92,12 @@ export function createViewportController(options: ViewportControllerOptions): Vi
       flushFrameId = null
     }
 
+    if (applyFrameId !== null) {
+      window.cancelAnimationFrame(applyFrameId)
+      applyFrameId = null
+    }
+    applyTransformNow()
+
     if (
       liveState.zoom === flushedState.zoom &&
       liveState.panX === flushedState.panX &&
@@ -100,7 +120,7 @@ export function createViewportController(options: ViewportControllerOptions): Vi
         viewportWidth,
         viewportHeight,
       })
-      applyTransform()
+      scheduleApplyTransform()
       scheduleFlush()
     },
 
@@ -110,13 +130,13 @@ export function createViewportController(options: ViewportControllerOptions): Vi
         panX: liveState.panX - deltaX,
         panY: liveState.panY - deltaY,
       }
-      applyTransform()
+      scheduleApplyTransform()
       scheduleFlush()
     },
 
     setPan(panX, panY) {
       liveState = { ...liveState, panX, panY }
-      applyTransform()
+      scheduleApplyTransform()
       scheduleFlush()
     },
 
@@ -132,7 +152,7 @@ export function createViewportController(options: ViewportControllerOptions): Vi
 
       liveState = { ...storeState }
       flushedState = { ...storeState }
-      applyTransform()
+      applyTransformNow()
     },
 
     flushNow,
@@ -142,7 +162,8 @@ export function createViewportController(options: ViewportControllerOptions): Vi
       if (transformElement) {
         transformElement.style.transformOrigin = 'center center'
         transformElement.style.willChange = 'transform'
-        applyTransform()
+        transformElement.style.backfaceVisibility = 'hidden'
+        applyTransformNow()
       }
     },
 

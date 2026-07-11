@@ -1,6 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
-import { clampZoom, wheelZoomFactor, zoomAtPoint } from '@/editor/viewport'
+import {
+  clampZoom,
+  MAX_WHEEL_ZOOM_DELTA_PX,
+  normalizeWheelDelta,
+  wheelZoomFactor,
+  wheelZoomFactorFromPixels,
+  zoomAtPoint,
+} from '@/editor/viewport'
 
 describe('viewport', () => {
   it('clamps zoom to supported range', () => {
@@ -43,5 +50,22 @@ describe('viewport', () => {
     expect(wheelZoomFactor(10)).toBeCloseTo(Math.exp(-0.1), 5)
     expect(wheelZoomFactor(1, 1)).toBeCloseTo(Math.exp(-0.16), 5)
     expect(wheelZoomFactor(1, 2)).toBeCloseTo(Math.exp(-1.2), 5)
+  })
+
+  it('clamps large pinch deltas to keep zoom smooth across browsers', () => {
+    const clamped = wheelZoomFactor(500)
+    const capped = wheelZoomFactorFromPixels(MAX_WHEEL_ZOOM_DELTA_PX)
+    expect(clamped).toBeCloseTo(capped, 5)
+  })
+
+  it('maps shift-wheel horizontal scroll to deltaX', () => {
+    expect(normalizeWheelDelta(0, 40, 0, { shiftKey: true })).toEqual({
+      deltaX: 40,
+      deltaY: 0,
+    })
+  })
+
+  it('normalizes pan wheel deltas by deltaMode', () => {
+    expect(normalizeWheelDelta(2, 0, 1)).toEqual({ deltaX: 32, deltaY: 0 })
   })
 })

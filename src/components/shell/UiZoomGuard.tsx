@@ -25,12 +25,14 @@ export function UiZoomGuard() {
     window.addEventListener('wheel', blockWheelZoom, { passive: false, capture: true })
     document.addEventListener('gesturestart', blockGestureZoom)
     document.addEventListener('gesturechange', blockGestureZoom)
+    document.addEventListener('gestureend', blockGestureZoom)
     window.addEventListener('keydown', blockKeyboardZoom)
 
     return () => {
       window.removeEventListener('wheel', blockWheelZoom, { capture: true })
       document.removeEventListener('gesturestart', blockGestureZoom)
       document.removeEventListener('gesturechange', blockGestureZoom)
+      document.removeEventListener('gestureend', blockGestureZoom)
       window.removeEventListener('keydown', blockKeyboardZoom)
     }
   }, [])

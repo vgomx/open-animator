@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   Clapperboard,
+  Download,
   FlaskConical,
   Monitor,
   Moon,
@@ -25,6 +26,7 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 import { useEditorStore } from '@/editor/store'
+import { usePwaInstall } from '@/lib/pwa-install'
 import {
   clampExportFps,
   loadEditorPreferences,
@@ -115,6 +117,13 @@ const themeOptions: Array<{ value: ThemeMode; label: string; icon: typeof Sun }>
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme()
+  const {
+    canPromptInstall,
+    installInstructions,
+    isInstalled,
+    isInstallable,
+    promptInstall,
+  } = usePwaInstall()
   const snapEnabled = useEditorStore((state) => state.snapEnabled)
   const showRulers = useEditorStore((state) => state.showRulers)
   const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
@@ -157,6 +166,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     const next = clampExportFps(Number(value) || 30)
     setDefaultExportFps(next)
     saveEditorPreferences({ defaultExportFps: next })
+  }
+
+  const handleInstallApp = async () => {
+    await promptInstall()
   }
 
   return (
@@ -308,6 +321,28 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                 />
               </SettingsRow>
             </SettingsSection>
+
+            {isInstallable ? (
+              <SettingsSection title="Install app" icon={Download}>
+                <div className="space-y-3 py-2">
+                  {isInstalled ? (
+                    <p className="text-sm text-muted-foreground">
+                      Open Animator is installed on this device.
+                    </p>
+                  ) : (
+                    <>
+                      <p className="text-sm text-muted-foreground">{installInstructions}</p>
+                      {canPromptInstall ? (
+                        <Button type="button" size="sm" className="gap-2" onClick={handleInstallApp}>
+                          <Download className="size-3.5" />
+                          Install Open Animator
+                        </Button>
+                      ) : null}
+                    </>
+                  )}
+                </div>
+              </SettingsSection>
+            ) : null}
 
             <SettingsSection title="Export" icon={Video}>
               <SettingsRow
