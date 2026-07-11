@@ -6,10 +6,7 @@ import {
   Download,
   Expand,
   FolderOpen,
-  Info,
-  Keyboard,
   Magnet,
-  MoreHorizontal,
   PanelLeft,
   PanelRight,
   Pause,
@@ -19,7 +16,6 @@ import {
   Repeat,
   Ruler,
   Save,
-  Sparkles,
   Trash2,
   Undo2,
   Video,
@@ -28,13 +24,9 @@ import {
   ZoomOut,
 } from 'lucide-react'
 
-import { AboutDialog } from '@/components/shell/AboutDialog'
-import { AppLogo } from '@/components/shell/AppLogo'
-import { AcknowledgmentsDialog } from '@/components/shell/AcknowledgmentsDialog'
 import { OnionSkinControls } from '@/components/shell/OnionSkinControls'
 import { ExportOptionsDialog } from '@/components/shell/ExportOptionsDialog'
 import { PresetsDialog } from '@/components/shell/PresetsDialog'
-import { TemplatesDialog } from '@/components/shell/TemplatesDialog'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
 
 import { Button } from '@/components/ui/button'
@@ -72,14 +64,7 @@ const LottieDialog = lazy(() =>
 
 type ExportKind = 'static-svg' | 'animated-svg' | 'webm' | 'gif'
 
-type ToolbarProps = {
-  onOpenShortcuts?: () => void
-}
-
-export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
-  const [aboutOpen, setAboutOpen] = useState(false)
-  const [acknowledgmentsOpen, setAcknowledgmentsOpen] = useState(false)
-  const [templatesOpen, setTemplatesOpen] = useState(false)
+export function Toolbar() {
   const [presetsOpen, setPresetsOpen] = useState(false)
   const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const [lottiePreviewOpen, setLottiePreviewOpen] = useState(false)
@@ -271,10 +256,6 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
   return (
     <>
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
-        <div className="flex items-center px-2">
-          <AppLogo size={22} variant="accent" />
-        </div>
-        <ToolbarDivider />
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -490,32 +471,6 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
             </TooltipTrigger>
             <TooltipContent>Save project JSON</TooltipContent>
           </Tooltip>
-          <DropdownMenu>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm">
-                    <MoreHorizontal />
-                  </Button>
-                </DropdownMenuTrigger>
-              </TooltipTrigger>
-              <TooltipContent>More</TooltipContent>
-            </Tooltip>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => setTemplatesOpen(true)}>
-                <Sparkles />
-                Example projects
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onOpenShortcuts?.()}>
-                <Keyboard />
-                Keyboard shortcuts
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setAboutOpen(true)}>
-                <Info />
-                About
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -613,20 +568,6 @@ export function Toolbar({ onOpenShortcuts }: ToolbarProps) {
           </DropdownMenu>
         </div>
       </header>
-      <AboutDialog
-        open={aboutOpen}
-        onOpenChange={setAboutOpen}
-        onOpenAcknowledgments={() => {
-          setAboutOpen(false)
-          setAcknowledgmentsOpen(true)
-        }}
-      />
-      <AcknowledgmentsDialog open={acknowledgmentsOpen} onOpenChange={setAcknowledgmentsOpen} />
-      <TemplatesDialog
-        open={templatesOpen}
-        onOpenChange={setTemplatesOpen}
-        onSelectTemplate={setProject}
-      />
       <PresetsDialog open={presetsOpen} onOpenChange={setPresetsOpen} />
       {exportKind ? (
         <ExportOptionsDialog

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 
+import { ActivityRail } from '@/components/shell/ActivityRail'
 import { Stage } from '@/components/canvas/Stage'
 import { KeyboardShortcutsDialog } from '@/components/shell/KeyboardShortcutsDialog'
 import { KeyboardShortcuts } from '@/components/shell/KeyboardShortcuts'
@@ -66,17 +67,20 @@ export function EditorLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
   return (
-    <div className="flex h-svh flex-col overflow-hidden bg-background text-foreground">
+    <div className="flex h-svh overflow-hidden bg-background text-foreground">
       <PlaybackLoop />
       <UiZoomGuard />
       <KeyboardShortcuts onOpenShortcuts={() => setShortcutsOpen(true)} />
-      <Toolbar onOpenShortcuts={() => setShortcutsOpen(true)} />
-      <div className="relative min-h-0 flex-1 overflow-hidden">
-        <Stage />
-        <LayersPanel />
-        <PropertiesPanel />
+      <ActivityRail onOpenShortcuts={() => setShortcutsOpen(true)} />
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <Toolbar />
+        <div className="relative min-h-0 flex-1 overflow-hidden">
+          <Stage />
+          <LayersPanel />
+          <PropertiesPanel />
+        </div>
+        <Timeline />
       </div>
-      <Timeline />
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>
   )

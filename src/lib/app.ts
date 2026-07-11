@@ -15,4 +15,5 @@ export const STORAGE_KEYS = {
   project: `${APP_SLUG}:project`,
   legacyProject: 'svg-animator:project',
   theme: `${APP_SLUG}:theme`,
+  preferences: `${APP_SLUG}:preferences`,
 } as const

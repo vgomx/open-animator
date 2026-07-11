@@ -6,6 +6,7 @@ type AppLogoProps = {
   size?: number
   className?: string
   variant?: 'accent' | 'adaptive'
+  emphasis?: boolean
   title?: string
 }
 
@@ -13,6 +14,7 @@ export function AppLogo({
   size = 24,
   className,
   variant = 'accent',
+  emphasis = false,
   title = 'Open Animator',
 }: AppLogoProps) {
   const { resolvedTheme } = useTheme()
@@ -25,6 +27,10 @@ export function AppLogo({
         : '#1c1b19'
   const lineOpacity = variant === 'accent' || isDark ? 0.4 : 0.35
   const handleOpacity = variant === 'accent' || isDark ? 0.6 : 0.5
+  const curveStrokeWidth = emphasis ? 6.5 : 5
+  const guideStrokeWidth = emphasis ? 3.25 : 2.5
+  const anchorRadius = emphasis ? 8 : 7
+  const handleRadius = emphasis ? 5 : 4
 
   return (
     <svg
@@ -41,7 +47,7 @@ export function AppLogo({
       <path
         d="M 24 72 C 24 44, 44 24, 72 24"
         stroke={color}
-        strokeWidth="5"
+        strokeWidth={curveStrokeWidth}
         strokeLinecap="round"
       />
       <line
@@ -50,7 +56,7 @@ export function AppLogo({
         x2="24"
         y2="34"
         stroke={color}
-        strokeWidth="2.5"
+        strokeWidth={guideStrokeWidth}
         opacity={lineOpacity}
       />
       <line
@@ -59,13 +65,13 @@ export function AppLogo({
         x2="72"
         y2="62"
         stroke={color}
-        strokeWidth="2.5"
+        strokeWidth={guideStrokeWidth}
         opacity={lineOpacity}
       />
-      <circle cx="24" cy="72" r="7" fill={color} />
-      <circle cx="72" cy="24" r="7" fill={color} />
-      <circle cx="24" cy="34" r="4" fill={color} opacity={handleOpacity} />
-      <circle cx="72" cy="62" r="4" fill={color} opacity={handleOpacity} />
+      <circle cx="24" cy="72" r={anchorRadius} fill={color} />
+      <circle cx="72" cy="24" r={anchorRadius} fill={color} />
+      <circle cx="24" cy="34" r={handleRadius} fill={color} opacity={handleOpacity} />
+      <circle cx="72" cy="62" r={handleRadius} fill={color} opacity={handleOpacity} />
     </svg>
   )
 }

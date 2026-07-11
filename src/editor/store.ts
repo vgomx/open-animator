@@ -47,6 +47,12 @@ import { isColorProperty, isNumericProperty, DEFAULT_ONION_SKIN_SETTINGS } from 
 import { UI_STROKE } from '@/lib/brand-colors'
 import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
+import {
+  loadEditorPreferences,
+  saveEditorPreferences,
+} from '@/lib/preferences'
+
+const initialPreferences = loadEditorPreferences()
 
 const animatableProperties = new Set<AnimatableProperty>([
   'x',
@@ -330,16 +336,16 @@ export const useEditorStore = create<EditorStore>((set) => ({
   selectedLayerId: null,
   currentTime: 0,
   playbackState: 'idle',
-  loop: true,
-  recordMode: true,
+  loop: initialPreferences.loop,
+  recordMode: initialPreferences.recordMode,
   zoom: 1,
   panX: 0,
   panY: 0,
-  snapEnabled: true,
-  showRulers: true,
-  showLayersPanel: true,
-  showPropertiesPanel: true,
-  onionSkinEnabled: false,
+  snapEnabled: initialPreferences.snapEnabled,
+  showRulers: initialPreferences.showRulers,
+  showLayersPanel: initialPreferences.showLayersPanel,
+  showPropertiesPanel: initialPreferences.showPropertiesPanel,
+  onionSkinEnabled: initialPreferences.onionSkinEnabled,
   onionSkinSettings: { ...DEFAULT_ONION_SKIN_SETTINGS },
   activeSnapLines: [],
   guideDraft: null,
@@ -841,9 +847,19 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setPlaybackState: (playbackState) => set({ playbackState }),
 
-  toggleLoop: () => set((state) => ({ loop: !state.loop })),
+  toggleLoop: () =>
+    set((state) => {
+      const loop = !state.loop
+      saveEditorPreferences({ loop })
+      return { loop }
+    }),
 
-  toggleRecordMode: () => set((state) => ({ recordMode: !state.recordMode })),
+  toggleRecordMode: () =>
+    set((state) => {
+      const recordMode = !state.recordMode
+      saveEditorPreferences({ recordMode })
+      return { recordMode }
+    }),
 
   setZoom: (zoom) => set({ zoom: clampZoom(zoom) }),
 
@@ -1035,16 +1051,40 @@ export const useEditorStore = create<EditorStore>((set) => ({
       return withHistory(state, applyMove)
     }),
 
-  toggleSnapEnabled: () => set((state) => ({ snapEnabled: !state.snapEnabled })),
+  toggleSnapEnabled: () =>
+    set((state) => {
+      const snapEnabled = !state.snapEnabled
+      saveEditorPreferences({ snapEnabled })
+      return { snapEnabled }
+    }),
 
-  toggleShowRulers: () => set((state) => ({ showRulers: !state.showRulers })),
+  toggleShowRulers: () =>
+    set((state) => {
+      const showRulers = !state.showRulers
+      saveEditorPreferences({ showRulers })
+      return { showRulers }
+    }),
 
-  toggleLayersPanel: () => set((state) => ({ showLayersPanel: !state.showLayersPanel })),
+  toggleLayersPanel: () =>
+    set((state) => {
+      const showLayersPanel = !state.showLayersPanel
+      saveEditorPreferences({ showLayersPanel })
+      return { showLayersPanel }
+    }),
 
   togglePropertiesPanel: () =>
-    set((state) => ({ showPropertiesPanel: !state.showPropertiesPanel })),
+    set((state) => {
+      const showPropertiesPanel = !state.showPropertiesPanel
+      saveEditorPreferences({ showPropertiesPanel })
+      return { showPropertiesPanel }
+    }),
 
-  toggleOnionSkinEnabled: () => set((state) => ({ onionSkinEnabled: !state.onionSkinEnabled })),
+  toggleOnionSkinEnabled: () =>
+    set((state) => {
+      const onionSkinEnabled = !state.onionSkinEnabled
+      saveEditorPreferences({ onionSkinEnabled })
+      return { onionSkinEnabled }
+    }),
 
   setOnionSkinSettings: (patch) =>
     set((state) => ({

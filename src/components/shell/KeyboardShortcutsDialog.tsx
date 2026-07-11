@@ -1,5 +1,6 @@
 import {
   Dialog,
+  DialogBody,
   DialogContent,
   DialogDescription,
   DialogHeader,
@@ -45,13 +46,14 @@ const SHORTCUTS = [
 export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcutsDialogProps) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
+      <DialogContent className="flex max-h-[min(36rem,calc(100svh-2rem))] flex-col gap-0 overflow-hidden p-0 sm:max-w-md">
+        <DialogHeader className="border-b border-border px-4 py-4">
           <DialogTitle>Keyboard shortcuts</DialogTitle>
           <DialogDescription>Common editor shortcuts for Open Animator.</DialogDescription>
         </DialogHeader>
 
-        <ul className="space-y-2">
+        <DialogBody className="px-4 py-3">
+          <ul className="space-y-2">
           {SHORTCUTS.map((shortcut) => (
             <li
               key={shortcut.action}
@@ -63,7 +65,8 @@ export function KeyboardShortcutsDialog({ open, onOpenChange }: KeyboardShortcut
               </kbd>
             </li>
           ))}
-        </ul>
+          </ul>
+        </DialogBody>
       </DialogContent>
     </Dialog>
   )
