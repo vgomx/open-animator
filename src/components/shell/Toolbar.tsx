@@ -53,7 +53,8 @@ import {
 import { downloadGif } from '@/io/gif-export'
 import { downloadCssKeyframes } from '@/io/css-export'
 import { downloadReactComponent } from '@/io/react-export'
-import { downloadEmbedHtml } from '@/io/embed-export'
+import { downloadAnimatedHtml } from '@/io/embed-export'
+import { openHtmlFile } from '@/io/html-import'
 import { dismissToast, showToast, updateToast } from '@/lib/toast'
 
 const LottieDialog = lazy(() =>
@@ -62,7 +63,7 @@ const LottieDialog = lazy(() =>
   })),
 )
 
-type ExportKind = 'static-svg' | 'animated-svg' | 'webm' | 'gif'
+type ExportKind = 'static-svg' | 'animated-svg' | 'html' | 'webm' | 'gif'
 
 export function Toolbar() {
   const [presetsOpen, setPresetsOpen] = useState(false)
@@ -173,6 +174,11 @@ export function Toolbar() {
       return
     }
 
+    if (exportKind === 'html') {
+      downloadAnimatedHtml(project, 'animation.html', options)
+      return
+    }
+
     if (exportKind === 'gif') {
       setIsExporting(true)
       const toastId = showToast({
@@ -236,22 +242,28 @@ export function Toolbar() {
           confirmLabel: 'Export GIF',
         }
       : exportKind === 'webm'
-      ? {
-          title: 'Export WebM video',
-          description: 'Choose frame rate, scale, and background for the video export.',
-          confirmLabel: 'Export WebM',
-        }
-      : exportKind === 'animated-svg'
         ? {
-            title: 'Export animated SVG',
-            description: 'Choose scale and background for the CSS-animated SVG export.',
-            confirmLabel: 'Export SVG',
+            title: 'Export WebM video',
+            description: 'Choose frame rate, scale, and background for the video export.',
+            confirmLabel: 'Export WebM',
           }
-        : {
-            title: 'Export static SVG',
-            description: 'Choose scale and background for the current frame.',
-            confirmLabel: 'Export SVG',
-          }
+        : exportKind === 'animated-svg'
+          ? {
+              title: 'Export animated SVG',
+              description: 'Choose scale and background for the CSS-animated SVG export.',
+              confirmLabel: 'Export SVG',
+            }
+          : exportKind === 'html'
+            ? {
+                title: 'Export HTML animation',
+                description: 'Choose scale and background for the standalone HTML animation file.',
+                confirmLabel: 'Export HTML',
+              }
+            : {
+                title: 'Export static SVG',
+                description: 'Choose scale and background for the current frame.',
+                confirmLabel: 'Export SVG',
+              }
 
   return (
     <>
@@ -503,6 +515,10 @@ export function Toolbar() {
                 <RectangleHorizontal />
                 Export animated SVG
               </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setExportKind('html')}>
+                <RectangleHorizontal />
+                Export HTML animation
+              </DropdownMenuItem>
               <DropdownMenuItem disabled={isExporting} onClick={() => setExportKind('webm')}>
                 <Video />
                 Export WebM video
@@ -518,10 +534,6 @@ export function Toolbar() {
               <DropdownMenuItem onClick={() => downloadReactComponent(project)}>
                 <Download />
                 Export React component
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => downloadEmbedHtml(project)}>
-                <Download />
-                Export HTML preview
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => downloadLottie(project)}>
                 <Download />
@@ -544,6 +556,25 @@ export function Toolbar() {
               <DropdownMenuItem onClick={handleOpenSvgAsProject}>
                 <FolderOpen />
                 Open SVG as new project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={async () => {
+                  const imported = await openHtmlFile()
+                  if (!imported) {
+                    return
+                  }
+
+                  setProject(imported)
+                  requestAnimationFrame(fitCanvasToScreen)
+                  showToast({
+                    title: 'HTML animation opened',
+                    description: `Loaded ${imported.layers.length} animated layer${imported.layers.length === 1 ? '' : 's'} as a new project.`,
+                    variant: 'success',
+                  })
+                }}
+              >
+                <FolderOpen />
+                Open HTML animation
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={async () => {
@@ -583,7 +614,7 @@ export function Toolbar() {
           onConfirm={handleExport}
         />
       ) : null}
-      {lottiePreviewOpen ? (
+      {lottiePreviewOpen && (
         <Suspense fallback={null}>
           <LottieDialog
             open={lottiePreviewOpen}
@@ -591,7 +622,7 @@ export function Toolbar() {
             animationData={lottiePreviewData}
           />
         </Suspense>
-      ) : null}
+      )}
     </>
   )
 }

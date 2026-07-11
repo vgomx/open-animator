@@ -6,12 +6,25 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { AppLogo } from '@/components/shell/AppLogo'
-import { APP_AUTHOR, APP_GITHUB_URL, APP_LICENSE, APP_NAME } from '@/lib/app'
+import { APP_AUTHOR, APP_AUTHOR_URL, APP_GITHUB_URL, APP_LICENSE, APP_NAME } from '@/lib/app'
 
 type AboutDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
   onOpenAcknowledgments: () => void
+}
+
+function AuthorLink({ className }: { className?: string }) {
+  return (
+    <a
+      href={APP_AUTHOR_URL}
+      target="_blank"
+      rel="noopener noreferrer"
+      className={className}
+    >
+      {APP_AUTHOR}
+    </a>
+  )
 }
 
 export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: AboutDialogProps) {
@@ -26,7 +39,10 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
           </div>
           <div className="space-y-1">
             <DialogTitle className="text-lg">{APP_NAME}</DialogTitle>
-            <DialogDescription>by {APP_AUTHOR}</DialogDescription>
+            <DialogDescription>
+              by{' '}
+              <AuthorLink className="font-medium text-foreground underline underline-offset-4 hover:text-primary" />
+            </DialogDescription>
           </div>
         </DialogHeader>
 
@@ -35,15 +51,6 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
             A browser-based SVG animator for authoring simple shape animations with keyframes.
             Built as an open source portfolio project.
           </p>
-
-          <a
-            href={APP_GITHUB_URL}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 font-medium text-foreground underline underline-offset-4 hover:text-primary"
-          >
-            View on GitHub
-          </a>
 
           <div className="rounded-lg border border-border bg-muted/30 p-3">
             <p className="mb-2 font-medium text-foreground">{APP_LICENSE} License</p>
@@ -59,13 +66,23 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
             </p>
           </div>
 
-          <button
-            type="button"
-            onClick={onOpenAcknowledgments}
-            className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
-          >
-            Open source acknowledgments
-          </button>
+          <div className="flex flex-col items-center gap-2 text-center">
+            <a
+              href={APP_GITHUB_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+            >
+              View on GitHub
+            </a>
+            <button
+              type="button"
+              onClick={onOpenAcknowledgments}
+              className="font-medium text-foreground underline underline-offset-4 hover:text-primary"
+            >
+              Open source acknowledgments
+            </button>
+          </div>
         </div>
       </DialogContent>
     </Dialog>

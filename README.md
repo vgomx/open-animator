@@ -27,7 +27,8 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server |
-| `npm run build` | Typecheck and production build |
+| `npm run build` | Typecheck, generate brand assets, and production build |
+| `npm run generate:brand-assets` | Regenerate favicons and Open Graph image from SVG sources |
 | `npm run preview` | Preview production build |
 | `npm run test` | Run unit tests |
 | `npm run lint` | Run oxlint |
@@ -66,8 +67,9 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 - Undo/redo (`⌘Z` / `⌘⇧Z`)
 - Pan viewport (Space + drag or middle mouse); fit artboard to screen
 - Save/open project JSON (autosaved to `localStorage`, v2 format with migration from v1)
-- Export static SVG, animated SVG, **WebM video**, **GIF**, CSS keyframes, React component, HTML preview, and **Lottie JSON** (subset, including paths)
+- Export static SVG, animated SVG, **HTML animation**, **WebM video**, **GIF**, CSS keyframes, React component, and **Lottie JSON** (subset, including paths)
 - Import SVG — merge shapes into the current project or open as a new project
+- Import **HTML animation** files (CSS-animated SVG exported by Open Animator)
 - Import Lottie JSON (limited subset) and preview with lottie-web
 
 ### SVG import support
@@ -104,6 +106,8 @@ src/
     lottie.ts     # Lottie import/export (subset)
     migrate.ts    # Project version migration
     project.ts    # JSON save/load
+    embed-export.ts # Standalone HTML animation export
+    html-import.ts  # HTML animation import (CSS keyframes)
     svg-export.ts # Static and animated SVG export
     svg-import.ts # SVG import into layers/projects
 ```

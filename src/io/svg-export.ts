@@ -1,6 +1,7 @@
 import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
 import type { Layer, Project, Shape } from '@/editor/types'
+import { isTransparentColor } from '@/editor/color-utils'
 import { getAnimatedShape } from '@/editor/animation'
 import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
@@ -70,12 +71,18 @@ function shapeMarkup(shape: Shape, className?: string, animated = false): string
   return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
 }
 
-function backgroundMarkup(options: ExportOptions): string {
+function backgroundMarkup(project: Project, options: ExportOptions): string {
   if (options.background === 'transparent') {
     return ''
   }
 
-  return `<rect width="100%" height="100%" fill="${escapeXml(options.backgroundColor)}" />`
+  const artboardColor = project.artboard.backgroundColor
+  const color =
+    !artboardColor || isTransparentColor(artboardColor)
+      ? options.backgroundColor
+      : artboardColor
+
+  return `<rect width="100%" height="100%" fill="${escapeXml(color)}" />`
 }
 
 function collectLayerTimes(layer: Layer, duration: number): number[] {
@@ -123,7 +130,7 @@ export function exportSvgAtTime(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${backgroundMarkup(options)}
+  ${backgroundMarkup(project, options)}
   ${scaleGroup}
 </svg>`
 }
@@ -158,7 +165,7 @@ export function exportAnimatedSvg(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${styleBlock}${backgroundMarkup(options)}
+  ${styleBlock}${backgroundMarkup(project, options)}
   ${scaleGroup}
 </svg>`
 }

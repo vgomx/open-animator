@@ -1,5 +1,5 @@
 import type { Layer, Project } from '@/editor/types'
-import { PROJECT_VERSION } from '@/editor/types'
+import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
 
 type LayerInput = Omit<Layer, 'groupId' | 'delay'> & Partial<Pick<Layer, 'groupId' | 'delay'>>
 
@@ -11,7 +11,8 @@ export function projectDefaults(
 ): Project {
   return {
     version: PROJECT_VERSION,
-    artboard: partial.artboard ?? { width: 800, height: 600 },
+    canvas: partial.canvas ?? { ...DEFAULT_CANVAS },
+    artboard: partial.artboard ?? { ...DEFAULT_ARTBOARD },
     duration: partial.duration,
     loopIn: partial.loopIn ?? 0,
     loopOut: partial.loopOut ?? partial.duration,

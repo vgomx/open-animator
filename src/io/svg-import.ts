@@ -8,6 +8,7 @@ import {
   createTextShape,
 } from '@/editor/scene'
 import type { Layer, PathPoint, Project, Shape, TextShape } from '@/editor/types'
+import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
 
@@ -508,6 +509,28 @@ function readArtboard(svg: SVGSVGElement): { width: number; height: number } {
   }
 }
 
+export function parseShapeElement(element: Element): Shape | null {
+  const defaultStyle: SvgStyle = {
+    fill: SHAPE_FILL_SECONDARY,
+    stroke: 'none',
+    strokeWidth: 0,
+    opacity: 1,
+  }
+  const style = readStyle(element, defaultStyle)
+  return elementToShape(element, style, { x: 0, y: 0, rotation: 0, scale: 1 })
+}
+
+export function parseSvgArtboardFromMarkup(raw: string): { width: number; height: number } | null {
+  const parser = new DOMParser()
+  const document = parser.parseFromString(raw, 'image/svg+xml')
+  const svg = document.querySelector('svg')
+  if (!svg) {
+    return null
+  }
+
+  return readArtboard(svg)
+}
+
 export function importSvg(raw: string): SvgImportResult | null {
   const parser = new DOMParser()
   const document = parser.parseFromString(raw, 'image/svg+xml')
@@ -553,7 +576,7 @@ export function importSvgAsProject(raw: string): Project | null {
 export function svgImportToProject(imported: SvgImportResult): Project {
   return {
     ...createDefaultProject(),
-    artboard: imported.artboard,
+    artboard: createArtboard(imported.artboard),
     layers: createImportLayerIds(imported.layers),
   }
 }

@@ -77,30 +77,78 @@
 }
 
 @layer components {
-  .glass-chrome,
-  .glass-panel {
-    background-color: color-mix(in oklab, var(--card) 24%, transparent);
-    border-color: color-mix(in oklab, var(--border) 55%, transparent);
-    backdrop-filter: blur(40px) saturate(160%);
-    -webkit-backdrop-filter: blur(40px) saturate(160%);
+  .glass-chrome {
+    isolation: isolate;
+    color: var(--card-foreground);
+    background-color: color-mix(in oklab, var(--card) var(--panel-chrome-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 85%, transparent);
+    backdrop-filter: blur(20px) saturate(125%);
+    -webkit-backdrop-filter: blur(20px) saturate(125%);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 55%, transparent),
+      0 16px 48px rgb(28 27 25 / 0.1);
   }
 
-  .dark .glass-chrome,
+  .dark .glass-chrome {
+    background-color: color-mix(in oklab, var(--card) var(--panel-chrome-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 90%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 70%, transparent),
+      0 16px 48px rgb(0 0 0 / 0.42);
+  }
+
+  .glass-panel {
+    isolation: isolate;
+    color: var(--popover-foreground);
+    background-color: color-mix(in oklab, var(--popover) var(--panel-float-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 75%, transparent);
+    backdrop-filter: blur(28px) saturate(140%);
+    -webkit-backdrop-filter: blur(28px) saturate(140%);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 45%, transparent),
+      0 12px 36px rgb(28 27 25 / 0.14);
+  }
+
   .dark .glass-panel {
-    background-color: rgb(255 255 255 / 0.08);
-    border-color: rgb(255 255 255 / 0.1);
+    background-color: color-mix(in oklab, var(--popover) var(--panel-float-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 85%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent),
+      0 12px 36px rgb(0 0 0 / 0.45);
   }
 
   .glass-panel-header {
-    border-color: color-mix(in oklab, var(--border) 40%, transparent);
-    background-color: color-mix(in oklab, var(--card) 16%, transparent);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
+    border-color: color-mix(in oklab, var(--border) 70%, transparent);
+    background-color: color-mix(in oklab, var(--card) 99%, transparent);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
   }
 
   .dark .glass-panel-header {
-    background-color: rgb(255 255 255 / 0.05);
-    border-color: rgb(255 255 255 / 0.08);
+    background-color: color-mix(in oklab, var(--card) 99%, transparent);
+    border-color: color-mix(in oklab, var(--border) 80%, transparent);
+  }
+
+  .glass-chrome .text-muted-foreground {
+    color: var(--panel-muted-foreground);
+  }
+
+  .glass-chrome .panel-scroll {
+    background-color: color-mix(in oklab, var(--card) var(--panel-chrome-mix), transparent);
+  }
+
+  .glass-chrome [data-slot="input"]:not(:disabled) {
+    background-color: color-mix(in oklab, var(--background) 70%, var(--card));
+    border-color: var(--border);
+  }
+
+  .dark .glass-chrome [data-slot="input"]:not(:disabled) {
+    background-color: color-mix(in oklab, var(--input) 50%, var(--card));
+    border-color: color-mix(in oklab, var(--border) 100%, transparent);
+  }
+
+  .glass-chrome .border-border\/60 {
+    border-color: color-mix(in oklab, var(--border) 85%, transparent);
   }
 
   .canvas-backdrop {
@@ -200,6 +248,9 @@
   --sidebar-accent-foreground: #1c1b19;
   --sidebar-border: #e8e6e0;
   --sidebar-ring: color-mix(in oklab, var(--brand-accent) 45%, transparent);
+  --panel-chrome-mix: 97%;
+  --panel-float-mix: 90%;
+  --panel-muted-foreground: #5c5952;
 }
 
 .dark {
@@ -238,4 +289,7 @@
   --sidebar-accent-foreground: #f4f3f0;
   --sidebar-border: rgb(244 243 240 / 0.1);
   --sidebar-ring: color-mix(in oklab, var(--brand-accent) 55%, transparent);
+  --panel-chrome-mix: 97%;
+  --panel-float-mix: 92%;
+  --panel-muted-foreground: #a8a49c;
 }

@@ -30,6 +30,8 @@ import type { PathPoint } from '@/editor/types'
 import { clampZoom, zoomAtPoint } from '@/editor/viewport'
 import type {
   AnimatableProperty,
+  Artboard,
+  CanvasSettings,
   BezierHandle,
   EasingType,
   Guide,
@@ -90,6 +92,8 @@ type EditorStore = {
   guideDraft: Pick<Guide, 'axis' | 'position'> | null
   history: HistoryStacks
   keyframeClipboard: Keyframe[]
+  selectedKeyframeIds: string[]
+  timelineSnapTime: number | null
   activeTool: EditorTool
   selectedNodeIndices: number[]
   penDraft: PathPoint[] | null
@@ -114,6 +118,8 @@ type EditorStore = {
   toggleGroupCollapsed: (groupId: string) => void
   setEditingTextLayerId: (layerId: string | null) => void
   updateLayer: (layerId: string, patch: Partial<Layer>) => void
+  updateArtboard: (patch: Partial<Artboard>) => void
+  updateCanvas: (patch: Partial<CanvasSettings>) => void
   reorderLayers: (fromIndex: number, toIndex: number) => void
   updateShape: (layerId: string, patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
   setCurrentTime: (time: number) => void
@@ -133,10 +139,20 @@ type EditorStore = {
   fitToScreen: (viewportWidth: number, viewportHeight: number) => void
   resetViewport: () => void
   setProject: (project: Project) => void
-  importSvgLayers: (layers: Layer[], artboard?: { width: number; height: number }) => void
+  importSvgLayers: (layers: Layer[], artboard?: Partial<Artboard>) => void
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
   setKeyframeEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
   moveKeyframe: (keyframeId: string, time: number, options?: { skipHistory?: boolean }) => void
+  moveKeyframesAtAnchor: (
+    anchorKeyframeId: string,
+    anchorTime: number,
+    keyframeIds: string[],
+    options?: { skipHistory?: boolean },
+  ) => void
+  selectKeyframe: (keyframeId: string, options?: { additive?: boolean }) => void
+  clearKeyframeSelection: () => void
+  removeSelectedKeyframes: () => void
+  setTimelineSnapTime: (time: number | null) => void
   toggleSnapEnabled: () => void
   toggleShowRulers: () => void
   toggleLayersPanel: () => void
@@ -161,7 +177,7 @@ type EditorStore = {
   nudgeSelectedKeyframes: (deltaTime: number) => void
   addMarkerAtCurrentTime: () => void
   removeMarker: (markerId: string) => void
-  setLoopRegion: (loopIn: number, loopOut: number) => void
+  setLoopRegion: (loopIn: number, loopOut: number, options?: { skipHistory?: boolean }) => void
   groupSelectedLayers: () => void
   ungroupSelectedLayers: () => void
   zoomToSelection: (viewportWidth: number, viewportHeight: number) => void
@@ -192,6 +208,37 @@ type EditorStore = {
 
 function persistProject(project: Project): void {
   saveProjectToStorage(project)
+}
+
+function findKeyframeTime(project: Project, keyframeId: string): number | null {
+  for (const layer of project.layers) {
+    const keyframe = layer.keyframes.find((item) => item.id === keyframeId)
+    if (keyframe) {
+      return keyframe.time
+    }
+  }
+
+  return null
+}
+
+function applyKeyframeTimeDelta(project: Project, keyframeIds: string[], delta: number): Project {
+  const ids = new Set(keyframeIds)
+  const duration = project.duration
+
+  return {
+    ...project,
+    layers: project.layers.map((layer) => ({
+      ...layer,
+      keyframes: layer.keyframes.map((keyframe) =>
+        ids.has(keyframe.id)
+          ? {
+              ...keyframe,
+              time: Math.max(0, Math.min(keyframe.time + delta, duration)),
+            }
+          : keyframe,
+      ),
+    })),
+  }
 }
 
 function upsertKeyframe(
@@ -351,6 +398,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
   guideDraft: null,
   history: { past: [], future: [] },
   keyframeClipboard: [],
+  selectedKeyframeIds: [],
+  timelineSnapTime: null,
   activeTool: 'select',
   selectedNodeIndices: [],
   penDraft: null,
@@ -380,12 +429,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
             ? syncSelection(state.selectedLayerIds.filter((id) => id !== layerId))
             : syncSelection([...state.selectedLayerIds, layerId])
 
-      return { ...next, selectedNodeIndices: [] }
+      return { ...next, selectedNodeIndices: [], selectedKeyframeIds: [] }
     }),
 
-  clearSelection: () => set({ ...syncSelection([]), selectedNodeIndices: [] }),
+  clearSelection: () =>
+    set({ ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [] }),
 
-  selectLayers: (layerIds) => set({ ...syncSelection([...layerIds]), selectedNodeIndices: [] }),
+  selectLayers: (layerIds) =>
+    set({ ...syncSelection([...layerIds]), selectedNodeIndices: [], selectedKeyframeIds: [] }),
 
   setActiveTool: (tool) =>
     set((state) => ({
@@ -775,6 +826,40 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })),
     ),
 
+  updateArtboard: (patch) =>
+    set((state) =>
+      withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          artboard: {
+            ...current.project.artboard,
+            ...patch,
+            width:
+              patch.width !== undefined
+                ? Math.max(1, Math.round(patch.width))
+                : current.project.artboard.width,
+            height:
+              patch.height !== undefined
+                ? Math.max(1, Math.round(patch.height))
+                : current.project.artboard.height,
+          },
+        },
+      })),
+    ),
+
+  updateCanvas: (patch) =>
+    set((state) =>
+      withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          canvas: {
+            ...current.project.canvas,
+            ...patch,
+          },
+        },
+      })),
+    ),
+
   reorderLayers: (fromIndex, toIndex) =>
     set((state) => {
       if (
@@ -1013,7 +1098,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
         const project = {
           ...current.project,
           layers: [...current.project.layers, ...layers],
-          artboard: artboard ?? current.project.artboard,
+          artboard: artboard
+            ? { ...current.project.artboard, ...artboard }
+            : current.project.artboard,
         }
 
         return {
@@ -1050,6 +1137,69 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
       return withHistory(state, applyMove)
     }),
+
+  moveKeyframesAtAnchor: (anchorKeyframeId, anchorTime, keyframeIds, options) =>
+    set((state) => {
+      const originalTime = findKeyframeTime(state.project, anchorKeyframeId)
+      if (originalTime === null) {
+        return state
+      }
+
+      const delta = anchorTime - originalTime
+      if (Math.abs(delta) < 0.0001) {
+        return state
+      }
+
+      const applyMove = (current: EditorStore): Partial<EditorStore> => ({
+        project: applyKeyframeTimeDelta(current.project, keyframeIds, delta),
+      })
+
+      if (options?.skipHistory) {
+        const next = applyMove(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyMove)
+    }),
+
+  selectKeyframe: (keyframeId, options) =>
+    set((state) => {
+      if (!options?.additive) {
+        return { selectedKeyframeIds: [keyframeId] }
+      }
+
+      return {
+        selectedKeyframeIds: state.selectedKeyframeIds.includes(keyframeId)
+          ? state.selectedKeyframeIds.filter((id) => id !== keyframeId)
+          : [...state.selectedKeyframeIds, keyframeId],
+      }
+    }),
+
+  clearKeyframeSelection: () => set({ selectedKeyframeIds: [] }),
+
+  removeSelectedKeyframes: () =>
+    set((state) => {
+      if (state.selectedKeyframeIds.length === 0) {
+        return state
+      }
+
+      const selected = new Set(state.selectedKeyframeIds)
+
+      return withHistory(state, (current) => ({
+        project: {
+          ...current.project,
+          layers: current.project.layers.map((layer) => ({
+            ...layer,
+            keyframes: layer.keyframes.filter((keyframe) => !selected.has(keyframe.id)),
+          })),
+        },
+        selectedKeyframeIds: [],
+      }))
+    }),
+
+  setTimelineSnapTime: (time) => set({ timelineSnapTime: time }),
 
   toggleSnapEnabled: () =>
     set((state) => {
@@ -1375,6 +1525,16 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   nudgeSelectedKeyframes: (deltaTime) =>
     set((state) => {
+      if (state.selectedKeyframeIds.length > 0) {
+        return withHistory(state, (current) => ({
+          project: applyKeyframeTimeDelta(
+            current.project,
+            current.selectedKeyframeIds,
+            deltaTime,
+          ),
+        }))
+      }
+
       if (!state.selectedLayerId) {
         return state
       }
@@ -1442,9 +1602,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })),
     ),
 
-  setLoopRegion: (loopIn, loopOut) =>
-    set((state) =>
-      withHistory(state, (current) => {
+  setLoopRegion: (loopIn, loopOut, options) =>
+    set((state) => {
+      const applyLoop = (current: EditorStore): Partial<EditorStore> => {
         const duration = current.project.duration
         const nextIn = Math.max(0, Math.min(loopIn, duration))
         const nextOut = Math.max(nextIn, Math.min(loopOut, duration))
@@ -1456,8 +1616,17 @@ export const useEditorStore = create<EditorStore>((set) => ({
             loopOut: nextOut,
           },
         }
-      }),
-    ),
+      }
+
+      if (options?.skipHistory) {
+        const next = applyLoop(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyLoop)
+    }),
 
   groupSelectedLayers: () =>
     set((state) => {

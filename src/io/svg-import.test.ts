@@ -8,6 +8,7 @@ import {
   parseSvgPathData,
   svgImportToProject,
 } from '@/io/svg-import'
+import { createArtboard } from '@/editor/types'
 
 describe('svg import', () => {
   it('parses named and hex colors', () => {
@@ -84,7 +85,7 @@ describe('svg import', () => {
 
     const project = svgImportToProject(imported!)
     expect(project.layers).toHaveLength(1)
-    expect(project.artboard).toEqual({ width: 320, height: 240 })
+    expect(project.artboard).toEqual(createArtboard({ width: 320, height: 240 }))
     expect(project.layers[0]?.shape.id).not.toBe(imported!.layers[0]!.shape.id)
   })
 
@@ -97,7 +98,7 @@ describe('svg import', () => {
 
     const project = importSvgAsProject(svg)
     expect(project?.layers).toHaveLength(1)
-    expect(project?.artboard).toEqual({ width: 500, height: 400 })
+    expect(project?.artboard).toEqual(createArtboard({ width: 500, height: 400 }))
     expect(project?.layers[0]?.shape.type).toBe('ellipse')
   })
 })

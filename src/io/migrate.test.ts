@@ -1,13 +1,13 @@
 import { describe, expect, it } from 'vitest'
 
 import { migrateProject } from '@/io/migrate'
-import { PROJECT_VERSION } from '@/editor/types'
+import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
 
 describe('migrateProject', () => {
   it('migrates v4 projects with locked defaults', () => {
     const migrated = migrateProject({
       version: 4,
-      artboard: { width: 800, height: 600 },
+      artboard: { ...DEFAULT_ARTBOARD, width: 800, height: 600 },
       duration: 3,
       guides: [],
       layers: [
@@ -37,5 +37,44 @@ describe('migrateProject', () => {
     expect(migrated.version).toBe(PROJECT_VERSION)
     expect(migrated.layers[0]?.locked).toBe(false)
     expect(migrated.states).toEqual([])
+  })
+
+  it('migrates v7 projects with artboard defaults', () => {
+    const migrated = migrateProject({
+      version: 7,
+      artboard: { ...DEFAULT_ARTBOARD, width: 640, height: 480 },
+      duration: 2,
+      loopIn: 0,
+      loopOut: 2,
+      guides: [],
+      states: [],
+      markers: [],
+      layers: [],
+    })
+
+    expect(migrated.version).toBe(PROJECT_VERSION)
+    expect(migrated.artboard).toEqual({
+      name: DEFAULT_ARTBOARD.name,
+      width: 640,
+      height: 480,
+      backgroundColor: DEFAULT_ARTBOARD.backgroundColor,
+    })
+  })
+
+  it('migrates v8 projects with canvas defaults', () => {
+    const migrated = migrateProject({
+      version: 8,
+      artboard: { ...DEFAULT_ARTBOARD, width: 640, height: 480 },
+      duration: 2,
+      loopIn: 0,
+      loopOut: 2,
+      guides: [],
+      states: [],
+      markers: [],
+      layers: [],
+    })
+
+    expect(migrated.version).toBe(PROJECT_VERSION)
+    expect(migrated.canvas).toEqual(DEFAULT_CANVAS)
   })
 })

@@ -1,18 +1,22 @@
-import { useEffect, useRef } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 
+import { TimelinePropertyTrack } from '@/components/timeline/TimelinePropertyTrack'
+import { getTimelineHandleTarget, TimelineRuler } from '@/components/timeline/TimelineRuler'
 import { Button } from '@/components/ui/button'
-import { Slider } from '@/components/ui/slider'
-import type { AnimatableProperty } from '@/editor/types'
+import type { AnimatableProperty, Keyframe } from '@/editor/types'
 import { ANIMATABLE_PROPERTIES } from '@/editor/types'
+import {
+  collectKeyframeTimes,
+  formatTimelineTime,
+  snapTimelineTime,
+  timeFromClientX,
+  timeToPercent,
+} from '@/editor/timeline-utils'
 import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, Flag, Sparkles } from 'lucide-react'
-
-function formatTime(seconds: number): string {
-  return `${seconds.toFixed(2)}s`
-}
 
 const propertyLabels: Record<AnimatableProperty, string> = {
   x: 'X',
@@ -29,16 +33,32 @@ const propertyLabels: Record<AnimatableProperty, string> = {
   fontSize: 'Font size',
 }
 
+type DragMode = 'playhead' | 'loop-in' | 'loop-out' | 'keyframe' | null
+
+type DragState = {
+  mode: DragMode
+  keyframeId?: string
+  keyframeIds?: string[]
+  frameSnap: boolean
+}
+
 export function Timeline() {
   const duration = useEditorStore((state) => state.project.duration)
   const loopIn = useEditorStore((state) => state.project.loopIn)
   const loopOut = useEditorStore((state) => state.project.loopOut)
   const states = useEditorStore((state) => state.project.states)
   const markers = useEditorStore((state) => state.project.markers)
+  const layers = useEditorStore((state) => state.project.layers)
   const currentTime = useEditorStore((state) => state.currentTime)
+  const snapEnabled = useEditorStore((state) => state.snapEnabled)
+  const selectedKeyframeIds = useEditorStore((state) => state.selectedKeyframeIds)
+  const timelineSnapTime = useEditorStore((state) => state.timelineSnapTime)
   const setCurrentTime = useEditorStore((state) => state.setCurrentTime)
-  const moveKeyframe = useEditorStore((state) => state.moveKeyframe)
+  const moveKeyframesAtAnchor = useEditorStore((state) => state.moveKeyframesAtAnchor)
   const beginHistoryTransaction = useEditorStore((state) => state.beginHistoryTransaction)
+  const selectKeyframe = useEditorStore((state) => state.selectKeyframe)
+  const clearKeyframeSelection = useEditorStore((state) => state.clearKeyframeSelection)
+  const setTimelineSnapTime = useEditorStore((state) => state.setTimelineSnapTime)
   const addAnimationStateAtCurrentTime = useEditorStore((state) => state.addAnimationStateAtCurrentTime)
   const removeAnimationState = useEditorStore((state) => state.removeAnimationState)
   const smartAnimateAll = useEditorStore((state) => state.smartAnimateAll)
@@ -48,40 +68,90 @@ export function Timeline() {
   const selectedLayer = useEditorStore((state) =>
     state.project.layers.find((layer) => layer.id === state.selectedLayerId),
   )
+
   const trackRef = useRef<HTMLDivElement>(null)
-  const dragKeyframeRef = useRef<string | null>(null)
+  const dragRef = useRef<DragState>({ mode: null, frameSnap: true })
 
-  const timeFromClientX = (clientX: number): number => {
-    const track = trackRef.current
-    if (!track || duration === 0) {
-      return 0
-    }
+  const orderedStates = [...states].sort((left, right) => left.time - right.time)
+  const orderedMarkers = [...markers].sort((left, right) => left.time - right.time)
 
-    const rect = track.getBoundingClientRect()
-    const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width))
-    return ratio * duration
-  }
+  const resolveTime = useCallback(
+    (clientX: number, frameSnap: boolean, excludeKeyframeIds: string[] = []) => {
+      const track = trackRef.current
+      if (!track || duration === 0) {
+        return 0
+      }
 
-  const scrubToClientX = (clientX: number) => {
-    setCurrentTime(timeFromClientX(clientX))
-  }
+      const raw = timeFromClientX(clientX, track.getBoundingClientRect(), duration)
+      const snapped = snapTimelineTime(raw, {
+        duration,
+        snapEnabled,
+        frameSnap,
+        markers: orderedMarkers,
+        states: orderedStates,
+        keyframeTimes: collectKeyframeTimes(layers, excludeKeyframeIds),
+        playheadTime: currentTime,
+      })
+
+      if (snapEnabled && frameSnap && Math.abs(snapped - raw) > 0.0001) {
+        setTimelineSnapTime(snapped)
+      } else {
+        setTimelineSnapTime(null)
+      }
+
+      return snapped
+    },
+    [
+      currentTime,
+      duration,
+      layers,
+      orderedMarkers,
+      orderedStates,
+      setTimelineSnapTime,
+      snapEnabled,
+    ],
+  )
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
-      const keyframeId = dragKeyframeRef.current
-      if (!keyframeId) {
+      const drag = dragRef.current
+      if (!drag.mode) {
         return
       }
 
-      moveKeyframe(keyframeId, timeFromClientX(event.clientX), { skipHistory: true })
+      const time = resolveTime(
+        event.clientX,
+        drag.frameSnap,
+        drag.mode === 'keyframe' ? drag.keyframeIds ?? [] : [],
+      )
+
+      if (drag.mode === 'playhead') {
+        setCurrentTime(time)
+        return
+      }
+
+      if (drag.mode === 'loop-in') {
+        setLoopRegion(time, loopOut, { skipHistory: true })
+        return
+      }
+
+      if (drag.mode === 'loop-out') {
+        setLoopRegion(loopIn, time, { skipHistory: true })
+        return
+      }
+
+      if (drag.mode === 'keyframe' && drag.keyframeId && drag.keyframeIds) {
+        moveKeyframesAtAnchor(drag.keyframeId, time, drag.keyframeIds, { skipHistory: true })
+      }
     }
 
     const onPointerUp = () => {
-      if (!dragKeyframeRef.current) {
+      if (!dragRef.current.mode) {
         return
       }
 
-      dragKeyframeRef.current = null
+      dragRef.current = { mode: null, frameSnap: true }
+      setTimelineSnapTime(null)
       saveProjectToStorage(useEditorStore.getState().project)
     }
 
@@ -92,7 +162,68 @@ export function Timeline() {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [duration, moveKeyframe])
+  }, [
+    loopIn,
+    loopOut,
+    moveKeyframesAtAnchor,
+    resolveTime,
+    setCurrentTime,
+    setLoopRegion,
+    setTimelineSnapTime,
+  ])
+
+  const startTrackDrag = (event: React.PointerEvent<HTMLDivElement>) => {
+    const handle = getTimelineHandleTarget(event.target)
+    if (handle === 'keyframe') {
+      return
+    }
+
+    if (handle === 'loop-in' || handle === 'loop-out') {
+      event.preventDefault()
+      beginHistoryTransaction()
+      dragRef.current = {
+        mode: handle,
+        frameSnap: !event.shiftKey,
+      }
+      event.currentTarget.setPointerCapture(event.pointerId)
+      resolveTime(event.clientX, !event.shiftKey)
+      return
+    }
+
+    event.preventDefault()
+    beginHistoryTransaction()
+    dragRef.current = {
+      mode: 'playhead',
+      frameSnap: !event.shiftKey,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+    setCurrentTime(resolveTime(event.clientX, !event.shiftKey))
+  }
+
+  const onKeyframePointerDown = (
+    event: React.PointerEvent<HTMLButtonElement>,
+    keyframe: Keyframe,
+  ) => {
+    event.stopPropagation()
+    beginHistoryTransaction()
+
+    let nextSelection = selectedKeyframeIds
+    if (event.shiftKey) {
+      selectKeyframe(keyframe.id, { additive: true })
+      nextSelection = useEditorStore.getState().selectedKeyframeIds
+    } else if (!selectedKeyframeIds.includes(keyframe.id)) {
+      selectKeyframe(keyframe.id)
+      nextSelection = [keyframe.id]
+    }
+
+    dragRef.current = {
+      mode: 'keyframe',
+      keyframeId: keyframe.id,
+      keyframeIds: nextSelection,
+      frameSnap: !event.shiftKey,
+    }
+    event.currentTarget.setPointerCapture(event.pointerId)
+  }
 
   const keyframesByProperty = selectedLayer
     ? ANIMATABLE_PROPERTIES.map((property) => ({
@@ -101,13 +232,15 @@ export function Timeline() {
       }))
     : []
 
-  const orderedStates = [...states].sort((left, right) => left.time - right.time)
-  const orderedMarkers = [...markers].sort((left, right) => left.time - right.time)
-  const loopLeft = duration === 0 ? 0 : (loopIn / duration) * 100
-  const loopWidth = duration === 0 ? 100 : ((loopOut - loopIn) / duration) * 100
+  const headerOffset =
+    orderedStates.length > 0 && orderedMarkers.length > 0
+      ? 'pt-11'
+      : orderedStates.length > 0 || orderedMarkers.length > 0
+        ? 'pt-6'
+        : ''
 
   return (
-    <footer className="flex h-56 shrink-0 flex-col overflow-hidden border-t border-border bg-card">
+    <footer className="flex h-60 shrink-0 flex-col overflow-hidden border-t border-border bg-card">
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -130,65 +263,61 @@ export function Timeline() {
             <Bookmark />
             Add marker
           </Button>
-          <Button variant="ghost" size="sm" onClick={() => setLoopRegion(currentTime, loopOut)}>
-            Loop in
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => setLoopRegion(loopIn, currentTime)}>
-            Loop out
-          </Button>
         </div>
         <span className="text-xs text-muted-foreground">
-          {formatTime(currentTime)} / {formatTime(duration)} · loop {formatTime(loopIn)}–
-          {formatTime(loopOut)}
+          {formatTimelineTime(currentTime)} / {formatTimelineTime(duration)} · loop{' '}
+          {formatTimelineTime(loopIn)}–{formatTimelineTime(loopOut)}
         </span>
       </div>
 
-      <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-hidden px-4 py-3">
-        <Slider
-          className="shrink-0"
-          min={0}
-          max={duration}
-          step={0.01}
-          value={[currentTime]}
-          onValueChange={(value) => setCurrentTime(value[0] ?? 0)}
-        />
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden px-4 py-3">
+        <div
+          ref={trackRef}
+          className="relative flex min-h-0 flex-1 flex-col overflow-hidden rounded-md border border-border bg-background/60"
+        >
+          <TimelineRuler
+            duration={duration}
+            currentTime={currentTime}
+            loopIn={loopIn}
+            loopOut={loopOut}
+            onPointerDown={startTrackDrag}
+          />
 
-        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain">
           <div
-            ref={trackRef}
-            className="relative min-h-full cursor-pointer rounded-md border border-border bg-background/60"
-            onPointerDown={(event) => {
-              if (dragKeyframeRef.current) {
-                return
-              }
-
-              scrubToClientX(event.clientX)
-            }}
+            className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain"
+            onPointerDown={startTrackDrag}
           >
             <div
-              className="pointer-events-none absolute inset-y-0 z-0 rounded-md bg-primary/10"
-              style={{ left: `${loopLeft}%`, width: `${loopWidth}%` }}
+              className="pointer-events-none absolute inset-y-0 z-0 rounded-sm bg-primary/10"
+              style={{
+                left: `${timeToPercent(loopIn, duration)}%`,
+                width: `${timeToPercent(loopOut, duration) - timeToPercent(loopIn, duration)}%`,
+              }}
             />
+            {timelineSnapTime !== null ? (
+              <div
+                className="pointer-events-none absolute inset-y-0 z-30 w-px bg-sky-500/80"
+                style={{ left: `${timeToPercent(timelineSnapTime, duration)}%` }}
+              />
+            ) : null}
 
             <div
               className="pointer-events-none absolute inset-y-0 z-10 w-px bg-primary"
-              style={{
-                left: `${duration === 0 ? 0 : (currentTime / duration) * 100}%`,
-              }}
+              style={{ left: `${timeToPercent(currentTime, duration)}%` }}
             />
 
             {orderedMarkers.length > 0 ? (
-              <div className="pointer-events-none absolute inset-x-0 top-0 z-20 h-5 border-b border-border/50 bg-muted/10">
+              <div className="pointer-events-none sticky top-0 z-20 h-5 border-b border-border/50 bg-muted/10">
                 {orderedMarkers.map((marker) => (
                   <button
                     key={marker.id}
                     type="button"
-                    className="pointer-events-auto absolute top-0.5 -translate-x-1/2 rounded px-1 text-[10px] font-medium"
+                    className="pointer-events-auto absolute top-0.5 -translate-x-1/2 rounded px-1 text-[10px] font-medium hover:bg-muted/60"
                     style={{
-                      left: `${duration === 0 ? 0 : (marker.time / duration) * 100}%`,
+                      left: `${timeToPercent(marker.time, duration)}%`,
                       color: marker.color ?? UI_STROKE,
                     }}
-                    title={`${marker.name} @ ${formatTime(marker.time)}`}
+                    title={`${marker.name} @ ${formatTimelineTime(marker.time)}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       setCurrentTime(marker.time)
@@ -208,7 +337,7 @@ export function Timeline() {
             {orderedStates.length > 0 ? (
               <div
                 className={cn(
-                  'pointer-events-none absolute inset-x-0 z-20 h-6 border-b border-border/50 bg-muted/20',
+                  'pointer-events-none sticky z-20 h-6 border-b border-border/50 bg-muted/20',
                   orderedMarkers.length > 0 ? 'top-5' : 'top-0',
                 )}
               >
@@ -217,10 +346,8 @@ export function Timeline() {
                     key={state.id}
                     type="button"
                     className="pointer-events-auto absolute top-1 -translate-x-1/2 rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted"
-                    style={{
-                      left: `${duration === 0 ? 0 : (state.time / duration) * 100}%`,
-                    }}
-                    title={`${state.name} @ ${formatTime(state.time)}`}
+                    style={{ left: `${timeToPercent(state.time, duration)}%` }}
+                    title={`${state.name} @ ${formatTimelineTime(state.time)}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       setCurrentTime(state.time)
@@ -241,8 +368,14 @@ export function Timeline() {
               <div
                 className={cn(
                   'flex h-32 items-center justify-center px-3 text-center text-sm text-muted-foreground',
-                  (orderedStates.length > 0 || orderedMarkers.length > 0) && 'pt-10',
+                  headerOffset,
                 )}
+                onPointerDown={(event) => {
+                  if (event.target === event.currentTarget) {
+                    clearKeyframeSelection()
+                    startTrackDrag(event)
+                  }
+                }}
               >
                 {orderedStates.length < 2
                   ? 'Add states at different times, adjust layers, then run Smart animate.'
@@ -250,14 +383,15 @@ export function Timeline() {
               </div>
             ) : (
               <div
-                className={cn(
-                  'divide-y divide-border/60',
-                  orderedStates.length > 0 && orderedMarkers.length > 0
-                    ? 'pt-11'
-                    : orderedStates.length > 0 || orderedMarkers.length > 0
-                      ? 'pt-6'
-                      : '',
-                )}
+                className={cn('relative', headerOffset)}
+                onPointerDown={(event) => {
+                  const handle = getTimelineHandleTarget(event.target)
+                  if (handle === 'keyframe') {
+                    return
+                  }
+
+                  clearKeyframeSelection()
+                }}
               >
                 {keyframesByProperty.map(({ property, keyframes }) => {
                   if (keyframes.length === 0) {
@@ -265,37 +399,15 @@ export function Timeline() {
                   }
 
                   return (
-                    <div key={property} className="relative h-7">
-                      <span className="absolute top-1/2 left-2 z-10 -translate-y-1/2 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
-                        {propertyLabels[property]}
-                      </span>
-                      {keyframes.map((keyframe) => (
-                        <button
-                          key={keyframe.id}
-                          type="button"
-                          className={cn(
-                            'absolute top-1/2 z-20 size-3 -translate-x-1/2 -translate-y-1/2 cursor-grab rounded-full bg-primary ring-2 ring-primary/20 active:cursor-grabbing',
-                            property === 'fill' || property === 'stroke'
-                              ? 'ring-offset-1 ring-offset-background'
-                              : '',
-                          )}
-                          style={{
-                            left: `${duration === 0 ? 0 : (keyframe.time / duration) * 100}%`,
-                            backgroundColor:
-                              property === 'fill' || property === 'stroke'
-                                ? String(keyframe.value)
-                                : undefined,
-                          }}
-                          title={`${keyframe.property} @ ${formatTime(keyframe.time)}`}
-                          onPointerDown={(event) => {
-                            event.stopPropagation()
-                            beginHistoryTransaction()
-                            dragKeyframeRef.current = keyframe.id
-                            event.currentTarget.setPointerCapture(event.pointerId)
-                          }}
-                        />
-                      ))}
-                    </div>
+                    <TimelinePropertyTrack
+                      key={property}
+                      property={property}
+                      label={propertyLabels[property]}
+                      keyframes={keyframes}
+                      duration={duration}
+                      selectedKeyframeIds={selectedKeyframeIds}
+                      onKeyframePointerDown={onKeyframePointerDown}
+                    />
                   )
                 })}
               </div>

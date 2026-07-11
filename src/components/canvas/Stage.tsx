@@ -11,6 +11,7 @@ import { ToolPalette } from '@/components/canvas/ToolPalette'
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu'
 import { EyedropperHint } from '@/components/canvas/EyedropperHint'
 import { TextEditOverlay } from '@/components/canvas/TextEditOverlay'
+import { isTransparentColor, normalizeHex } from '@/editor/color-utils'
 import { getShapeBounds } from '@/editor/bounds'
 import { createPathPointWithHandle } from '@/editor/path-nodes'
 import { clientToArtboard } from '@/editor/coordinates'
@@ -19,6 +20,7 @@ import { getCanvasChromeInsets, getViewportPoint } from '@/editor/viewport-chrom
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
 import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
+import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
 
 type DrawDraft = {
@@ -97,7 +99,11 @@ export function Stage() {
   const setEditingTextLayerId = useEditorStore((state) => state.setEditingTextLayerId)
   const editingTextLayerId = useEditorStore((state) => state.editingTextLayerId)
 
-  const { width, height } = project.artboard
+  const { width, height, backgroundColor } = project.artboard
+  const artboardUsesGrid = isTransparentColor(backgroundColor)
+  const artboardFill = artboardUsesGrid ? undefined : normalizeHex(backgroundColor)
+  const canvasUsesGrid = isTransparentColor(project.canvas.backgroundColor)
+  const canvasFill = canvasUsesGrid ? undefined : normalizeHex(project.canvas.backgroundColor)
   const frameStep = 1 / 30
   const panelChrome = { showLayersPanel, showPropertiesPanel }
   const toolDef = getToolDefinition(activeTool)
@@ -583,10 +589,16 @@ export function Stage() {
     <div
       ref={containerRef}
       data-stage-viewport
-      className="canvas-backdrop absolute inset-0 overflow-hidden overscroll-none"
+      className={cn(
+        'absolute inset-0 overflow-hidden overscroll-none',
+        canvasUsesGrid && 'canvas-backdrop',
+      )}
       style={{
         touchAction: 'none',
         cursor,
+        ...(!canvasUsesGrid
+          ? { backgroundColor: canvasFill, backgroundImage: 'none' }
+          : undefined),
       }}
       onPointerDown={(event) => {
         const isMiddleClick = event.button === 1
@@ -601,7 +613,7 @@ export function Stage() {
         <div ref={canvasAreaRef} className="absolute inset-0 overflow-hidden">
           <div className="flex h-full w-full items-center justify-center">
           <div
-            className="relative shadow-2xl ring-1 ring-border/40"
+            className="relative ring-1 ring-border/40"
             style={{
               transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
               transformOrigin: 'center center',
@@ -612,7 +624,7 @@ export function Stage() {
               width={width}
               height={height}
               viewBox={`0 0 ${width} ${height}`}
-              className="artboard-surface block"
+              className={cn('block', artboardUsesGrid && 'artboard-surface')}
               onPointerDown={handleArtboardPointerDown}
               onPointerMove={handleArtboardPointerMove}
               onPointerUp={handleArtboardPointerUp}
@@ -623,6 +635,14 @@ export function Stage() {
                 }
               }}
             >
+              {!artboardUsesGrid ? (
+                <rect
+                  data-eyedropper-ignore
+                  width={width}
+                  height={height}
+                  fill={artboardFill}
+                />
+              ) : null}
               <GuidesLayer width={width} height={height} />
               <SnapLinesLayer width={width} height={height} />
               <g data-eyedropper-ignore>{renderOnionSkin()}</g>
