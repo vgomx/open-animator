@@ -1,5 +1,5 @@
 import type { Keyframe, Layer, PathPoint, Project } from '@/editor/types'
-import type { ImportedGradient, ImportedGradientStop } from '@/io/svg-gradients'
+import type { ImportedGradient } from '@/io/svg-gradients'
 import { getExportArtboard, getExportLayers, getProjectFps } from '@/editor/artboard-utils'
 import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
@@ -71,33 +71,19 @@ function resolveGradientFromFill(
 
 function gradientToLottieFill(gradient: ImportedGradient) {
   const stops = gradient.stops
-  const positions = stops.map((stop: ImportedGradientStop) => stop.offset)
-  const colors = stops.map((stop: ImportedGradientStop) => hexToLottieColor(stop.color))
+  const flatStops: number[] = []
 
-  if (gradient.kind === 'linear') {
-    return {
-      ty: 'gf',
-      o: { a: 0, k: 100 },
-      r: 1,
-      bm: 0,
-      g: {
-        p: stops.length,
-        k: {
-          a: 0,
-          k: {
-            p: positions,
-            k: colors,
-          },
-        },
-      },
-      s: { a: 0, k: [gradient.x1, gradient.y1] },
-      e: { a: 0, k: [gradient.x2, gradient.y2] },
-      t: 1,
-    }
+  for (const stop of stops) {
+    flatStops.push(stop.offset)
   }
 
-  return {
-    ty: 'gf',
+  for (const stop of stops) {
+    const [r, g, b, a] = hexToLottieColor(stop.color)
+    flatStops.push(r, g, b, a)
+  }
+
+  const base = {
+    ty: 'gf' as const,
     o: { a: 0, k: 100 },
     r: 1,
     bm: 0,
@@ -105,12 +91,22 @@ function gradientToLottieFill(gradient: ImportedGradient) {
       p: stops.length,
       k: {
         a: 0,
-        k: {
-          p: positions,
-          k: colors,
-        },
+        k: flatStops,
       },
     },
+  }
+
+  if (gradient.kind === 'linear') {
+    return {
+      ...base,
+      s: { a: 0, k: [gradient.x1, gradient.y1] },
+      e: { a: 0, k: [gradient.x2, gradient.y2] },
+      t: 1,
+    }
+  }
+
+  return {
+    ...base,
     s: { a: 0, k: [gradient.cx, gradient.cy] },
     e: { a: 0, k: [gradient.cx + gradient.r, gradient.cy] },
     t: 2,
@@ -129,7 +125,7 @@ function buildFillItem(shape: Layer['shape'], importedGradients?: Record<string,
   return {
     ty: 'fl',
     nm: 'Fill',
-    c: { a: 0, k: hexToLottieColor(shape.fill) },
+    c: { a: 0, k: hexToLottieColor(shape.fill.startsWith('#') ? shape.fill : '#000000') },
     o: { a: 0, k: 100 },
     r: 1,
   }
@@ -321,6 +317,7 @@ function layerToLottieShape(
   layer: Layer,
   frameRate: number,
   layerIndex: number,
+  outPoint: number,
   importedGradients?: Record<string, ImportedGradient>,
 ) {
   const { shape } = layer
@@ -337,37 +334,61 @@ function layerToLottieShape(
         }
       : shape.type === 'ellipse'
         ? {
-          ty: 'el',
-          d: 1,
-          s: { a: 0, k: [shape.rx * 2, shape.ry * 2] },
-          p: { a: 0, k: [0, 0, 0] },
-        }
+            ty: 'el',
+            d: 1,
+            s: { a: 0, k: [shape.rx * 2, shape.ry * 2] },
+            p: { a: 0, k: [0, 0, 0] },
+          }
         : shape.type === 'text'
           ? {
-            ty: 'rc',
-            d: 1,
-            s: { a: 0, k: [100, shape.fontSize] },
-            p: { a: 0, k: [0, 0, 0] },
-          }
+              ty: 'rc',
+              d: 1,
+              s: { a: 0, k: [100, shape.fontSize] },
+              p: { a: 0, k: [0, 0, 0] },
+            }
           : shape.type === 'path'
             ? {
-              ty: 'sh',
-              ks: {
-                a: 0,
-                k: {
-                  i: shape.points.map((point) => pathPointToLottieHandles(point).inHandle),
-                  o: shape.points.map((point) => pathPointToLottieHandles(point).outHandle),
-                  v: shape.points.map((point) => [point.x, point.y]),
-                  c: shape.closed,
+                ty: 'sh',
+                ks: {
+                  a: 0,
+                  k: {
+                    i: shape.points.map((point) => pathPointToLottieHandles(point).inHandle),
+                    o: shape.points.map((point) => pathPointToLottieHandles(point).outHandle),
+                    v: shape.points.map((point) => [point.x, point.y]),
+                    c: shape.closed,
+                  },
                 },
-              },
-            }
+              }
             : {
-            ty: 'rc',
-            d: 1,
-            s: { a: 0, k: [120, 120] },
-            p: { a: 0, k: [0, 0, 0] },
-          }
+                ty: 'rc',
+                d: 1,
+                s: { a: 0, k: [120, 120] },
+                p: { a: 0, k: [0, 0, 0] },
+              }
+
+  const groupItems: Array<Record<string, unknown>> = [shapeItem, buildFillItem(shape, importedGradients)]
+
+  if (shape.stroke !== 'none' && shape.strokeWidth > 0) {
+    groupItems.push({
+      ty: 'st',
+      nm: 'Stroke',
+      c: { a: 0, k: hexToLottieColor(shape.stroke.startsWith('#') ? shape.stroke : '#000000') },
+      o: { a: 0, k: 100 },
+      w: { a: 0, k: shape.strokeWidth },
+      lc: 1,
+      lj: 1,
+    })
+  }
+
+  groupItems.push({
+    ty: 'tr',
+    nm: 'Transform',
+    p: { a: 0, k: [0, 0] },
+    a: { a: 0, k: [0, 0] },
+    s: { a: 0, k: [100, 100] },
+    r: { a: 0, k: 0 },
+    o: { a: 0, k: 100 },
+  })
 
   return {
     ddd: 0,
@@ -387,32 +408,11 @@ function layerToLottieShape(
       {
         ty: 'gr',
         nm: `${layer.name} Group`,
-        it: [
-          shapeItem,
-          buildFillItem(shape, importedGradients),
-          {
-            ty: 'st',
-            nm: 'Stroke',
-            c: { a: 0, k: hexToLottieColor(shape.stroke) },
-            o: { a: 0, k: 100 },
-            w: { a: 0, k: shape.strokeWidth },
-            lc: 1,
-            lj: 1,
-          },
-          {
-            ty: 'tr',
-            nm: 'Transform',
-            p: { a: 0, k: [0, 0] },
-            a: { a: 0, k: [0, 0] },
-            s: { a: 0, k: [100, 100] },
-            r: { a: 0, k: 0 },
-            o: { a: 0, k: 100 },
-          },
-        ],
+        it: groupItems,
       },
     ],
     ip: 0,
-    op: Math.round(layer.keyframes.reduce((max, keyframe) => Math.max(max, keyframe.time), 0) * frameRate) || 1,
+    op: outPoint,
     st: 0,
     bm: 0,
   }
@@ -445,12 +445,13 @@ export function exportLottie(project: Project, artboardId?: string): object {
   const width = artboard.width
   const height = artboard.height
   const importedGradients = project.importedSvg?.gradients
+  const outPoint = Math.max(1, Math.round(project.duration * frameRate))
 
   return {
     v: '5.7.4',
     fr: frameRate,
     ip: 0,
-    op: Math.round(project.duration * frameRate),
+    op: outPoint,
     w: width,
     h: height,
     nm: 'Open Animator Export',
@@ -459,7 +460,7 @@ export function exportLottie(project: Project, artboardId?: string): object {
     layers: [...layers]
       .filter((layer) => layer.visible)
       .reverse()
-      .map((layer, index) => layerToLottieShape(layer, frameRate, index, importedGradients)),
+      .map((layer, index) => layerToLottieShape(layer, frameRate, index, outPoint, importedGradients)),
   }
 }
 

@@ -141,8 +141,11 @@ describe('lottie export', () => {
       layers: Array<{ shapes: Array<{ it: Array<{ ty?: string }> }> }>
     }
 
-    const fill = exported.layers[0]!.shapes[0]!.it.find((item) => item.ty === 'gf')
+    const fill = exported.layers[0]!.shapes[0]!.it.find((item) => item.ty === 'gf') as {
+      g?: { k?: { k?: number[] } }
+    }
     expect(fill).toBeTruthy()
+    expect(fill.g?.k?.k?.length).toBe(10)
   })
 
   it('round-trips a basic animated rect through import', () => {
