@@ -21,10 +21,10 @@ import {
   Video,
   Wand2,
   ZoomIn,
-  ZoomOut,
 } from 'lucide-react'
 
 import { OnionSkinControls } from '@/components/shell/OnionSkinControls'
+import { ZoomControls } from '@/components/shell/ZoomControls'
 import { ExportOptionsDialog } from '@/components/shell/ExportOptionsDialog'
 import { PresetsDialog } from '@/components/shell/PresetsDialog'
 import { ThemeToggle } from '@/components/shell/ThemeToggle'
@@ -38,7 +38,6 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ToolbarDivider } from '@/components/ui/toolbar-divider'
-import { Slider } from '@/components/ui/slider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
@@ -78,7 +77,6 @@ export function Toolbar() {
   const recordMode = useEditorStore((state) => state.recordMode)
   const canUndo = useEditorStore((state) => state.history.past.length > 0)
   const canRedo = useEditorStore((state) => state.history.future.length > 0)
-  const zoom = useEditorStore((state) => state.zoom)
   const removeSelectedLayer = useEditorStore((state) => state.removeSelectedLayer)
   const duplicateSelectedLayer = useEditorStore((state) => state.duplicateSelectedLayer)
   const setPlaybackState = useEditorStore((state) => state.setPlaybackState)
@@ -87,9 +85,7 @@ export function Toolbar() {
   const toggleRecordMode = useEditorStore((state) => state.toggleRecordMode)
   const undo = useEditorStore((state) => state.undo)
   const redo = useEditorStore((state) => state.redo)
-  const setZoom = useEditorStore((state) => state.setZoom)
   const fitToScreen = useEditorStore((state) => state.fitToScreen)
-  const resetViewport = useEditorStore((state) => state.resetViewport)
   const zoomToSelection = useEditorStore((state) => state.zoomToSelection)
   const setProject = useEditorStore((state) => state.setProject)
   const importSvgLayers = useEditorStore((state) => state.importSvgLayers)
@@ -382,16 +378,7 @@ export function Toolbar() {
         </div>
 
         <div className="ml-auto flex items-center gap-2">
-          <ZoomOut className="size-4 text-muted-foreground" />
-          <Slider
-            className="w-28"
-            min={0.25}
-            max={3}
-            step={0.05}
-            value={[zoom]}
-            onValueChange={(value) => setZoom(value[0] ?? 1)}
-          />
-          <ZoomIn className="size-4 text-muted-foreground" />
+          <ZoomControls />
           <Tooltip>
             <TooltipTrigger asChild>
               <Button
@@ -426,9 +413,6 @@ export function Toolbar() {
             </TooltipTrigger>
             <TooltipContent>Fit artboard to screen</TooltipContent>
           </Tooltip>
-          <Button variant="ghost" size="sm" onClick={resetViewport}>
-            100%
-          </Button>
           <ThemeToggle />
           <Tooltip>
             <TooltipTrigger asChild>

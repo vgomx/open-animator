@@ -10,6 +10,11 @@ import {
 import type { Layer, PathPoint, Project, Shape, TextShape } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
+import {
+  isSvgFile,
+  openTextFile,
+  SVG_FILE_ACCEPT,
+} from '@/io/file-picker'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
 
 type SvgStyle = {
@@ -583,28 +588,16 @@ export function svgImportToProject(imported: SvgImportResult): Project {
 }
 
 export async function openSvgFile(): Promise<SvgImportResult | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'image/svg+xml,.svg'
+  const raw = await openTextFile(SVG_FILE_ACCEPT, isSvgFile)
+  if (!raw) {
+    return null
+  }
 
-    input.onchange = async () => {
-      const file = input.files?.[0]
-      if (!file) {
-        resolve(null)
-        return
-      }
-
-      try {
-        resolve(importSvg(await file.text()))
-      } catch {
-        resolve(null)
-      }
-    }
-
-    input.oncancel = () => resolve(null)
-    input.click()
-  })
+  try {
+    return importSvg(raw)
+  } catch {
+    return null
+  }
 }
 
 export function createImportLayerIds(layers: Layer[], artboardId: string): Layer[] {

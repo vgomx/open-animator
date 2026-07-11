@@ -16,6 +16,9 @@ export const TIMELINE_LABEL_WIDTH = 168
 /** Default horizontal scale: pixels per second of animation. */
 export const TIMELINE_PX_PER_SECOND = 100
 
+/** Horizontal inset so centered handles/labels at t=0 and t=duration are not clipped. */
+export const TIMELINE_EDGE_INSET = 24
+
 export const TIMELINE_ROW_HEIGHT = 32
 
 export const RULER_X_SIZE = 24
