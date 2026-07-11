@@ -66,10 +66,12 @@ function TimelinePlayhead({
   duration,
   contentWidth,
   headerBandHeight,
+  isDragging,
 }: {
   duration: number
   contentWidth: number
   headerBandHeight: number
+  isDragging?: boolean
 }) {
   const playheadRef = useRef<HTMLDivElement>(null)
 
@@ -96,7 +98,12 @@ function TimelinePlayhead({
   return (
     <div
       ref={playheadRef}
-      className="pointer-events-none absolute z-10 w-px bg-primary"
+      className={cn(
+        'pointer-events-none absolute -translate-x-1/2 bg-primary transition-all duration-150 ease-out',
+        isDragging
+          ? 'z-30 w-[2px] shadow-[0_0_16px_3px_color-mix(in_srgb,var(--primary)_50%,transparent)]'
+          : 'z-10 w-px',
+      )}
       style={{
         top: 32 + headerBandHeight,
         bottom: 0,
@@ -225,6 +232,7 @@ export function Timeline() {
   const tracksScrollRef = useRef<HTMLDivElement>(null)
   const tracksViewportRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState>({ mode: null, frameSnap: true })
+  const [isPlayheadDragging, setIsPlayheadDragging] = useState(false)
   const [viewportWidth, setViewportWidth] = useState(0)
   const [tracksScrollTop, setTracksScrollTop] = useState(0)
   const [tracksViewportHeight, setTracksViewportHeight] = useState(0)
@@ -446,6 +454,7 @@ export function Timeline() {
       }
 
       dragRef.current = { mode: null, frameSnap: true }
+      setIsPlayheadDragging(false)
       setTimelineSnapTime(null)
       saveProjectToStorage(useEditorStore.getState().project)
     }
@@ -497,6 +506,7 @@ export function Timeline() {
       mode: 'playhead',
       frameSnap: !event.shiftKey,
     }
+    setIsPlayheadDragging(true)
     event.currentTarget.setPointerCapture(event.pointerId)
     setCurrentTime(resolveTime(event.clientX, !event.shiftKey))
   }
@@ -709,13 +719,19 @@ export function Timeline() {
               }}
             >
               <div className="relative" style={{ width: contentWidth, minHeight: '100%' }}>
-                <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm">
+                <div
+                  className={cn(
+                    'sticky top-0 z-30 bg-background/95 backdrop-blur-sm',
+                    isPlayheadDragging && 'z-50 overflow-visible',
+                  )}
+                >
                   <TimelineRuler
                     duration={duration}
                     contentWidth={contentWidth}
                     fps={fps}
                     loopIn={loopIn}
                     loopOut={loopOut}
+                    isPlayheadDragging={isPlayheadDragging}
                     onPointerDown={startTrackDrag}
                   />
 
@@ -800,6 +816,7 @@ export function Timeline() {
                   duration={duration}
                   contentWidth={contentWidth}
                   headerBandHeight={headerBandHeight}
+                  isDragging={isPlayheadDragging}
                 />
 
                 <div style={{ paddingTop: headerBandHeight }} onPointerDown={startTrackDrag}>

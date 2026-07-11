@@ -14,7 +14,6 @@ type AnimatedMaskDefsProps = {
 export function AnimatedMaskDefs({ layers }: AnimatedMaskDefsProps) {
   const importedSvg = useEditorStore((state) => state.project.importedSvg)
   const currentTime = useEditorStore((state) => state.currentTime)
-  const playbackState = useEditorStore((state) => state.playbackState)
 
   const maskDefs = useMemo(() => {
     if (!importedSvg) {
@@ -46,7 +45,7 @@ export function AnimatedMaskDefs({ layers }: AnimatedMaskDefsProps) {
     }
 
     return nextDefs
-  }, [currentTime, importedSvg, layers, playbackState])
+  }, [currentTime, importedSvg, layers])
 
   return <ImportedSvgDefs defs={maskDefs ?? importedSvg} />
 }

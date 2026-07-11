@@ -21,12 +21,24 @@ export function updatePlaybackLayerTransforms(
       continue
     }
 
-    const element = svg.querySelector<SVGGraphicsElement>(`[data-playback-layer="${layer.id}"]`)
+    let element: SVGGraphicsElement | null = null
+    try {
+      element = svg.querySelector<SVGGraphicsElement>(
+        `[data-playback-layer="${CSS.escape(layer.id)}"]`,
+      )
+    } catch {
+      continue
+    }
+
     if (!element) {
       continue
     }
 
-    const shape = getAnimatedShape(layer, time)
-    element.setAttribute('transform', shapeTransform(shape))
+    try {
+      const shape = getAnimatedShape(layer, time)
+      element.setAttribute('transform', shapeTransform(shape))
+    } catch (error) {
+      console.error(`Failed to update playback transform for layer ${layer.id}`, error)
+    }
   }
 }
