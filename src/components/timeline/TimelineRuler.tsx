@@ -3,12 +3,14 @@ import { useMemo } from 'react'
 import {
   formatTimelineTime,
   getRulerTicks,
-  timeToPercent,
+  timeToPixel,
 } from '@/editor/timeline-utils'
 import { cn } from '@/lib/utils'
 
 type TimelineRulerProps = {
   duration: number
+  contentWidth: number
+  fps: number
   currentTime: number
   loopIn: number
   loopOut: number
@@ -17,26 +19,29 @@ type TimelineRulerProps = {
 
 export function TimelineRuler({
   duration,
+  contentWidth,
+  fps,
   currentTime,
   loopIn,
   loopOut,
   onPointerDown,
 }: TimelineRulerProps) {
   const ticks = useMemo(() => getRulerTicks(duration), [duration])
-  const playheadLeft = timeToPercent(currentTime, duration)
-  const loopLeft = timeToPercent(loopIn, duration)
-  const loopWidth = timeToPercent(loopOut, duration) - loopLeft
+  const playheadLeft = timeToPixel(currentTime, duration, contentWidth)
+  const loopLeft = timeToPixel(loopIn, duration, contentWidth)
+  const loopWidth = timeToPixel(loopOut, duration, contentWidth) - loopLeft
 
   return (
     <div
       className="relative h-8 shrink-0 cursor-pointer border-b border-border/70 bg-muted/30 select-none"
+      style={{ width: contentWidth }}
       onPointerDown={onPointerDown}
     >
       {ticks.map((tick) => (
         <div
           key={tick}
           className="pointer-events-none absolute top-0 flex h-full flex-col justify-end"
-          style={{ left: `${timeToPercent(tick, duration)}%` }}
+          style={{ left: timeToPixel(tick, duration, contentWidth) }}
         >
           <span className="mb-0.5 -translate-x-1/2 px-1 text-[9px] tabular-nums text-muted-foreground">
             {tick.toFixed(tick < 1 ? 2 : 1)}s
@@ -47,33 +52,33 @@ export function TimelineRuler({
 
       <div
         className="pointer-events-none absolute inset-y-1 rounded-sm bg-primary/10"
-        style={{ left: `${loopLeft}%`, width: `${loopWidth}%` }}
+        style={{ left: loopLeft, width: loopWidth }}
       />
 
       <div
         className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
-        style={{ left: `${playheadLeft}%` }}
+        style={{ left: playheadLeft }}
       >
         <div className="absolute -top-px left-1/2 z-30 size-0 -translate-x-1/2 border-x-[6px] border-t-[8px] border-x-transparent border-t-primary" />
       </div>
 
       <div
         className="pointer-events-none absolute top-7 z-30 -translate-x-1/2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm"
-        style={{ left: `${playheadLeft}%` }}
+        style={{ left: playheadLeft }}
       >
-        {formatTimelineTime(currentTime)}
+        {formatTimelineTime(currentTime, fps)}
       </div>
 
       <LoopHandle
         side="in"
         left={loopLeft}
-        label={formatTimelineTime(loopIn)}
+        label={formatTimelineTime(loopIn, fps)}
         data-handle="loop-in"
       />
       <LoopHandle
         side="out"
-        left={timeToPercent(loopOut, duration)}
-        label={formatTimelineTime(loopOut)}
+        left={timeToPixel(loopOut, duration, contentWidth)}
+        label={formatTimelineTime(loopOut, fps)}
         data-handle="loop-out"
       />
     </div>
@@ -93,7 +98,7 @@ function LoopHandle({
   return (
     <div
       className="pointer-events-auto absolute top-0 bottom-0 z-20"
-      style={{ left: `${left}%` }}
+      style={{ left }}
       data-handle={`loop-${side}`}
     >
       <div

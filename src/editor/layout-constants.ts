@@ -10,6 +10,14 @@ export const PROPERTIES_PANEL_WIDTH = 288
 export const MIN_PANEL_WIDTH = 180
 export const MAX_PANEL_WIDTH = 480
 
+/** Fixed label column width in the timeline. */
+export const TIMELINE_LABEL_WIDTH = 168
+
+/** Default horizontal scale: pixels per second of animation. */
+export const TIMELINE_PX_PER_SECOND = 100
+
+export const TIMELINE_ROW_HEIGHT = 32
+
 export const RULER_X_SIZE = 24
 export const RULER_Y_SIZE = 20
 
