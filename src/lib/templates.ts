@@ -7,6 +7,7 @@ import {
   SHAPE_STROKE_SECONDARY,
 } from '@/lib/brand-colors'
 import { projectDefaults } from '@/lib/project-defaults'
+import { trainPerfSampleProject } from '@/lib/templates/train-perf-sample'
 
 export type ProjectTemplate = {
   id: string
@@ -143,5 +144,11 @@ export const PROJECT_TEMPLATES: ProjectTemplate[] = [
     name: 'Spinner',
     description: 'Continuous rotation loop.',
     project: spinnerProject(),
+  },
+  {
+    id: 'train-perf-sample',
+    name: 'Train parallax (perf sample)',
+    description: '72 native layers with 67 animated — use to benchmark playback without SVG import.',
+    project: trainPerfSampleProject(),
   },
 ]

@@ -16,6 +16,26 @@ import type { AffineMatrix } from '@/io/svg-transform'
 type KeyframeTracks = Map<AnimatableProperty, Keyframe[]>
 
 const animatedShapeCache = new WeakMap<Layer, { time: number; shape: Shape }>()
+const layerKeyframeTracksCache = new WeakMap<
+  Layer,
+  { keyframesRef: Keyframe[]; tracks: KeyframeTracks }
+>()
+
+function getLayerKeyframeTracks(layer: Layer): KeyframeTracks | null {
+  const { keyframes } = layer
+  if (keyframes.length === 0) {
+    return null
+  }
+
+  const cached = layerKeyframeTracksCache.get(layer)
+  if (cached && cached.keyframesRef === keyframes) {
+    return cached.tracks
+  }
+
+  const tracks = buildKeyframeTracks(keyframes)
+  layerKeyframeTracksCache.set(layer, { keyframesRef: keyframes, tracks })
+  return tracks
+}
 
 function buildKeyframeTracks(keyframes: Keyframe[]): KeyframeTracks {
   const tracks: KeyframeTracks = new Map()
@@ -296,9 +316,9 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
     return cached.shape
   }
 
-  const { shape, keyframes } = layer
+  const { shape } = layer
   const sampleTime = Math.max(0, time - layer.delay)
-  const tracks = keyframes.length > 0 ? buildKeyframeTracks(keyframes) : null
+  const tracks = getLayerKeyframeTracks(layer)
 
   const sampleNumeric = (
     property: NumericAnimatableProperty,

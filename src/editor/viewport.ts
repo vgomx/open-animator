@@ -58,5 +58,5 @@ export function wheelZoomFactor(deltaY: number, deltaMode: number = DOM_DELTA_PI
         : 1
 
   const normalizedDelta = deltaY * scale
-  return Math.exp(-normalizedDelta * 0.0025)
+  return Math.exp(-normalizedDelta * 0.01)
 }

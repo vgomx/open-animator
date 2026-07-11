@@ -1,3 +1,5 @@
+import { useRef } from 'react'
+
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PanelResizeHandle } from '@/components/shell/PanelResizeHandle'
@@ -16,7 +18,14 @@ export function PropertiesPanel() {
   const propertiesPanelWidth = useEditorStore((state) => state.propertiesPanelWidth)
   const setPropertiesPanelWidth = useEditorStore((state) => state.setPropertiesPanelWidth)
   const selectedCount = useEditorStore((state) => state.selectedLayerIds.length)
-  const currentTime = useEditorStore((state) => state.currentTime)
+  const scrubTime = useEditorStore((state) =>
+    state.playbackState !== 'playing' ? state.currentTime : null,
+  )
+  const frozenTimeRef = useRef(useEditorStore.getState().currentTime)
+  if (scrubTime !== null) {
+    frozenTimeRef.current = scrubTime
+  }
+  const currentTime = frozenTimeRef.current
   const recordMode = useEditorStore((state) => state.recordMode)
   const updateSelectedShapes = useEditorStore((state) => state.updateSelectedShapes)
   const updateShape = useEditorStore((state) => state.updateShape)
