@@ -20,7 +20,7 @@ describe('balloon project round-trip', () => {
     )
 
     expect(matrixLayers.length).toBeGreaterThan(300)
-    expect(animatedMatrix.length).toBeGreaterThan(10)
+    expect(animatedMatrix.length).toBeGreaterThan(50)
 
     const layer = animatedMatrix[0]!
     const at0 = getAnimatedShape(layer, 0)

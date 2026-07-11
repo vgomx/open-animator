@@ -60,6 +60,87 @@ function scaleMatrix(scaleX: number, scaleY: number): AffineMatrix {
   return { a: scaleX, b: 0, c: 0, d: scaleY, e: 0, f: 0 }
 }
 
+function parseRotateSpec(raw: string): { angle: number; cx: number; cy: number } | null {
+  const parts = raw
+    .trim()
+    .split(/[\s,]+/)
+    .map((part) => Number.parseFloat(part))
+    .filter((value) => Number.isFinite(value))
+
+  if (parts.length === 0) {
+    return null
+  }
+
+  if (parts.length === 1) {
+    return { angle: parts[0]!, cx: 0, cy: 0 }
+  }
+
+  if (parts.length >= 3) {
+    return { angle: parts[0]!, cx: parts[1]!, cy: parts[2]! }
+  }
+
+  return { angle: parts[0]!, cx: parts[1]!, cy: 0 }
+}
+
+function lerpRotate(
+  from: { angle: number; cx: number; cy: number },
+  to: { angle: number; cx: number; cy: number },
+  progress: number,
+): { angle: number; cx: number; cy: number } {
+  return {
+    angle: from.angle + (to.angle - from.angle) * progress,
+    cx: from.cx + (to.cx - from.cx) * progress,
+    cy: from.cy + (to.cy - from.cy) * progress,
+  }
+}
+
+function rotateMatrix(angleDeg: number, cx = 0, cy = 0): AffineMatrix {
+  const angle = (angleDeg * Math.PI) / 180
+  const cos = Math.cos(angle)
+  const sin = Math.sin(angle)
+  const rotate = { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 }
+  const toOrigin = translateMatrix(-cx, -cy)
+  const back = translateMatrix(cx, cy)
+  return multiplyMatrix(back, multiplyMatrix(rotate, toOrigin))
+}
+
+function sampleRotateAnimateTransform(element: Element, progress: number): AffineMatrix {
+  const valuesAttr = element.getAttribute('values')
+
+  if (valuesAttr) {
+    const specs = valuesAttr
+      .split(';')
+      .map(parseRotateSpec)
+      .filter((spec): spec is { angle: number; cx: number; cy: number } => spec !== null)
+
+    if (specs.length === 1) {
+      const spec = specs[0]!
+      return rotateMatrix(spec.angle, spec.cx, spec.cy)
+    }
+
+    if (specs.length > 1) {
+      const scaled = progress * (specs.length - 1)
+      const index = Math.min(specs.length - 2, Math.floor(scaled))
+      const localProgress = scaled - index
+      const spec = lerpRotate(specs[index]!, specs[index + 1]!, localProgress)
+      return rotateMatrix(spec.angle, spec.cx, spec.cy)
+    }
+  }
+
+  const from = parseRotateSpec(element.getAttribute('from') ?? '')
+  const to = parseRotateSpec(element.getAttribute('to') ?? '')
+  if (from && to) {
+    const spec = lerpRotate(from, to, progress)
+    return rotateMatrix(spec.angle, spec.cx, spec.cy)
+  }
+
+  if (from) {
+    return rotateMatrix(from.angle, from.cx, from.cy)
+  }
+
+  return IDENTITY_MATRIX
+}
+
 function sampleAnimateTransform(element: Element, time: number): AffineMatrix {
   const tag = element.tagName.toLowerCase()
   const duration = parseDurationMs(element.getAttribute('dur'))
@@ -72,6 +153,11 @@ function sampleAnimateTransform(element: Element, time: number): AffineMatrix {
 
   if (tag === 'animatetransform') {
     const type = (element.getAttribute('type') ?? 'translate').toLowerCase()
+
+    if (type === 'rotate') {
+      return sampleRotateAnimateTransform(element, progress)
+    }
+
     const valuesAttr = element.getAttribute('values')
 
     if (valuesAttr) {

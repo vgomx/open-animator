@@ -54,6 +54,21 @@ export function isStaleSvgImportProject(project: Project): boolean {
     return true
   }
 
+  const expectsRichSvgImport =
+    pathLayers.length >= 300 &&
+    Boolean(project.importedSvg?.gradients) &&
+    Object.keys(project.importedSvg?.gradients ?? {}).length > 50
+
+  if (expectsRichSvgImport) {
+    const animatedMatrixLayers = pathLayers.filter((layer) =>
+      matrixKeyframesHaveMotion(layer.matrixKeyframes),
+    ).length
+
+    if (animatedMatrixLayers === 0) {
+      return true
+    }
+  }
+
   return false
 }
 

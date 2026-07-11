@@ -33,11 +33,11 @@ describe('balloon animation import', () => {
 
     expect(project.duration).toBe(12)
     expect(project.loopOut).toBe(12)
-    expect(animated.length).toBeGreaterThan(10)
-    expect(timelineVisible.length).toBeGreaterThan(10)
+    expect(animated.length).toBeGreaterThan(50)
+    expect(timelineVisible.length).toBeGreaterThan(50)
     expect(
       timelineVisible.filter((layer) => layer.keyframes.length > 0).length,
-    ).toBeGreaterThan(10)
-    expect(visibleMotion).toBeGreaterThan(10)
+    ).toBeGreaterThan(50)
+    expect(visibleMotion).toBeGreaterThan(50)
   })
 })
