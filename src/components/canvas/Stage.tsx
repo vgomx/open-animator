@@ -1,12 +1,11 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { ImportedSvgDefs } from '@/components/canvas/ImportedSvgDefs'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
-import { NodeOverlay } from '@/components/canvas/NodeOverlay'
-import { SelectionOverlay } from '@/components/canvas/SelectionOverlay'
 import { ShapeView } from '@/components/canvas/ShapeView'
+import { StageLayer } from '@/components/canvas/StageLayer'
 import { SnapLinesLayer } from '@/components/canvas/SnapLinesLayer'
 import { ToolPalette } from '@/components/canvas/ToolPalette'
 import { CanvasContextMenu } from '@/components/canvas/CanvasContextMenu'
@@ -24,7 +23,7 @@ import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
-import { importedMaskId } from '@/io/svg-masks'
+import type { Shape } from '@/editor/types'
 
 type DrawDraft = {
   startX: number
@@ -81,6 +80,7 @@ export function Stage() {
   const playbackState = useEditorStore((state) => state.playbackState)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
+  const selectedLayerIdSet = useMemo(() => new Set(selectedLayerIds), [selectedLayerIds])
   const activeTool = useEditorStore((state) => state.activeTool)
   const penDraft = useEditorStore((state) => state.penDraft)
   const showRulers = useEditorStore((state) => state.showRulers)
@@ -124,6 +124,7 @@ export function Stage() {
   }
   const toolDef = getToolDefinition(activeTool)
   const isPanning = spacePressed || activeTool === 'hand'
+  const allowLayerSelect = activeTool === 'select' || activeTool === 'node'
   const cursor = eyedropperActive
     ? 'crosshair'
     : isPanning
@@ -131,6 +132,30 @@ export function Stage() {
         ? 'grabbing'
         : 'grab'
       : toolDef.cursor
+
+  const animatedShapes = useMemo(() => {
+    const shapes = new Map<string, Shape>()
+    for (const layer of visibleLayers) {
+      if (layer.visible) {
+        shapes.set(layer.id, getAnimatedShape(layer, currentTime))
+      }
+    }
+    return shapes
+  }, [currentTime, getAnimatedShape, visibleLayers])
+
+  const handleLayerSelect = useCallback(
+    (layerId: string, options: { additive: boolean }) => {
+      selectLayer(layerId, options)
+    },
+    [selectLayer],
+  )
+
+  const handleEditText = useCallback(
+    (layerId: string) => {
+      setEditingTextLayerId(layerId)
+    },
+    [setEditingTextLayerId],
+  )
 
   const renderOnionSkin = () => {
     if (!onionSkinEnabled || playbackState === 'playing') {
@@ -680,52 +705,24 @@ export function Stage() {
                   return null
                 }
 
-                const animatedShape = getAnimatedShape(layer, currentTime)
-                const isSelected = selectedLayerIds.includes(layer.id)
-                const isPrimary = layer.id === selectedLayerId
-                const allowLayerSelect = activeTool === 'select' || activeTool === 'node'
+                const animatedShape = animatedShapes.get(layer.id)
+                if (!animatedShape) {
+                  return null
+                }
 
                 return (
-                  <g
+                  <StageLayer
                     key={layer.id}
-                    mask={
-                      layer.svgMaskId ? `url(#${importedMaskId(layer.svgMaskId)})` : undefined
-                    }
-                    onPointerDown={(event) => {
-                      if (!allowLayerSelect || isPanning) {
-                        return
-                      }
-
-                      event.stopPropagation()
-                      selectLayer(layer.id, {
-                        additive: event.shiftKey || event.metaKey || event.ctrlKey,
-                      })
-                    }}
-                    onDoubleClick={(event) => {
-                      if (activeTool !== 'select' || layer.shape.type !== 'text') {
-                        return
-                      }
-
-                      event.stopPropagation()
-                      setEditingTextLayerId(layer.id)
-                    }}
-                    className={allowLayerSelect ? 'cursor-pointer' : undefined}
-                    style={{ pointerEvents: allowLayerSelect ? 'auto' : 'none' }}
-                  >
-                    <ShapeView shape={animatedShape} />
-                    <g data-eyedropper-ignore>
-                      {isSelected && activeTool === 'select' ? (
-                        <SelectionOverlay
-                          layerId={layer.id}
-                          shape={animatedShape}
-                          interactive={isPrimary}
-                        />
-                      ) : null}
-                      {isSelected && activeTool === 'node' && isPrimary ? (
-                        <NodeOverlay layerId={layer.id} shape={animatedShape} />
-                      ) : null}
-                    </g>
-                  </g>
+                    layer={layer}
+                    shape={animatedShape}
+                    isSelected={selectedLayerIdSet.has(layer.id)}
+                    isPrimary={layer.id === selectedLayerId}
+                    allowLayerSelect={allowLayerSelect}
+                    isPanning={isPanning}
+                    activeTool={activeTool}
+                    onSelect={handleLayerSelect}
+                    onEditText={handleEditText}
+                  />
                 )
               })}
               </g>

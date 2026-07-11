@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 import { getAnimatedShape } from '@/editor/animation'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
+import { getBalloonProject } from '@/io/fixtures/balloon-fixture'
 import { deserializeProject, serializeProject } from '@/io/project'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
 
 describe('balloon project round-trip', () => {
   it('preserves matrix keyframes through storage serialization', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = getBalloonProject()
     const restored = deserializeProject(serializeProject(project))
 
     const matrixLayers = restored.layers.filter(

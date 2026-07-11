@@ -85,7 +85,7 @@ export function isStaleSvgImportProject(project: Project): boolean {
 }
 
 export function serializeProject(project: Project): string {
-  return JSON.stringify(project, null, 2)
+  return JSON.stringify(project)
 }
 
 export function deserializeProject(raw: string): Project {
@@ -166,6 +166,48 @@ export function loadProjectFromStorage(): Project | null {
 
 export function saveProjectToStorage(project: Project): void {
   localStorage.setItem(STORAGE_KEYS.project, serializeProject(project))
+}
+
+const PROJECT_SAVE_DEBOUNCE_MS = 500
+
+let pendingProjectSave: Project | null = null
+let projectSaveTimer: ReturnType<typeof setTimeout> | null = null
+
+export function scheduleProjectSave(project: Project): void {
+  pendingProjectSave = project
+
+  if (projectSaveTimer !== null) {
+    return
+  }
+
+  projectSaveTimer = setTimeout(() => {
+    projectSaveTimer = null
+    if (pendingProjectSave) {
+      saveProjectToStorage(pendingProjectSave)
+      pendingProjectSave = null
+    }
+  }, PROJECT_SAVE_DEBOUNCE_MS)
+}
+
+export function flushProjectSave(): void {
+  if (projectSaveTimer !== null) {
+    clearTimeout(projectSaveTimer)
+    projectSaveTimer = null
+  }
+
+  if (pendingProjectSave) {
+    saveProjectToStorage(pendingProjectSave)
+    pendingProjectSave = null
+  }
+}
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('beforeunload', flushProjectSave)
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flushProjectSave()
+    }
+  })
 }
 
 export function createInitialProject(): Project {

@@ -5,13 +5,13 @@ import {
   getRulerTicks,
   timeToPixel,
 } from '@/editor/timeline-utils'
+import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
 
 type TimelineRulerProps = {
   duration: number
   contentWidth: number
   fps: number
-  currentTime: number
   loopIn: number
   loopOut: number
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
@@ -21,11 +21,11 @@ export function TimelineRuler({
   duration,
   contentWidth,
   fps,
-  currentTime,
   loopIn,
   loopOut,
   onPointerDown,
 }: TimelineRulerProps) {
+  const currentTime = useEditorStore((state) => state.currentTime)
   const ticks = useMemo(() => getRulerTicks(duration), [duration])
   const playheadLeft = timeToPixel(currentTime, duration, contentWidth)
   const loopLeft = timeToPixel(loopIn, duration, contentWidth)

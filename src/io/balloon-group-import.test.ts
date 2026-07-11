@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 import { getAnimatedShape } from '@/editor/animation'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg } from '@/io/svg-import'
+import { balloonSvg, getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
 import { effectiveMatrixAtTime } from '@/io/svg-smil'
 
 describe('balloon group animation import', () => {
@@ -16,7 +15,7 @@ describe('balloon group animation import', () => {
         group.querySelectorAll('path').length === 9,
     )!
     const sourcePaths = [...balloonGroup.querySelectorAll('path')]
-    const imported = importSvg(balloonSvg)!
+    const imported = getBalloonSvgImport()
 
     for (const sourcePath of sourcePaths) {
       const sourceMoves =

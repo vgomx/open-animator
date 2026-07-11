@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vitest'
 
 import { getAnimatedShape } from '@/editor/animation'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, parseSvgPathData } from '@/io/svg-import'
+import { balloonSvg, getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
+import { parseSvgPathData } from '@/io/svg-import'
 import { effectiveMatrixAtTime } from '@/io/svg-smil'
 import { applyMatrixToPoint } from '@/io/svg-transform'
 
 describe('balloon runtime animation', () => {
-  it('renders imported paths with matrix transforms at t=0 and t=3', { timeout: 30000 }, () => {
+  it('renders imported paths with matrix transforms at t=0 and t=3', () => {
     const doc = new DOMParser().parseFromString(balloonSvg, 'image/svg+xml')
     const sourcePaths = [...doc.querySelectorAll('path')].filter((path) => path.getAttribute('d'))
-    const imported = importSvg(balloonSvg)!
+    const imported = getBalloonSvgImport()
     const importedPaths = imported.layers.filter((layer) => layer.shape.type === 'path')
 
     let matchedAt0 = 0

@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
+import { getBalloonProject } from '@/io/fixtures/balloon-fixture'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
 import { isStaleSvgImportProject } from '@/io/project'
 
 describe('stale single-keyframe matrix cache', () => {
   it('detects balloon-scale projects with matrix keyframes but no motion', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     expect(isStaleSvgImportProject(fresh)).toBe(false)
 
     const stale = structuredClone(fresh)
@@ -32,7 +31,7 @@ describe('stale single-keyframe matrix cache', () => {
   })
 
   it('detects decoy multi-keyframe matrix data with no motion', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     expect(isStaleSvgImportProject(fresh)).toBe(false)
 
     const stale = structuredClone(fresh)

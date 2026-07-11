@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg } from '@/io/svg-import'
+import { balloonSvg, getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
 import { collectMatrixKeyframesForNode, effectiveMatrixAtTime } from '@/io/svg-smil'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 
@@ -18,7 +17,7 @@ function matrixDiff(a: ReturnType<typeof effectiveMatrixAtTime>, b: ReturnType<t
 }
 
 describe('balloon source motion audit', () => {
-  it('counts how many source paths should animate', { timeout: 30000 }, () => {
+  it('counts how many source paths should animate', () => {
     const doc = new DOMParser().parseFromString(balloonSvg, 'image/svg+xml')
     const sourcePaths = [...doc.querySelectorAll('path')].filter((path) => path.getAttribute('d'))
 
@@ -27,7 +26,7 @@ describe('balloon source motion audit', () => {
     let sourceMovesImportedStatic = 0
     const samples: string[] = []
 
-    const imported = importSvg(balloonSvg)!
+    const imported = getBalloonSvgImport()
 
     for (const sourcePath of sourcePaths) {
       const diff = matrixDiff(

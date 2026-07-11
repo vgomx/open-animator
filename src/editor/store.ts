@@ -54,7 +54,7 @@ import type {
 import { isColorProperty, isNumericProperty, DEFAULT_ONION_SKIN_SETTINGS } from '@/editor/types'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
-import { createInitialProject, saveProjectToStorage } from '@/io/project'
+import { createInitialProject, flushProjectSave, saveProjectToStorage, scheduleProjectSave } from '@/io/project'
 import {
   clampExportFps,
   clampPanelWidth,
@@ -257,8 +257,14 @@ type EditorStore = {
   getAnimatedShape: (layer: Layer, time: number) => Shape
 }
 
-function persistProject(project: Project): void {
-  saveProjectToStorage(project)
+function persistProject(project: Project, immediate = false): void {
+  if (immediate) {
+    flushProjectSave()
+    saveProjectToStorage(project)
+    return
+  }
+
+  scheduleProjectSave(project)
 }
 
 function findKeyframeTime(project: Project, keyframeId: string): number | null {
@@ -1108,9 +1114,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
     }),
 
   setCurrentTime: (time) =>
-    set((state) => ({
-      currentTime: Math.max(0, Math.min(time, state.project.duration)),
-    })),
+    set((state) => {
+      const nextTime = Math.max(0, Math.min(time, state.project.duration))
+      if (Math.abs(nextTime - state.currentTime) < 0.00001) {
+        return state
+      }
+
+      return { currentTime: nextTime }
+    }),
 
   setPlaybackState: (playbackState) => set({ playbackState }),
 
@@ -1166,7 +1177,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   resetViewport: () => set({ zoom: 1, panX: 0, panY: 0 }),
 
   setProject: (project, options) => {
-    persistProject(project)
+    persistProject(project, true)
     const activeArtboardId = project.artboards[0]?.id ?? null
     const visibleLayers = activeArtboardId
       ? getArtboardLayers(project, activeArtboardId)

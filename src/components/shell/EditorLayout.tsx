@@ -10,6 +10,7 @@ import { Toolbar } from '@/components/shell/Toolbar'
 import { UiZoomGuard } from '@/components/shell/UiZoomGuard'
 import { Timeline } from '@/components/timeline/Timeline'
 import { useEditorStore } from '@/editor/store'
+import { quantizeTimeToFrame } from '@/editor/timeline-utils'
 import { consumeStaleImportClearNotice } from '@/io/project'
 import { showToast } from '@/lib/toast'
 
@@ -51,7 +52,10 @@ function PlaybackLoop() {
         }
       }
 
-      store.setCurrentTime(nextTime)
+      const quantized = quantizeTimeToFrame(nextTime, store.project.fps)
+      if (quantized !== store.currentTime) {
+        store.setCurrentTime(quantized)
+      }
       frameId = window.requestAnimationFrame(tick)
     }
 

@@ -3,12 +3,11 @@ import { describe, expect, it } from 'vitest'
 
 import { layerHasAnimation, matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 import { getAnimatedShape } from '@/editor/animation'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
+import { getBalloonProject } from '@/io/fixtures/balloon-fixture'
 
 describe('balloon animation import', () => {
   it('imports 12s timeline with matrix motion on play', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = getBalloonProject()
     const animated = project.layers.filter((layer) => matrixKeyframesHaveMotion(layer.matrixKeyframes))
     const timelineVisible = project.layers.filter(layerHasAnimation)
 

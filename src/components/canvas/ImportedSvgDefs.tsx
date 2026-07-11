@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import type {
   ImportedLinearGradient,
   ImportedRadialGradient,
@@ -10,7 +12,7 @@ type ImportedSvgDefsProps = {
   defs?: ImportedSvgDefsType
 }
 
-export function ImportedSvgDefs({ defs }: ImportedSvgDefsProps) {
+export const ImportedSvgDefs = memo(function ImportedSvgDefs({ defs }: ImportedSvgDefsProps) {
   const gradients = defs?.gradients ?? {}
   const masks = defs?.masks ?? {}
   const hasGradients = Object.keys(gradients).length > 0
@@ -70,4 +72,4 @@ export function ImportedSvgDefs({ defs }: ImportedSvgDefsProps) {
       ))}
     </defs>
   )
-}
+})

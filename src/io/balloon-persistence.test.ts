@@ -1,15 +1,14 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
+import { getBalloonProject } from '@/io/fixtures/balloon-fixture'
 import { serializeProject, deserializeProject } from '@/io/project'
 import { getAnimatedShape } from '@/editor/animation'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 
 describe('balloon roundtrip persistence', () => {
   it('preserves matrixKeyframes through serialize/deserialize', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = getBalloonProject()
     const roundtripped = deserializeProject(serializeProject(project))
 
     const beforeMotion = project.layers.filter((l) => matrixKeyframesHaveMotion(l.matrixKeyframes)).length

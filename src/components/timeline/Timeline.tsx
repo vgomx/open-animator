@@ -12,6 +12,7 @@ import { ANIMATABLE_PROPERTIES } from '@/editor/types'
 import {
   TIMELINE_LABEL_WIDTH,
   TIMELINE_PX_PER_SECOND,
+  TIMELINE_ROW_HEIGHT,
 } from '@/editor/layout-constants'
 import {
   collectKeyframeTimes,
@@ -55,6 +56,52 @@ type DragState = {
 }
 
 const ZOOM_STEPS = [0.5, 0.75, 1, 1.5, 2, 3]
+const TIMELINE_VIRTUALIZE_THRESHOLD = 40
+const TIMELINE_ROW_BUFFER = 8
+
+function TimelinePlayhead({
+  duration,
+  contentWidth,
+  headerBandHeight,
+}: {
+  duration: number
+  contentWidth: number
+  headerBandHeight: number
+}) {
+  const currentTime = useEditorStore((state) => state.currentTime)
+
+  return (
+    <div
+      className="pointer-events-none absolute z-10 w-px bg-primary"
+      style={{
+        top: 32 + headerBandHeight,
+        bottom: 0,
+        left: timeToPixel(currentTime, duration, contentWidth),
+      }}
+    />
+  )
+}
+
+function TimelineClock({
+  fps,
+  duration,
+  loopIn,
+  loopOut,
+}: {
+  fps: number
+  duration: number
+  loopIn: number
+  loopOut: number
+}) {
+  const currentTime = useEditorStore((state) => state.currentTime)
+
+  return (
+    <span className="text-xs text-muted-foreground">
+      {formatTimelineTime(currentTime, fps)} / {formatTimelineTime(duration, fps)} · loop{' '}
+      {formatTimelineTime(loopIn, fps)}–{formatTimelineTime(loopOut, fps)}
+    </span>
+  )
+}
 
 export function Timeline() {
   const project = useEditorStore((state) => state.project)
@@ -66,8 +113,6 @@ export function Timeline() {
   const states = project.states
   const markers = project.markers
   const layers = project.layers
-  const currentTime = useEditorStore((state) => state.currentTime)
-  const snapEnabled = useEditorStore((state) => state.snapEnabled)
   const selectedKeyframeIds = useEditorStore((state) => state.selectedKeyframeIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
   const timelineSnapTime = useEditorStore((state) => state.timelineSnapTime)
@@ -87,6 +132,7 @@ export function Timeline() {
   const copyKeyframesAtCurrentTime = useEditorStore((state) => state.copyKeyframesAtCurrentTime)
   const pasteKeyframesAtCurrentTime = useEditorStore((state) => state.pasteKeyframesAtCurrentTime)
   const keyframeClipboard = useEditorStore((state) => state.keyframeClipboard)
+  const snapEnabled = useEditorStore((state) => state.snapEnabled)
 
   const artboardLayers = useMemo(
     () =>
@@ -104,6 +150,8 @@ export function Timeline() {
   const tracksViewportRef = useRef<HTMLDivElement>(null)
   const dragRef = useRef<DragState>({ mode: null, frameSnap: true })
   const [viewportWidth, setViewportWidth] = useState(0)
+  const [tracksScrollTop, setTracksScrollTop] = useState(0)
+  const [tracksViewportHeight, setTracksViewportHeight] = useState(0)
 
   const orderedStates = [...states].sort((left, right) => left.time - right.time)
   const orderedMarkers = [...markers].sort((left, right) => left.time - right.time)
@@ -143,6 +191,39 @@ export function Timeline() {
     return result
   }, [artboardLayers, expandedLayerIds])
 
+  const shouldVirtualizeRows = rows.length > TIMELINE_VIRTUALIZE_THRESHOLD
+
+  const visibleRowWindow = useMemo(() => {
+    if (!shouldVirtualizeRows) {
+      return {
+        start: 0,
+        end: rows.length,
+        topSpacer: 0,
+        bottomSpacer: 0,
+      }
+    }
+
+    const start = Math.max(
+      0,
+      Math.floor(tracksScrollTop / TIMELINE_ROW_HEIGHT) - TIMELINE_ROW_BUFFER,
+    )
+    const visibleCount =
+      Math.ceil(tracksViewportHeight / TIMELINE_ROW_HEIGHT) + TIMELINE_ROW_BUFFER * 2
+    const end = Math.min(rows.length, start + visibleCount)
+
+    return {
+      start,
+      end,
+      topSpacer: start * TIMELINE_ROW_HEIGHT,
+      bottomSpacer: Math.max(0, (rows.length - end) * TIMELINE_ROW_HEIGHT),
+    }
+  }, [rows.length, shouldVirtualizeRows, tracksScrollTop, tracksViewportHeight])
+
+  const visibleRows = useMemo(
+    () => rows.slice(visibleRowWindow.start, visibleRowWindow.end),
+    [rows, visibleRowWindow.end, visibleRowWindow.start],
+  )
+
   useEffect(() => {
     if (artboardLayers.length === 0) {
       didAutoExpandAnimatedRef.current = false
@@ -161,7 +242,17 @@ export function Timeline() {
       return
     }
 
-    setExpandedLayerIds((current) => [...new Set([...current, ...animatedLayerIds.slice(0, 24)])])
+    const autoExpandLimit =
+      artboardLayers.length > 120 ? 0 : artboardLayers.length > 60 ? 6 : 24
+
+    if (autoExpandLimit === 0) {
+      didAutoExpandAnimatedRef.current = true
+      return
+    }
+
+    setExpandedLayerIds((current) => [
+      ...new Set([...current, ...animatedLayerIds.slice(0, autoExpandLimit)]),
+    ])
     didAutoExpandAnimatedRef.current = true
   }, [artboardLayers])
 
@@ -182,12 +273,16 @@ export function Timeline() {
     }
 
     const observer = new ResizeObserver((entries) => {
-      const width = entries[0]?.contentRect.width ?? 0
+      const entry = entries[0]
+      const width = entry?.contentRect.width ?? 0
+      const height = entry?.contentRect.height ?? 0
       setViewportWidth(width)
+      setTracksViewportHeight(height)
     })
 
     observer.observe(node)
     setViewportWidth(node.clientWidth)
+    setTracksViewportHeight(node.clientHeight)
 
     return () => observer.disconnect()
   }, [])
@@ -204,6 +299,7 @@ export function Timeline() {
         scrollLeft: track.scrollLeft,
         contentWidth,
       })
+      const playheadTime = useEditorStore.getState().currentTime
       const snapped = snapTimelineTime(raw, {
         duration,
         fps,
@@ -212,7 +308,7 @@ export function Timeline() {
         markers: orderedMarkers,
         states: orderedStates,
         keyframeTimes: collectKeyframeTimes(layers, excludeKeyframeIds),
-        playheadTime: currentTime,
+        playheadTime,
       })
 
       if (snapEnabled && frameSnap && Math.abs(snapped - raw) > 0.0001) {
@@ -225,7 +321,6 @@ export function Timeline() {
     },
     [
       contentWidth,
-      currentTime,
       duration,
       fps,
       layers,
@@ -445,10 +540,7 @@ export function Timeline() {
               <Plus className="size-3.5" />
             </Button>
           </div>
-          <span className="text-xs text-muted-foreground">
-            {formatTimelineTime(currentTime, fps)} / {formatTimelineTime(duration, fps)} · loop{' '}
-            {formatTimelineTime(loopIn, fps)}–{formatTimelineTime(loopOut, fps)}
-          </span>
+          <TimelineClock fps={fps} duration={duration} loopIn={loopIn} loopOut={loopOut} />
         </div>
       </div>
 
@@ -468,8 +560,10 @@ export function Timeline() {
               ref={labelsScrollRef}
               className="min-h-0 flex-1 overflow-y-auto overflow-x-hidden overscroll-contain"
               onScroll={(event) => {
+                const scrollTop = event.currentTarget.scrollTop
+                setTracksScrollTop(scrollTop)
                 if (tracksScrollRef.current) {
-                  tracksScrollRef.current.scrollTop = event.currentTarget.scrollTop
+                  tracksScrollRef.current.scrollTop = scrollTop
                 }
               }}
             >
@@ -478,23 +572,31 @@ export function Timeline() {
                   No layers on this artboard.
                 </div>
               ) : (
-                rows.map((row) =>
-                  row.kind === 'layer' ? (
-                    <TimelineLayerLabel
-                      key={`label-${row.layer.id}`}
-                      layer={row.layer}
-                      isSelected={selectedLayerId === row.layer.id}
-                      isExpanded={expandedLayerIds.includes(row.layer.id)}
-                      onSelect={(layerId, additive) => selectLayer(layerId, { additive })}
-                      onToggleExpand={() => toggleLayerExpanded(row.layer.id)}
-                    />
-                  ) : (
-                    <TimelinePropertyLabel
-                      key={`label-${row.layer.id}-${row.property}`}
-                      label={row.label}
-                    />
-                  ),
-                )
+                <>
+                  {visibleRowWindow.topSpacer > 0 ? (
+                    <div style={{ height: visibleRowWindow.topSpacer }} aria-hidden />
+                  ) : null}
+                  {visibleRows.map((row) =>
+                    row.kind === 'layer' ? (
+                      <TimelineLayerLabel
+                        key={`label-${row.layer.id}`}
+                        layer={row.layer}
+                        isSelected={selectedLayerId === row.layer.id}
+                        isExpanded={expandedLayerIds.includes(row.layer.id)}
+                        onSelect={(layerId, additive) => selectLayer(layerId, { additive })}
+                        onToggleExpand={() => toggleLayerExpanded(row.layer.id)}
+                      />
+                    ) : (
+                      <TimelinePropertyLabel
+                        key={`label-${row.layer.id}-${row.property}`}
+                        label={row.label}
+                      />
+                    ),
+                  )}
+                  {visibleRowWindow.bottomSpacer > 0 ? (
+                    <div style={{ height: visibleRowWindow.bottomSpacer }} aria-hidden />
+                  ) : null}
+                </>
               )}
             </div>
           </div>
@@ -503,7 +605,11 @@ export function Timeline() {
             <div
               ref={tracksScrollRef}
               className="absolute inset-0 overflow-auto overscroll-contain"
-              onScroll={(event) => syncLabelsScroll(event.currentTarget.scrollTop)}
+              onScroll={(event) => {
+                const scrollTop = event.currentTarget.scrollTop
+                syncLabelsScroll(scrollTop)
+                setTracksScrollTop(scrollTop)
+              }}
               onPointerDown={(event) => {
                 const handle = getTimelineHandleTarget(event.target)
                 if (handle !== 'keyframe') {
@@ -517,7 +623,6 @@ export function Timeline() {
                     duration={duration}
                     contentWidth={contentWidth}
                     fps={fps}
-                    currentTime={currentTime}
                     loopIn={loopIn}
                     loopOut={loopOut}
                     onPointerDown={startTrackDrag}
@@ -600,13 +705,10 @@ export function Timeline() {
                   />
                 ) : null}
 
-                <div
-                  className="pointer-events-none absolute z-10 w-px bg-primary"
-                  style={{
-                    top: 32 + headerBandHeight,
-                    bottom: 0,
-                    left: timeToPixel(currentTime, duration, contentWidth),
-                  }}
+                <TimelinePlayhead
+                  duration={duration}
+                  contentWidth={contentWidth}
+                  headerBandHeight={headerBandHeight}
                 />
 
                 <div style={{ paddingTop: headerBandHeight }} onPointerDown={startTrackDrag}>
@@ -624,34 +726,42 @@ export function Timeline() {
                       )}
                     </div>
                   ) : (
-                    rows.map((row) =>
-                      row.kind === 'layer' ? (
-                        <TimelineLayerTrack
-                          key={`track-${row.layer.id}`}
-                          layer={row.layer}
-                          duration={duration}
-                          contentWidth={contentWidth}
-                          selectedKeyframeIds={selectedKeyframeIds}
-                          onKeyframePointerDown={(event, keyframe) =>
-                            onKeyframePointerDown(event, keyframe, row.layer.id)
-                          }
-                        />
-                      ) : (
-                        <TimelinePropertyTrack
-                          key={`track-${row.layer.id}-${row.property}`}
-                          property={row.property}
-                          keyframes={row.layer.keyframes.filter(
-                            (keyframe) => keyframe.property === row.property,
-                          )}
-                          duration={duration}
-                          contentWidth={contentWidth}
-                          selectedKeyframeIds={selectedKeyframeIds}
-                          onKeyframePointerDown={(event, keyframe) =>
-                            onKeyframePointerDown(event, keyframe, row.layer.id)
-                          }
-                        />
-                      ),
-                    )
+                    <>
+                      {visibleRowWindow.topSpacer > 0 ? (
+                        <div style={{ height: visibleRowWindow.topSpacer }} aria-hidden />
+                      ) : null}
+                      {visibleRows.map((row) =>
+                        row.kind === 'layer' ? (
+                          <TimelineLayerTrack
+                            key={`track-${row.layer.id}`}
+                            layer={row.layer}
+                            duration={duration}
+                            contentWidth={contentWidth}
+                            selectedKeyframeIds={selectedKeyframeIds}
+                            onKeyframePointerDown={(event, keyframe) =>
+                              onKeyframePointerDown(event, keyframe, row.layer.id)
+                            }
+                          />
+                        ) : (
+                          <TimelinePropertyTrack
+                            key={`track-${row.layer.id}-${row.property}`}
+                            property={row.property}
+                            keyframes={row.layer.keyframes.filter(
+                              (keyframe) => keyframe.property === row.property,
+                            )}
+                            duration={duration}
+                            contentWidth={contentWidth}
+                            selectedKeyframeIds={selectedKeyframeIds}
+                            onKeyframePointerDown={(event, keyframe) =>
+                              onKeyframePointerDown(event, keyframe, row.layer.id)
+                            }
+                          />
+                        ),
+                      )}
+                      {visibleRowWindow.bottomSpacer > 0 ? (
+                        <div style={{ height: visibleRowWindow.bottomSpacer }} aria-hidden />
+                      ) : null}
+                    </>
                   )}
                 </div>
               </div>
