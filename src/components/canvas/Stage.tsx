@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 
+import { ImportedSvgDefs } from '@/components/canvas/ImportedSvgDefs'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
@@ -23,6 +24,7 @@ import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
+import { importedMaskId } from '@/io/svg-masks'
 
 type DrawDraft = {
   startX: number
@@ -196,6 +198,9 @@ export function Stage() {
         setMarquee(null)
         setPenDrag(null)
         setEditingTextLayerId(null)
+        if (useEditorStore.getState().selectedLayerIds.length > 0) {
+          clearSelection()
+        }
       }
 
       if (event.key === 'Enter' && activeTool === 'pen' && penDraft && penDraft.length >= 2) {
@@ -216,7 +221,7 @@ export function Stage() {
       window.removeEventListener('keydown', onKeyDown)
       window.removeEventListener('keyup', onKeyUp)
     }
-  }, [activeTool, cancelPenDraft, finishPenPath, penDraft, setEditingTextLayerId])
+  }, [activeTool, cancelPenDraft, clearSelection, finishPenPath, penDraft, setEditingTextLayerId])
 
   useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
@@ -652,6 +657,12 @@ export function Stage() {
                 }
               }}
             >
+              <ImportedSvgDefs defs={project.importedSvg} />
+              <defs>
+                <clipPath id="artboard-clip">
+                  <rect width={width} height={height} />
+                </clipPath>
+              </defs>
               {!artboardUsesGrid ? (
                 <rect
                   data-eyedropper-ignore
@@ -662,6 +673,7 @@ export function Stage() {
               ) : null}
               <GuidesLayer width={width} height={height} />
               <SnapLinesLayer width={width} height={height} />
+              <g clipPath="url(#artboard-clip)">
               <g data-eyedropper-ignore>{renderOnionSkin()}</g>
               {visibleLayers.map((layer) => {
                 if (!layer.visible) {
@@ -676,6 +688,9 @@ export function Stage() {
                 return (
                   <g
                     key={layer.id}
+                    mask={
+                      layer.svgMaskId ? `url(#${importedMaskId(layer.svgMaskId)})` : undefined
+                    }
                     onPointerDown={(event) => {
                       if (!allowLayerSelect || isPanning) {
                         return
@@ -713,6 +728,7 @@ export function Stage() {
                   </g>
                 )
               })}
+              </g>
               {penDraft && penDraft.length > 0 ? (
                 <g data-eyedropper-ignore>
                   <PenDraftLayer points={penDraft} previewPoint={penPreviewPoint} />

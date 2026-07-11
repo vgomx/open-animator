@@ -5,10 +5,12 @@ import type {
   EasingType,
   Keyframe,
   Layer,
+  MatrixKeyframe,
   NumericAnimatableProperty,
   Shape,
 } from '@/editor/types'
 import { sampleEasing } from '@/editor/easing'
+import type { AffineMatrix } from '@/io/svg-transform'
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -182,6 +184,64 @@ export function sampleColorAtTime(
   return fallback
 }
 
+function sampleMatrixAtTime(keyframes: MatrixKeyframe[], time: number): AffineMatrix | null {
+  if (keyframes.length === 0) {
+    return null
+  }
+
+  const first = keyframes[0]!
+  if (time <= first.time) {
+    return {
+      a: first.a,
+      b: first.b,
+      c: first.c,
+      d: first.d,
+      e: first.e,
+      f: first.f,
+    }
+  }
+
+  const last = keyframes[keyframes.length - 1]!
+  if (time >= last.time) {
+    return {
+      a: last.a,
+      b: last.b,
+      c: last.c,
+      d: last.d,
+      e: last.e,
+      f: last.f,
+    }
+  }
+
+  for (let index = 0; index < keyframes.length - 1; index += 1) {
+    const current = keyframes[index]!
+    const next = keyframes[index + 1]!
+
+    if (time >= current.time && time <= next.time) {
+      const span = next.time - current.time
+      const progress = span === 0 ? 0 : (time - current.time) / span
+
+      return {
+        a: lerp(current.a, next.a, progress),
+        b: lerp(current.b, next.b, progress),
+        c: lerp(current.c, next.c, progress),
+        d: lerp(current.d, next.d, progress),
+        e: lerp(current.e, next.e, progress),
+        f: lerp(current.f, next.f, progress),
+      }
+    }
+  }
+
+  return {
+    a: first.a,
+    b: first.b,
+    c: first.c,
+    d: first.d,
+    e: first.e,
+    f: first.f,
+  }
+}
+
 export function getAnimatedShape(layer: Layer, time: number): Shape {
   const { shape, keyframes } = layer
   const sampleTime = Math.max(0, time - layer.delay)
@@ -217,11 +277,18 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
   }
 
   if (shape.type === 'path') {
+    const matrix =
+      shape.localCoords && layer.matrixKeyframes && layer.matrixKeyframes.length > 0
+        ? sampleMatrixAtTime(layer.matrixKeyframes, sampleTime)
+        : null
+
     return {
       ...base,
       type: 'path',
       points: shape.points,
       closed: shape.closed,
+      localCoords: shape.localCoords,
+      transformMatrix: matrix ?? undefined,
     }
   }
 

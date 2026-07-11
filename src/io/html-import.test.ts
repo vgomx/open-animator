@@ -6,7 +6,9 @@ import { exportAnimatedSvg } from '@/io/svg-export'
 import {
   applyCssTransformToShape,
   importHtmlAnimation,
+  isJavaScriptBundlerHtml,
   parseCssKeyframeTracks,
+  readHtmlImportFromFile,
 } from '@/io/html-import'
 import { createDefaultProject, createLayerFromShape, createRectShape } from '@/editor/scene'
 import { createArtboard } from '@/editor/types'
@@ -129,6 +131,33 @@ describe('html import', () => {
     expect(imported).not.toBeNull()
     expect(imported?.layers).toHaveLength(1)
     expect(imported?.layers[0]?.shape.type).toBe('rect')
+  })
+
+  it('detects javascript bundler html exports', () => {
+    const bundler = `
+      <html><body>
+        <div id="__bundler_thumbnail"><svg></svg></div>
+        <script type="__bundler/manifest">{}</script>
+      </body></html>
+    `
+
+    expect(isJavaScriptBundlerHtml(bundler)).toBe(true)
+  })
+
+  it('rejects javascript bundler html imports', async () => {
+    const file = new File(
+      [
+        '<html><body><div id="__bundler_thumbnail"><svg viewBox="0 0 100 100"><rect width="100" height="100"/></svg></div><script type="__bundler/manifest">{}</script></body></html>',
+      ],
+      'hero-globe.html',
+      { type: 'text/html' },
+    )
+
+    const result = await readHtmlImportFromFile(file)
+    expect(result.status).toBe('rejected')
+    if (result.status === 'rejected') {
+      expect(result.reason).toBe('bundler')
+    }
   })
 
   it('imports animated svg wrapped in html using inline styles', () => {

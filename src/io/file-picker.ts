@@ -64,7 +64,8 @@ export async function openFilePicker(options: {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
-    input.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;pointer-events:none;'
+    input.style.cssText =
+      'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;'
 
     if (accept) {
       input.accept = accept

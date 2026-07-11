@@ -6,6 +6,7 @@ import { TimelinePropertyTrack } from '@/components/timeline/TimelinePropertyTra
 import { getTimelineHandleTarget, TimelineRuler } from '@/components/timeline/TimelineRuler'
 import { Button } from '@/components/ui/button'
 import { getArtboardLayers } from '@/editor/artboard-utils'
+import { layerHasAnimation } from '@/editor/layer-animation'
 import type { AnimatableProperty, Keyframe, Layer } from '@/editor/types'
 import { ANIMATABLE_PROPERTIES } from '@/editor/types'
 import {
@@ -97,6 +98,7 @@ export function Timeline() {
 
   const [timelineZoom, setTimelineZoom] = useState(1)
   const [expandedLayerIds, setExpandedLayerIds] = useState<string[]>([])
+  const didAutoExpandAnimatedRef = useRef(false)
   const labelsScrollRef = useRef<HTMLDivElement>(null)
   const tracksScrollRef = useRef<HTMLDivElement>(null)
   const tracksViewportRef = useRef<HTMLDivElement>(null)
@@ -140,6 +142,28 @@ export function Timeline() {
 
     return result
   }, [artboardLayers, expandedLayerIds])
+
+  useEffect(() => {
+    if (artboardLayers.length === 0) {
+      didAutoExpandAnimatedRef.current = false
+      return
+    }
+
+    if (didAutoExpandAnimatedRef.current) {
+      return
+    }
+
+    const animatedLayerIds = artboardLayers
+      .filter(layerHasAnimation)
+      .map((layer) => layer.id)
+
+    if (animatedLayerIds.length === 0) {
+      return
+    }
+
+    setExpandedLayerIds((current) => [...new Set([...current, ...animatedLayerIds.slice(0, 24)])])
+    didAutoExpandAnimatedRef.current = true
+  }, [artboardLayers])
 
   useEffect(() => {
     if (!selectedLayerId) {

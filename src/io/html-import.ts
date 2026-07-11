@@ -352,8 +352,39 @@ export function importHtmlAnimation(raw: string): Project | null {
 
 export type OpenHtmlFileResult =
   | { status: 'cancelled' }
-  | { status: 'rejected'; fileName: string }
+  | { status: 'rejected'; fileName: string; reason?: 'invalid' | 'bundler' }
   | { status: 'ok'; value: Project }
+
+/** Expressive / portfolio bundler pages that unpack and animate via JavaScript at runtime. */
+export function isJavaScriptBundlerHtml(raw: string): boolean {
+  return (
+    raw.includes('script[type="__bundler/manifest"]') ||
+    raw.includes('script[type="__bundler/template"]') ||
+    raw.includes('id="__bundler_thumbnail"')
+  )
+}
+
+export async function readHtmlImportFromFile(file: File): Promise<OpenHtmlFileResult> {
+  try {
+    const text = await file.text()
+    if (!isHtmlFile(file) && !looksLikeHtmlText(text)) {
+      return { status: 'rejected', fileName: file.name, reason: 'invalid' }
+    }
+
+    if (isJavaScriptBundlerHtml(text)) {
+      return { status: 'rejected', fileName: file.name, reason: 'bundler' }
+    }
+
+    const value = importHtmlAnimation(text)
+    if (!value) {
+      return { status: 'rejected', fileName: file.name, reason: 'invalid' }
+    }
+
+    return { status: 'ok', value }
+  } catch {
+    return { status: 'rejected', fileName: file.name }
+  }
+}
 
 export async function openHtmlFile(): Promise<OpenHtmlFileResult> {
   const picked = await openFilePicker({
@@ -368,14 +399,5 @@ export async function openHtmlFile(): Promise<OpenHtmlFileResult> {
     return { status: 'rejected', fileName: picked.file.name }
   }
 
-  try {
-    const value = importHtmlAnimation(picked.text)
-    if (!value) {
-      return { status: 'rejected', fileName: picked.file.name }
-    }
-
-    return { status: 'ok', value }
-  } catch {
-    return { status: 'rejected', fileName: picked.file.name }
-  }
+  return readHtmlImportFromFile(picked.file)
 }

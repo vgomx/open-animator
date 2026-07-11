@@ -166,7 +166,10 @@ export function getRulerTicks(duration: number, maxTicks = 10): number[] {
 }
 
 export function collectKeyframeTimes(
-  layers: Array<{ keyframes: Array<{ id: string; time: number }> }>,
+  layers: Array<{
+    keyframes: Array<{ id: string; time: number }>
+    matrixKeyframes?: Array<{ time: number }>
+  }>,
   excludeIds: string[] = [],
 ): number[] {
   const excluded = new Set(excludeIds)
@@ -177,6 +180,10 @@ export function collectKeyframeTimes(
       if (!excluded.has(keyframe.id)) {
         times.add(keyframe.time)
       }
+    }
+
+    for (const keyframe of layer.matrixKeyframes ?? []) {
+      times.add(keyframe.time)
     }
   }
 

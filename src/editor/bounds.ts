@@ -1,4 +1,5 @@
 import type { Shape } from '@/editor/types'
+import { applyMatrixToPoint } from '@/io/svg-transform'
 
 export type ShapeBounds = {
   x: number
@@ -36,8 +37,16 @@ export function getShapeBounds(shape: Shape): ShapeBounds {
     if (shape.points.length === 0) {
       return { x: shape.x, y: shape.y, width: 0, height: 0 }
     }
-    const xs = shape.points.map((point) => point.x)
-    const ys = shape.points.map((point) => point.y)
+
+    const points =
+      shape.transformMatrix != null
+        ? shape.points.map((point) =>
+            applyMatrixToPoint(shape.transformMatrix!, point.x, point.y),
+          )
+        : shape.points
+
+    const xs = points.map((point) => point.x)
+    const ys = points.map((point) => point.y)
     const minX = Math.min(...xs)
     const minY = Math.min(...ys)
     const maxX = Math.max(...xs)

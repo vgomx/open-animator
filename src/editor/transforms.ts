@@ -11,5 +11,7 @@ export function buildShapeTransform(shape: Shape): string {
     return `translate(${shape.x + width / 2} ${shape.y + height / 2}) rotate(${shape.rotation}) scale(${shape.scale}) translate(${-width / 2} ${-height / 2})`
   }
 
+  // Imported/baked path points already live in world space. Keyframed deltas are
+  // decomposed as translate(x,y) → rotate → scale around the origin.
   return `translate(${shape.x} ${shape.y}) rotate(${shape.rotation}) scale(${shape.scale})`
 }

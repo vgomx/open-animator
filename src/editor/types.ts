@@ -1,6 +1,6 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 10 as const
+export const PROJECT_VERSION = 11 as const
 export const DEFAULT_PROJECT_FPS = 30
 
 export type CanvasSettings = {
@@ -108,10 +108,27 @@ export type PathPoint = {
   handleOut?: { x: number; y: number } | null
 }
 
+export type AffineMatrix = {
+  a: number
+  b: number
+  c: number
+  d: number
+  e: number
+  f: number
+}
+
+export type MatrixKeyframe = {
+  time: number
+} & AffineMatrix
+
 export type PathShape = BaseShape & {
   type: 'path'
   points: PathPoint[]
   closed: boolean
+  /** Local SVG path coords; world placement comes from transformMatrix. */
+  localCoords?: boolean
+  /** Runtime matrix sampled from matrixKeyframes during playback. */
+  transformMatrix?: AffineMatrix
 }
 
 export type BaseShape = {
@@ -167,6 +184,10 @@ export type Layer = {
   delay: number
   shape: Shape
   keyframes: Keyframe[]
+  /** Absolute SVG transform matrices sampled from SMIL import. */
+  matrixKeyframes?: MatrixKeyframe[]
+  /** Inherited SVG mask from a parent group. */
+  svgMaskId?: string
 }
 
 export type Marker = {
@@ -205,6 +226,36 @@ export type AnimationState = {
   snapshots: LayerStateSnapshot[]
 }
 
+
+export type ImportedGradientStop = {
+  offset: number
+  color: string
+}
+
+export type ImportedLinearGradient = {
+  kind: 'linear'
+  id: string
+  x1: number
+  y1: number
+  x2: number
+  y2: number
+  stops: ImportedGradientStop[]
+}
+
+export type ImportedRadialGradient = {
+  kind: 'radial'
+  id: string
+  cx: number
+  cy: number
+  r: number
+  stops: ImportedGradientStop[]
+}
+
+export type ImportedSvgDefs = {
+  gradients: Record<string, ImportedLinearGradient | ImportedRadialGradient>
+  masks?: Record<string, { id: string; markup: string }>
+}
+
 export type Project = {
   version: typeof PROJECT_VERSION
   canvas: CanvasSettings
@@ -217,6 +268,7 @@ export type Project = {
   guides: Guide[]
   states: AnimationState[]
   markers: Marker[]
+  importedSvg?: ImportedSvgDefs
 }
 
 export type PlaybackState = 'idle' | 'playing' | 'paused'
