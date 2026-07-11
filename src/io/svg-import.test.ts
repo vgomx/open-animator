@@ -24,6 +24,37 @@ describe('svg import', () => {
     expect(parsed.points[0]).toEqual({ x: 0, y: 0 })
   })
 
+  it('parses elliptical arc commands as cubic-bezier points', () => {
+    const parsed = parseSvgPathData('M 0 0 A 50 50 0 0 1 100 0')
+
+    expect(parsed.points.length).toBeGreaterThanOrEqual(2)
+    expect(parsed.points[0]?.x).toBe(0)
+    expect(parsed.points[0]?.y).toBe(0)
+    const last = parsed.points[parsed.points.length - 1]!
+    expect(last.x).toBeCloseTo(100, 0)
+    expect(last.y).toBeCloseTo(0, 0)
+    expect(last.handleIn).toBeDefined()
+  })
+
+  it('imports class-based styles from style blocks', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .accent { fill: #ff6600; stroke: #000000; stroke-width: 4; opacity: 0.8; }
+        </style>
+        <rect class="accent" x="10" y="10" width="40" height="30" />
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    const layer = imported?.layers[0]
+
+    expect(layer?.shape.fill).toBe('#ff6600')
+    expect(layer?.shape.stroke).toBe('#000000')
+    expect(layer?.shape.strokeWidth).toBe(4)
+    expect(layer?.shape.opacity).toBe(0.8)
+  })
+
   it('imports rect and circle elements as layers', () => {
     const svg = `
       <svg viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">

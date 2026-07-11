@@ -33,6 +33,13 @@ import {
   multiplyMatrix,
   parseTransformAttribute,
 } from '@/io/svg-transform'
+import { arcToCubicBeziers } from '@/io/svg-arc'
+import {
+  applyClassStyles,
+  parseSvgClassStyles,
+  resolveClassStyle,
+  type SvgClassStyle,
+} from '@/io/svg-styles'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
 
 export { parseSvgColor } from '@/io/svg-colors'
@@ -75,22 +82,33 @@ function parseNumber(value: string | null | undefined, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function readStyle(element: Element, inherited: SvgStyle, gradients: Record<string, ImportedGradient>): SvgStyle {
+function readStyle(
+  element: Element,
+  inherited: SvgStyle,
+  gradients: Record<string, ImportedGradient>,
+  classStyles: Record<string, SvgClassStyle>,
+): SvgStyle {
+  const fromClasses = resolveClassStyle(
+    applyClassStyles(element, inherited, classStyles),
+    inherited,
+    gradients,
+  )
+
   const fill = element.getAttribute('fill')
   const stroke = element.getAttribute('stroke')
   const strokeWidth = element.getAttribute('stroke-width')
   const opacity = element.getAttribute('opacity')
   const fillOpacity = element.getAttribute('fill-opacity')
-  const inheritedOpacity = inherited.opacity
+  const inheritedOpacity = fromClasses.opacity
 
   return {
     fill: fill
-      ? resolvePaintValue(fill, inherited.fill, gradients)
-      : inherited.fill,
+      ? resolvePaintValue(fill, fromClasses.fill, gradients)
+      : fromClasses.fill,
     stroke: stroke
-      ? resolvePaintValue(stroke, inherited.stroke, gradients)
-      : inherited.stroke,
-    strokeWidth: strokeWidth ? parseNumber(strokeWidth, inherited.strokeWidth) : inherited.strokeWidth,
+      ? resolvePaintValue(stroke, fromClasses.stroke, gradients)
+      : fromClasses.stroke,
+    strokeWidth: strokeWidth ? parseNumber(strokeWidth, fromClasses.strokeWidth) : fromClasses.strokeWidth,
     opacity: opacity
       ? parseNumber(opacity, inheritedOpacity)
       : fillOpacity
@@ -267,6 +285,49 @@ export function parseSvgPathData(d: string): { points: PathPoint[]; closed: bool
       continue
     }
 
+    if (upper === 'A') {
+      const rx = readNumber()
+      const ry = readNumber()
+      const xAxisRotation = readNumber()
+      const largeArc = readNumber() !== 0
+      const sweep = readNumber() !== 0
+      const x = readNumber()
+      const y = readNumber()
+      const endX = relative ? currentX + x : x
+      const endY = relative ? currentY + y : y
+
+      const segments = arcToCubicBeziers(
+        currentX,
+        currentY,
+        Math.abs(rx),
+        Math.abs(ry),
+        xAxisRotation,
+        largeArc,
+        sweep,
+        endX,
+        endY,
+      )
+
+      for (const segment of segments) {
+        const previous = points[points.length - 1]
+        if (previous) {
+          points[points.length - 1] = {
+            ...previous,
+            handleOut: { x: segment.cp1x, y: segment.cp1y },
+          }
+        }
+
+        currentX = segment.x
+        currentY = segment.y
+        pushPoint({
+          x: segment.x,
+          y: segment.y,
+          handleIn: { x: segment.cp2x, y: segment.cp2y },
+        })
+      }
+      continue
+    }
+
     if (upper === 'Z') {
       closed = true
       currentX = subpathStartX
@@ -431,6 +492,7 @@ function collectLayers(
   inheritedMatrix: AffineMatrix,
   inheritedMaskId: string | null,
   gradients: Record<string, ImportedGradient>,
+  classStyles: Record<string, SvgClassStyle>,
   layers: Layer[],
   startIndex: number,
 ): { nextIndex: number; duration: number } {
@@ -442,7 +504,7 @@ function collectLayers(
     return { nextIndex, duration }
   }
 
-  const style = readStyle(node, inheritedStyle, gradients)
+  const style = readStyle(node, inheritedStyle, gradients, classStyles)
   const localMatrix = parseTransformAttribute(node.getAttribute('transform'))
   const matrix = multiplyMatrix(inheritedMatrix, localMatrix)
   const maskId = resolveMaskId(node.getAttribute('mask')) ?? inheritedMaskId
@@ -455,6 +517,7 @@ function collectLayers(
         matrix,
         maskId,
         gradients,
+        classStyles,
         layers,
         nextIndex,
       )
@@ -556,7 +619,7 @@ export function parseShapeElement(element: Element): Shape | null {
     strokeWidth: 0,
     opacity: 1,
   }
-  const style = readStyle(element, defaultStyle, {})
+  const style = readStyle(element, defaultStyle, {}, {})
   return elementToShape(element, style, IDENTITY_MATRIX)
 }
 
@@ -586,6 +649,7 @@ export function importSvg(raw: string): SvgImportResult | null {
 
   const gradients = parseSvgGradients(svg)
   const masks = parseSvgMasks(svg, gradients)
+  const classStyles = parseSvgClassStyles(svg)
   const defaultStyle: SvgStyle = {
     fill: SHAPE_FILL_SECONDARY,
     stroke: 'none',
@@ -594,7 +658,16 @@ export function importSvg(raw: string): SvgImportResult | null {
   }
 
   const layers: Layer[] = []
-  const { duration } = collectLayers(svg, defaultStyle, IDENTITY_MATRIX, null, gradients, layers, 0)
+  const { duration } = collectLayers(
+    svg,
+    defaultStyle,
+    IDENTITY_MATRIX,
+    null,
+    gradients,
+    classStyles,
+    layers,
+    0,
+  )
 
   if (layers.length === 0) {
     return null

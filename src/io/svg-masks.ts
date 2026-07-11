@@ -2,6 +2,7 @@ import type { ImportedGradient } from '@/io/svg-gradients'
 import { resolvePaintValue } from '@/io/svg-gradients'
 import type { AffineMatrix } from '@/io/svg-transform'
 import { formatMatrixAttribute, invertMatrix } from '@/io/svg-transform'
+import type { Layer, Shape } from '@/editor/types'
 
 export type ImportedMask = {
   id: string
@@ -83,16 +84,58 @@ export function createLocalSpaceMaskInstance(
   }
 
   const localId = `${maskId}__${layerKey}`
-  if (masks[localId]) {
-    return localId
-  }
-
   masks[localId] = {
     id: localId,
     markup: `<g transform="${formatMatrixAttribute(inverse)}">${source.markup}</g>`,
   }
 
   return localId
+}
+
+export function resolveLayerMaskId(
+  sourceMasks: Record<string, ImportedMask>,
+  layer: Layer,
+  shape: Shape,
+): string | null {
+  if (!layer.svgMaskId) {
+    return null
+  }
+
+  if (shape.type !== 'path' || !shape.transformMatrix) {
+    return layer.svgMaskId
+  }
+
+  const runtimeMasks = { ...sourceMasks }
+  return createLocalSpaceMaskInstance(
+    runtimeMasks,
+    layer.svgMaskId,
+    layer.id,
+    shape.transformMatrix,
+  )
+}
+
+export function buildAnimatedMaskDefs(
+  sourceMasks: Record<string, ImportedMask>,
+  layers: Layer[],
+  time: number,
+  getShape: (layer: Layer, time: number) => Shape,
+): Record<string, ImportedMask> {
+  const masks = { ...sourceMasks }
+
+  for (const layer of layers) {
+    if (!layer.svgMaskId || !layer.visible) {
+      continue
+    }
+
+    const shape = getShape(layer, time)
+    if (shape.type !== 'path' || !shape.transformMatrix) {
+      continue
+    }
+
+    createLocalSpaceMaskInstance(masks, layer.svgMaskId, layer.id, shape.transformMatrix)
+  }
+
+  return masks
 }
 
 export { resolveMaskId }
