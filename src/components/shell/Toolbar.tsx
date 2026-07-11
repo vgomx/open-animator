@@ -111,12 +111,23 @@ export function Toolbar() {
   }
 
   const notifySvgImportResult = (
-    imported: Awaited<ReturnType<typeof openSvgFile>>,
+    result: Awaited<ReturnType<typeof openSvgFile>>,
     mode: 'merge' | 'project',
   ) => {
-    if (!imported) {
+    if (result.status === 'cancelled') {
       return
     }
+
+    if (result.status === 'rejected') {
+      showToast({
+        title: 'Not an SVG file',
+        description: `"${result.fileName}" is not a supported SVG. Choose a .svg file.`,
+        variant: 'error',
+      })
+      return
+    }
+
+    const imported = result.value
 
     if (imported.layers.length === 0) {
       showToast({
@@ -148,6 +159,49 @@ export function Toolbar() {
     })
   }
 
+  const runFileImport = (startImport: () => Promise<void>) => (event: Event) => {
+    event.preventDefault()
+    void startImport()
+  }
+
+  const handleImportHtmlAnimation = async () => {
+    const result = await openHtmlFile()
+    if (result.status === 'cancelled') {
+      return
+    }
+
+    if (result.status === 'rejected') {
+      showToast({
+        title: 'Not an HTML file',
+        description: `"${result.fileName}" is not a supported HTML animation. Choose a .html or .htm file.`,
+        variant: 'error',
+      })
+      return
+    }
+
+    setProject(result.value)
+    requestAnimationFrame(fitCanvasToScreen)
+    showToast({
+      title: 'HTML animation opened',
+      description: `Loaded ${result.value.layers.length} animated layer${result.value.layers.length === 1 ? '' : 's'} as a new project.`,
+      variant: 'success',
+    })
+  }
+
+  const handleImportLottie = async () => {
+    const imported = await openLottieFile()
+    if (!imported) {
+      return
+    }
+
+    setProject(imported)
+    requestAnimationFrame(fitCanvasToScreen)
+    showToast({
+      title: 'Lottie opened',
+      description: 'Loaded animation as a new project.',
+      variant: 'success',
+    })
+  }
   const handleImportSvgIntoProject = async () => {
     const imported = await openSvgFile()
     notifySvgImportResult(imported, 'merge')
@@ -538,49 +592,19 @@ export function Toolbar() {
                 Preview as Lottie
               </DropdownMenuItem>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={handleImportSvgIntoProject}>
+              <DropdownMenuItem onSelect={runFileImport(handleImportSvgIntoProject)}>
                 <FolderOpen />
                 Import SVG into project
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={handleOpenSvgAsProject}>
+              <DropdownMenuItem onSelect={runFileImport(handleOpenSvgAsProject)}>
                 <FolderOpen />
                 Open SVG as new project
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={async () => {
-                  const imported = await openHtmlFile()
-                  if (!imported) {
-                    return
-                  }
-
-                  setProject(imported)
-                  requestAnimationFrame(fitCanvasToScreen)
-                  showToast({
-                    title: 'HTML animation opened',
-                    description: `Loaded ${imported.layers.length} animated layer${imported.layers.length === 1 ? '' : 's'} as a new project.`,
-                    variant: 'success',
-                  })
-                }}
-              >
+              <DropdownMenuItem onSelect={runFileImport(handleImportHtmlAnimation)}>
                 <FolderOpen />
                 Open HTML animation
               </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={async () => {
-                  const imported = await openLottieFile()
-                  if (!imported) {
-                    return
-                  }
-
-                  setProject(imported)
-                  requestAnimationFrame(fitCanvasToScreen)
-                  showToast({
-                    title: 'Lottie opened',
-                    description: 'Loaded animation as a new project.',
-                    variant: 'success',
-                  })
-                }}
-              >
+              <DropdownMenuItem onSelect={runFileImport(handleImportLottie)}>
                 <FolderOpen />
                 Import Lottie JSON
               </DropdownMenuItem>

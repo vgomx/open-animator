@@ -3,6 +3,7 @@ import { getExportArtboard, getExportLayers, getProjectFps } from '@/editor/artb
 import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
 import { createId } from '@/editor/scene'
+import { openFilePicker } from '@/io/file-picker'
 
 type LottieKeyframe = {
   t: number
@@ -476,26 +477,19 @@ function lottieColorToHex(color: number[]): string {
 }
 
 export async function openLottieFile(): Promise<Project | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'application/json,.json'
-
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0]
-      if (!file) {
-        resolve(null)
-        return
-      }
-
-      try {
-        const text = await file.text()
-        resolve(importLottie(text))
-      } catch {
-        resolve(null)
-      }
-    })
-
-    input.click()
+  const picked = await openFilePicker({
+    accept: 'application/json,.json',
+    isAccepted: (file) =>
+      file.name.toLowerCase().endsWith('.json') || file.type === 'application/json',
   })
+
+  if (picked.status !== 'ok') {
+    return null
+  }
+
+  try {
+    return importLottie(picked.text)
+  } catch {
+    return null
+  }
 }

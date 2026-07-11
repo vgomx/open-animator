@@ -12,8 +12,8 @@ import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import {
   isSvgFile,
-  openTextFile,
-  SVG_FILE_ACCEPT,
+  looksLikeSvgText,
+  openFilePicker,
 } from '@/io/file-picker'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
 
@@ -587,16 +587,33 @@ export function svgImportToProject(imported: SvgImportResult): Project {
   }
 }
 
-export async function openSvgFile(): Promise<SvgImportResult | null> {
-  const raw = await openTextFile(SVG_FILE_ACCEPT, isSvgFile)
-  if (!raw) {
-    return null
+export type OpenSvgFileResult =
+  | { status: 'cancelled' }
+  | { status: 'rejected'; fileName: string }
+  | { status: 'ok'; value: SvgImportResult }
+
+export async function openSvgFile(): Promise<OpenSvgFileResult> {
+  const picked = await openFilePicker({
+    validateText: (text, file) => isSvgFile(file) || looksLikeSvgText(text),
+  })
+
+  if (picked.status === 'cancelled') {
+    return { status: 'cancelled' }
+  }
+
+  if (picked.status === 'rejected') {
+    return { status: 'rejected', fileName: picked.file.name }
   }
 
   try {
-    return importSvg(raw)
+    const value = importSvg(picked.text)
+    if (!value) {
+      return { status: 'rejected', fileName: picked.file.name }
+    }
+
+    return { status: 'ok', value }
   } catch {
-    return null
+    return { status: 'rejected', fileName: picked.file.name }
   }
 }
 

@@ -1,6 +1,7 @@
 import type { Project } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import { migrateProject } from '@/io/migrate'
+import { openFilePicker } from '@/io/file-picker'
 import { STORAGE_KEYS } from '@/lib/app'
 
 export function serializeProject(project: Project): string {
@@ -25,28 +26,21 @@ export function downloadProject(project: Project, filename = 'open-animator-proj
 }
 
 export async function openProjectFile(): Promise<Project | null> {
-  return new Promise((resolve) => {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = 'application/json,.json'
-
-    input.addEventListener('change', async () => {
-      const file = input.files?.[0]
-      if (!file) {
-        resolve(null)
-        return
-      }
-
-      try {
-        const text = await file.text()
-        resolve(deserializeProject(text))
-      } catch {
-        resolve(null)
-      }
-    })
-
-    input.click()
+  const picked = await openFilePicker({
+    accept: 'application/json,.json',
+    isAccepted: (file) =>
+      file.name.toLowerCase().endsWith('.json') || file.type === 'application/json',
   })
+
+  if (picked.status !== 'ok') {
+    return null
+  }
+
+  try {
+    return deserializeProject(picked.text)
+  } catch {
+    return null
+  }
 }
 
 export function loadProjectFromStorage(): Project | null {
