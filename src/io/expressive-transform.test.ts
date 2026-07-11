@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
+import { balloonSvg } from '@/io/fixtures/balloon-fixture'
 import {
   effectiveMatrixAtTime,
   evaluateSmilTransforms,

@@ -138,8 +138,7 @@ export function Toolbar() {
       clearLayerSelection: true,
     })
     if (summary.animatedLayerCount > 0) {
-      useEditorStore.setState({ loop: true })
-      useEditorStore.getState().setPlaybackState('playing')
+      useEditorStore.setState({ loop: true, playbackState: 'idle', currentTime: 0 })
     }
     if (!viewport) {
       requestAnimationFrame(fitCanvasToScreen)

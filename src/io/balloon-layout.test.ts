@@ -3,8 +3,7 @@ import { describe, expect, it } from 'vitest'
 
 import { getAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg } from '@/io/svg-import'
+import { getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
 
 function overlapsViewport(bounds: { x: number; y: number; width: number; height: number }) {
   const right = bounds.x + bounds.width
@@ -14,7 +13,7 @@ function overlapsViewport(bounds: { x: number; y: number; width: number; height:
 
 describe('balloon layout diagnostics', () => {
   it('places rendered artwork across the 1080x1080 viewport', () => {
-    const imported = importSvg(balloonSvg)
+    const imported = getBalloonSvgImport()
     expect(imported).not.toBeNull()
 
     const pathLayers = imported!.layers.filter((layer) => layer.shape.type === 'path')

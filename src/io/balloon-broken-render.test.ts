@@ -3,13 +3,12 @@ import { describe, expect, it } from 'vitest'
 
 import { getAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
+import { cloneBalloonProject } from '@/io/fixtures/balloon-fixture'
 import { isStaleSvgImportProject } from '@/io/project'
 
 describe('balloon broken-render simulation', () => {
   it('without matrixKeyframes paths cluster in local coord range not world space', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = cloneBalloonProject()
     const broken = structuredClone(project)
     broken.layers = broken.layers.map((layer) => {
       if (layer.shape.type !== 'path' || !layer.shape.localCoords) {
@@ -33,7 +32,7 @@ describe('balloon broken-render simulation', () => {
   })
 
   it('stale project with display keyframes but no matrixKeyframes is not detected', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = cloneBalloonProject()
     const stale = structuredClone(project)
     stale.layers = stale.layers.map((layer) =>
       layer.shape.type === 'path' && layer.shape.localCoords

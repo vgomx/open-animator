@@ -7,9 +7,8 @@ import {
   saveProjectToStorage,
   serializeProject,
 } from '@/io/project'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
+import { cloneBalloonProject, getBalloonProject } from '@/io/fixtures/balloon-fixture'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
-import { importSvg, svgImportToProject } from '@/io/svg-import'
 import { STORAGE_KEYS } from '@/lib/app'
 
 function createStorageMock() {
@@ -30,7 +29,7 @@ describe('stale svg import cache', () => {
     vi.stubGlobal('localStorage', createStorageMock())
   })
   it('detects baked-path projects without matrix keyframes', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     expect(isStaleSvgImportProject(fresh)).toBe(false)
 
     const stale = structuredClone(fresh)
@@ -57,7 +56,7 @@ describe('stale svg import cache', () => {
   })
 
   it('detects matrix-only projects missing timeline display keyframes', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     expect(isStaleSvgImportProject(fresh)).toBe(false)
 
     const stale = structuredClone(fresh)
@@ -71,7 +70,7 @@ describe('stale svg import cache', () => {
   })
 
   it('detects localCoords paths missing matrix keyframes', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     const stale = structuredClone(fresh)
     stale.layers = stale.layers.map((layer) =>
       layer.shape.type === 'path' && layer.shape.localCoords
@@ -83,7 +82,7 @@ describe('stale svg import cache', () => {
   })
 
   it('drops stale cached projects on load', () => {
-    const stale = svgImportToProject(importSvg(balloonSvg)!)
+    const stale = cloneBalloonProject()
     stale.layers = stale.layers.map((layer) =>
       layer.shape.type === 'path'
         ? {
@@ -100,7 +99,7 @@ describe('stale svg import cache', () => {
   })
 
   it('keeps fresh cached projects on load', () => {
-    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    const fresh = getBalloonProject()
     saveProjectToStorage(fresh)
     const loaded = loadProjectFromStorage()
     expect(loaded).not.toBeNull()

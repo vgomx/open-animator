@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import type { Keyframe, Layer } from '@/editor/types'
 import { timeToPixel } from '@/editor/timeline-utils'
 import { TIMELINE_ROW_HEIGHT } from '@/editor/layout-constants'
@@ -14,7 +16,7 @@ type TimelineLayerTrackProps = {
   ) => void
 }
 
-export function TimelineLayerTrack({
+export const TimelineLayerTrack = memo(function TimelineLayerTrack({
   layer,
   duration,
   contentWidth,
@@ -73,4 +75,4 @@ export function TimelineLayerTrack({
       })}
     </div>
   )
-}
+})

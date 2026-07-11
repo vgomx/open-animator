@@ -4,8 +4,7 @@ import { describe, expect, it } from 'vitest'
 import { getAnimatedShape } from '@/editor/animation'
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 import { getShapeBounds } from '@/editor/bounds'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg } from '@/io/svg-import'
+import { getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
 
 function overlapsViewport(bounds: { x: number; y: number; width: number; height: number }) {
   const right = bounds.x + bounds.width
@@ -15,7 +14,7 @@ function overlapsViewport(bounds: { x: number; y: number; width: number; height:
 
 describe('hot air balloon parallax import', () => {
   it('imports gradients, matrix keyframes, and aligned path layers from the user file', () => {
-    const imported = importSvg(balloonSvg)
+    const imported = getBalloonSvgImport()
 
     expect(imported).not.toBeNull()
     expect(imported?.artboard).toEqual({ width: 1080, height: 1080 })

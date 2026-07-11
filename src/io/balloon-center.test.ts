@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest'
 
 import { getAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, parseSvgPathData } from '@/io/svg-import'
+import { balloonSvg, getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
+import { parseSvgPathData } from '@/io/svg-import'
 import { effectiveMatrixAtTime } from '@/io/svg-smil'
 import { applyMatrixToPoint } from '@/io/svg-transform'
 
@@ -19,7 +19,7 @@ describe('balloon center composition', () => {
     expect(balloonGroup).toBeTruthy()
 
     const sourcePaths = [...balloonGroup!.querySelectorAll('path')]
-    const imported = importSvg(balloonSvg)!
+    const imported = getBalloonSvgImport()
     const importedPaths = imported.layers.filter((layer) => layer.shape.type === 'path')
 
     const matchedLayers = sourcePaths.map((sourcePath) => {

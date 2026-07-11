@@ -10,7 +10,35 @@ import type {
   Shape,
 } from '@/editor/types'
 import { sampleEasing } from '@/editor/easing'
+import { layerHasAnimation } from '@/editor/layer-animation'
 import type { AffineMatrix } from '@/io/svg-transform'
+
+type KeyframeTracks = Map<AnimatableProperty, Keyframe[]>
+
+const animatedShapeCache = new WeakMap<Layer, { time: number; shape: Shape }>()
+
+function buildKeyframeTracks(keyframes: Keyframe[]): KeyframeTracks {
+  const tracks: KeyframeTracks = new Map()
+
+  for (const keyframe of keyframes) {
+    const track = tracks.get(keyframe.property)
+    if (track) {
+      track.push(keyframe)
+    } else {
+      tracks.set(keyframe.property, [keyframe])
+    }
+  }
+
+  for (const track of tracks.values()) {
+    track.sort((left, right) => left.time - right.time)
+  }
+
+  return tracks
+}
+
+function getTrack(tracks: KeyframeTracks, property: AnimatableProperty): Keyframe[] {
+  return tracks.get(property) ?? []
+}
 
 export function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
@@ -84,6 +112,10 @@ export function samplePropertyAtTime(
   fallback: number,
 ): number {
   const track = getKeyframesForProperty(keyframes, property)
+  return sampleNumericTrackAtTime(track, time, fallback)
+}
+
+function sampleNumericTrackAtTime(track: Keyframe[], time: number, fallback: number): number {
   return sampleSegmentValue(track, time, fallback, (current, next, eased) =>
     lerp(current.value as number, next.value as number, eased),
   )
@@ -137,6 +169,10 @@ export function sampleColorAtTime(
   fallback: string,
 ): string {
   const track = getKeyframesForProperty(keyframes, property)
+  return sampleColorTrackAtTime(track, time, fallback)
+}
+
+function sampleColorTrackAtTime(track: Keyframe[], time: number, fallback: string): string {
 
   if (track.length === 0) {
     return fallback
@@ -242,47 +278,77 @@ function sampleMatrixAtTime(keyframes: MatrixKeyframe[], time: number): AffineMa
   }
 }
 
+function layerNeedsMatrixSampling(layer: Layer): boolean {
+  return (
+    layer.shape.type === 'path' &&
+    Boolean(layer.shape.localCoords) &&
+    (layer.matrixKeyframes?.length ?? 0) > 0
+  )
+}
+
 export function getAnimatedShape(layer: Layer, time: number): Shape {
+  if (!layerHasAnimation(layer) && !layerNeedsMatrixSampling(layer)) {
+    return layer.shape
+  }
+
+  const cached = animatedShapeCache.get(layer)
+  if (cached && cached.time === time) {
+    return cached.shape
+  }
+
   const { shape, keyframes } = layer
   const sampleTime = Math.max(0, time - layer.delay)
+  const tracks = keyframes.length > 0 ? buildKeyframeTracks(keyframes) : null
+
+  const sampleNumeric = (
+    property: NumericAnimatableProperty,
+    fallback: number,
+  ): number =>
+    tracks
+      ? sampleNumericTrackAtTime(getTrack(tracks, property), sampleTime, fallback)
+      : fallback
+
+  const sampleColor = (
+    property: ColorAnimatableProperty,
+    fallback: string,
+  ): string =>
+    tracks ? sampleColorTrackAtTime(getTrack(tracks, property), sampleTime, fallback) : fallback
 
   const base = {
     ...shape,
-    x: samplePropertyAtTime(keyframes, 'x', sampleTime, shape.x),
-    y: samplePropertyAtTime(keyframes, 'y', sampleTime, shape.y),
-    rotation: samplePropertyAtTime(keyframes, 'rotation', sampleTime, shape.rotation),
-    opacity: samplePropertyAtTime(keyframes, 'opacity', sampleTime, shape.opacity),
-    scale: samplePropertyAtTime(keyframes, 'scale', sampleTime, shape.scale),
-    fill: sampleColorAtTime(keyframes, 'fill', sampleTime, shape.fill),
-    stroke: sampleColorAtTime(keyframes, 'stroke', sampleTime, shape.stroke),
+    x: sampleNumeric('x', shape.x),
+    y: sampleNumeric('y', shape.y),
+    rotation: sampleNumeric('rotation', shape.rotation),
+    opacity: sampleNumeric('opacity', shape.opacity),
+    scale: sampleNumeric('scale', shape.scale),
+    fill: sampleColor('fill', shape.fill),
+    stroke: sampleColor('stroke', shape.stroke),
   }
+
+  let result: Shape
 
   if (shape.type === 'rect') {
-    return {
+    result = {
       ...base,
       type: 'rect',
-      width: samplePropertyAtTime(keyframes, 'width', sampleTime, shape.width),
-      height: samplePropertyAtTime(keyframes, 'height', sampleTime, shape.height),
+      width: sampleNumeric('width', shape.width),
+      height: sampleNumeric('height', shape.height),
     }
-  }
-
-  if (shape.type === 'text') {
-    return {
+  } else if (shape.type === 'text') {
+    result = {
       ...base,
       type: 'text',
       text: shape.text,
       fontFamily: shape.fontFamily,
-      fontSize: samplePropertyAtTime(keyframes, 'fontSize', sampleTime, shape.fontSize),
+      fontSize: sampleNumeric('fontSize', shape.fontSize),
     }
-  }
-
-  if (shape.type === 'path') {
+  } else if (shape.type === 'path') {
     const matrix =
       shape.localCoords && layer.matrixKeyframes && layer.matrixKeyframes.length > 0
         ? sampleMatrixAtTime(layer.matrixKeyframes, sampleTime)
         : null
 
-    return {
+    result = {
       ...base,
       type: 'path',
       points: shape.points,
@@ -290,12 +356,15 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
       localCoords: shape.localCoords,
       transformMatrix: matrix ?? undefined,
     }
+  } else {
+    result = {
+      ...base,
+      type: 'ellipse',
+      rx: sampleNumeric('rx', shape.rx),
+      ry: sampleNumeric('ry', shape.ry),
+    }
   }
 
-  return {
-    ...base,
-    type: 'ellipse',
-    rx: samplePropertyAtTime(keyframes, 'rx', sampleTime, shape.rx),
-    ry: samplePropertyAtTime(keyframes, 'ry', sampleTime, shape.ry),
-  }
+  animatedShapeCache.set(layer, { time, shape: result })
+  return result
 }

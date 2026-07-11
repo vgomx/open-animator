@@ -3,16 +3,16 @@ import { describe, expect, it } from 'vitest'
 
 import { matrixKeyframesHaveMotion } from '@/editor/layer-animation'
 import { getAnimatedShape } from '@/editor/animation'
-import balloonSvg from '@/io/fixtures/hot-air-balloon-parallax.svg?raw'
-import { importSvg, parseSvgPathData, svgImportToProject } from '@/io/svg-import'
+import { balloonSvg, getBalloonProject, getBalloonSvgImport } from '@/io/fixtures/balloon-fixture'
+import { parseSvgPathData } from '@/io/svg-import'
 import { effectiveMatrixAtTime } from '@/io/svg-smil'
 import { applyMatrixToPoint } from '@/io/svg-transform'
 
 describe('balloon import alignment', () => {
-  it('imports every visible path at its effective world coordinates', { timeout: 15000 }, () => {
+  it('imports every visible path at its effective world coordinates', () => {
     const doc = new DOMParser().parseFromString(balloonSvg, 'image/svg+xml')
     const sourcePaths = [...doc.querySelectorAll('path')].filter((path) => path.getAttribute('d'))
-    const imported = importSvg(balloonSvg)!
+    const imported = getBalloonSvgImport()
     const importedPaths = imported.layers.filter((layer) => layer.shape.type === 'path')
 
     let matched = 0
@@ -60,7 +60,7 @@ describe('balloon import alignment', () => {
 
 describe('balloon matrix animation', () => {
   it('animates imported paths via matrix keyframes during playback', () => {
-    const project = svgImportToProject(importSvg(balloonSvg)!)
+    const project = getBalloonProject()
     const animated = project.layers.filter((layer) =>
       matrixKeyframesHaveMotion(layer.matrixKeyframes),
     )

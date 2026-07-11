@@ -11,6 +11,11 @@ export function getFrameStep(fps: number): number {
   return 1 / Math.max(1, fps)
 }
 
+export function quantizeTimeToFrame(time: number, fps: number): number {
+  const frameStep = getFrameStep(fps)
+  return Math.round(time / frameStep) * frameStep
+}
+
 const OBJECT_SNAP_THRESHOLD = 0.04
 
 export function formatTimelineTime(seconds: number, fps = DEFAULT_PROJECT_FPS): string {

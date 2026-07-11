@@ -1,3 +1,5 @@
+import { memo } from 'react'
+
 import type { AnimatableProperty, Keyframe } from '@/editor/types'
 import { timeToPixel } from '@/editor/timeline-utils'
 import { TIMELINE_ROW_HEIGHT } from '@/editor/layout-constants'
@@ -15,7 +17,7 @@ type TimelinePropertyTrackProps = {
   ) => void
 }
 
-export function TimelinePropertyTrack({
+export const TimelinePropertyTrack = memo(function TimelinePropertyTrack({
   property,
   keyframes,
   duration,
@@ -76,4 +78,4 @@ export function TimelinePropertyTrack({
       })}
     </div>
   )
-}
+})
