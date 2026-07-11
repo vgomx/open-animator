@@ -5,6 +5,8 @@ import { migrateProject } from '@/io/migrate'
 import { openFilePicker } from '@/io/file-picker'
 import { STORAGE_KEYS } from '@/lib/app'
 
+const STALE_IMPORT_NOTICE_KEY = `${STORAGE_KEYS.project}:stale-cleared`
+
 /**
  * Detects cached projects produced by a broken SVG import that baked world-space
  * path coordinates without matrixKeyframes/localCoords. Those projects render
@@ -67,6 +69,16 @@ export function isStaleSvgImportProject(project: Project): boolean {
     if (animatedMatrixLayers === 0) {
       return true
     }
+
+    const decoyMatrixLayers = pathLayers.filter(
+      (layer) =>
+        (layer.matrixKeyframes?.length ?? 0) > 1 &&
+        !matrixKeyframesHaveMotion(layer.matrixKeyframes),
+    ).length
+
+    if (decoyMatrixLayers > pathLayers.length * 0.1) {
+      return true
+    }
   }
 
   return false
@@ -111,6 +123,18 @@ export async function openProjectFile(): Promise<Project | null> {
   }
 }
 
+export function consumeStaleImportClearNotice(): boolean {
+  if (typeof sessionStorage === 'undefined') {
+    return false
+  }
+
+  const flagged = sessionStorage.getItem(STALE_IMPORT_NOTICE_KEY) === '1'
+  if (flagged) {
+    sessionStorage.removeItem(STALE_IMPORT_NOTICE_KEY)
+  }
+  return flagged
+}
+
 export function loadProjectFromStorage(): Project | null {
   const raw =
     localStorage.getItem(STORAGE_KEYS.project) ??
@@ -125,6 +149,9 @@ export function loadProjectFromStorage(): Project | null {
     if (isStaleSvgImportProject(project)) {
       localStorage.removeItem(STORAGE_KEYS.project)
       localStorage.removeItem(STORAGE_KEYS.legacyProject)
+      if (typeof sessionStorage !== 'undefined') {
+        sessionStorage.setItem(STALE_IMPORT_NOTICE_KEY, '1')
+      }
       return null
     }
     if (!localStorage.getItem(STORAGE_KEYS.project)) {

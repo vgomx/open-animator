@@ -1,5 +1,7 @@
 import type { ImportedGradient } from '@/io/svg-gradients'
 import { resolvePaintValue } from '@/io/svg-gradients'
+import type { AffineMatrix } from '@/io/svg-transform'
+import { formatMatrixAttribute, invertMatrix } from '@/io/svg-transform'
 
 export type ImportedMask = {
   id: string
@@ -62,6 +64,35 @@ export function parseSvgMasks(
 
 export function importedMaskId(id: string): string {
   return `imported-mask-${id}`
+}
+
+export function createLocalSpaceMaskInstance(
+  masks: Record<string, ImportedMask>,
+  maskId: string,
+  layerKey: string,
+  referenceMatrix: AffineMatrix,
+): string | null {
+  const source = masks[maskId]
+  if (!source) {
+    return null
+  }
+
+  const inverse = invertMatrix(referenceMatrix)
+  if (!inverse) {
+    return maskId
+  }
+
+  const localId = `${maskId}__${layerKey}`
+  if (masks[localId]) {
+    return localId
+  }
+
+  masks[localId] = {
+    id: localId,
+    markup: `<g transform="${formatMatrixAttribute(inverse)}">${source.markup}</g>`,
+  }
+
+  return localId
 }
 
 export { resolveMaskId }

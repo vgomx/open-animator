@@ -30,4 +30,27 @@ describe('stale single-keyframe matrix cache', () => {
     expect(motionCount).toBe(0)
     expect(isStaleSvgImportProject(stale)).toBe(true)
   })
+
+  it('detects decoy multi-keyframe matrix data with no motion', () => {
+    const fresh = svgImportToProject(importSvg(balloonSvg)!)
+    expect(isStaleSvgImportProject(fresh)).toBe(false)
+
+    const stale = structuredClone(fresh)
+    stale.layers = stale.layers.map((layer) => {
+      if (layer.shape.type !== 'path' || !layer.matrixKeyframes?.[0]) {
+        return layer
+      }
+
+      const first = layer.matrixKeyframes[0]
+      return {
+        ...layer,
+        matrixKeyframes: Array.from({ length: 13 }, (_, index) => ({
+          ...first,
+          time: index,
+        })),
+      }
+    })
+
+    expect(isStaleSvgImportProject(stale)).toBe(true)
+  })
 })

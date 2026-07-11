@@ -10,6 +10,8 @@ import { Toolbar } from '@/components/shell/Toolbar'
 import { UiZoomGuard } from '@/components/shell/UiZoomGuard'
 import { Timeline } from '@/components/timeline/Timeline'
 import { useEditorStore } from '@/editor/store'
+import { consumeStaleImportClearNotice } from '@/io/project'
+import { showToast } from '@/lib/toast'
 
 function PlaybackLoop() {
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -65,6 +67,19 @@ function PlaybackLoop() {
 
 export function EditorLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+
+  useEffect(() => {
+    if (!consumeStaleImportClearNotice()) {
+      return
+    }
+
+    showToast({
+      title: 'Previous SVG import was outdated',
+      description:
+        'Cached animation data was cleared. Open your SVG again as a new project to restore motion.',
+      variant: 'default',
+    })
+  }, [])
 
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">
