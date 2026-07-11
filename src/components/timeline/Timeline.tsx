@@ -18,7 +18,6 @@ import {
   collectKeyframeTimes,
   formatTimelineTime,
   getTimelineContentWidth,
-  getTimelineFrameDigitCount,
   getTimelineTimeLabelWidthCh,
   snapTimelineTime,
   timeFromClientX,
@@ -117,11 +116,32 @@ function TimelineClock({
   loopIn: number
   loopOut: number
 }) {
-  const currentTime = useEditorStore((state) => state.currentTime)
-  const frameDigits = getTimelineFrameDigitCount(duration, fps)
+  const currentTimeRef = useRef<HTMLSpanElement>(null)
   const timeLabelWidthCh = getTimelineTimeLabelWidthCh(duration, fps)
 
-  const timeLabel = (seconds: number, emphasize = false) => (
+  const renderTimeText = (seconds: number) => {
+    return `${seconds.toFixed(2)}s · f${Math.round(seconds * fps)}`
+  }
+
+  useEffect(() => {
+    const updateCurrentTime = (currentTime: number) => {
+      if (currentTimeRef.current) {
+        currentTimeRef.current.textContent = renderTimeText(currentTime)
+      }
+    }
+
+    updateCurrentTime(useEditorStore.getState().currentTime)
+
+    return useEditorStore.subscribe((state, previousState) => {
+      if (state.currentTime === previousState.currentTime) {
+        return
+      }
+
+      updateCurrentTime(state.currentTime)
+    })
+  }, [fps])
+
+  const timeLabel = (seconds: number, emphasize = false, current = false) => (
     <span
       className={cn(
         'inline-flex items-baseline justify-end gap-1 tabular-nums',
@@ -129,15 +149,13 @@ function TimelineClock({
       )}
       style={emphasize ? { minWidth: `${timeLabelWidthCh}ch` } : undefined}
     >
-      <span>{seconds.toFixed(2)}s</span>
-      <span className="text-muted-foreground/50">·</span>
-      <span style={{ minWidth: `${frameDigits + 1}ch` }}>f{Math.round(seconds * fps)}</span>
+      <span ref={current ? currentTimeRef : undefined}>{renderTimeText(seconds)}</span>
     </span>
   )
 
   return (
     <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
-      {timeLabel(currentTime, true)}
+      {timeLabel(useEditorStore.getState().currentTime, true, true)}
       <span className="text-muted-foreground/40" aria-hidden>
         /
       </span>
@@ -147,11 +165,15 @@ function TimelineClock({
       </span>
       <span className="text-muted-foreground/70">loop</span>
       <span className="inline-flex items-baseline gap-1">
-        {timeLabel(loopIn)}
+        <span className="inline-flex items-baseline justify-end gap-1 tabular-nums text-muted-foreground">
+          <span>{renderTimeText(loopIn)}</span>
+        </span>
         <span className="text-muted-foreground/40" aria-hidden>
           –
         </span>
-        {timeLabel(loopOut)}
+        <span className="inline-flex items-baseline justify-end gap-1 tabular-nums text-muted-foreground">
+          <span>{renderTimeText(loopOut)}</span>
+        </span>
       </span>
     </span>
   )

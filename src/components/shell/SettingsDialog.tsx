@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 
 import {
   Clapperboard,
+  FlaskConical,
   Monitor,
   Moon,
   PanelLeft,
@@ -128,6 +129,8 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const toggleLoop = useEditorStore((state) => state.toggleLoop)
   const toggleRecordMode = useEditorStore((state) => state.toggleRecordMode)
   const toggleOnionSkinEnabled = useEditorStore((state) => state.toggleOnionSkinEnabled)
+  const experimentalWebGlViewport = useEditorStore((state) => state.experimentalWebGlViewport)
+  const toggleExperimentalWebGlViewport = useEditorStore((state) => state.toggleExperimentalWebGlViewport)
   const [defaultExportFps, setDefaultExportFps] = useState(
     () => loadEditorPreferences().defaultExportFps,
   )
@@ -282,6 +285,25 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   label="Onion skin"
                   onCheckedChange={(next) =>
                     setBooleanPreference(onionSkinEnabled, toggleOnionSkinEnabled, next)
+                  }
+                />
+              </SettingsRow>
+            </SettingsSection>
+
+            <SettingsSection title="Experimental" icon={FlaskConical}>
+              <SettingsRow
+                label="GPU viewport (Fast preview)"
+                description="Use WebGL pan/zoom during Fast preview playback on large scenes for smoother trackpad zoom."
+              >
+                <SettingsSwitch
+                  checked={experimentalWebGlViewport}
+                  label="GPU viewport (Fast preview)"
+                  onCheckedChange={(next) =>
+                    setBooleanPreference(
+                      experimentalWebGlViewport,
+                      toggleExperimentalWebGlViewport,
+                      next,
+                    )
                   }
                 />
               </SettingsRow>

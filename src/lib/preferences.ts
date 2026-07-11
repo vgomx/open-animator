@@ -17,6 +17,7 @@ export type EditorPreferences = {
   recordMode: boolean
   onionSkinEnabled: boolean
   defaultExportFps: number
+  experimentalWebGlViewport: boolean
 }
 
 export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
@@ -30,6 +31,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
   recordMode: true,
   onionSkinEnabled: false,
   defaultExportFps: 30,
+  experimentalWebGlViewport: false,
 }
 
 export function loadEditorPreferences(): EditorPreferences {

@@ -60,9 +60,10 @@ export function CanvasPlaybackRenderer({
 
 type FastPreviewBadgeProps = {
   active: boolean
+  gpu?: boolean
 }
 
-export function FastPreviewBadge({ active }: FastPreviewBadgeProps) {
+export function FastPreviewBadge({ active, gpu = false }: FastPreviewBadgeProps) {
   if (!active) {
     return null
   }
@@ -72,7 +73,7 @@ export function FastPreviewBadge({ active }: FastPreviewBadgeProps) {
       className="pointer-events-none absolute right-2 top-2 rounded-md bg-background/80 px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground shadow-sm ring-1 ring-border/50"
       aria-hidden
     >
-      Fast preview
+      {gpu ? 'Fast preview · GPU' : 'Fast preview'}
     </div>
   )
 }

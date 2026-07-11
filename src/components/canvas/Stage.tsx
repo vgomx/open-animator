@@ -1,11 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AnimatedMaskDefs } from '@/components/canvas/AnimatedMaskDefs'
-import {
-  CanvasPlaybackRenderer,
-  FastPreviewBadge,
-} from '@/components/canvas/CanvasPlaybackRenderer'
-import { PlaybackTransformDriver } from '@/components/canvas/PlaybackTransformDriver'
+import { FastPreviewBadge } from '@/components/canvas/CanvasPlaybackRenderer'
+import { UnifiedPlaybackDriver } from '@/components/canvas/UnifiedPlaybackDriver'
+import { WebGlViewportOverlay, type WebGlViewportOverlayHandle } from '@/components/canvas/WebGlViewportOverlay'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
@@ -24,9 +22,11 @@ import { sampleColorFromArtboard } from '@/editor/eyedropper'
 import { getCanvasChromeInsets, getViewportPoint } from '@/editor/viewport-chrome'
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
 import { shouldUseCanvasPlayback } from '@/editor/canvas-playback'
+import { createViewportController, type ViewportController } from '@/editor/viewport-controller'
 import { getArtboardLayers, getProjectFps } from '@/editor/artboard-utils'
 import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
+import { isWebGl2Available } from '@/lib/webgl-viewport'
 import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
 import type { Shape } from '@/editor/types'
@@ -43,8 +43,23 @@ export function Stage() {
   const containerRef = useRef<HTMLDivElement>(null)
   const canvasAreaRef = useRef<HTMLDivElement>(null)
   const canvasViewportRef = useRef<HTMLDivElement>(null)
+  const transformRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
   const playbackCanvasRef = useRef<HTMLCanvasElement>(null)
+  const webGlOverlayRef = useRef<WebGlViewportOverlayHandle>(null)
+  const viewportControllerRef = useRef<ViewportController | null>(null)
+  if (!viewportControllerRef.current) {
+    viewportControllerRef.current = createViewportController({
+      getStoreState: () => {
+        const { zoom, panX, panY } = useEditorStore.getState()
+        return { zoom, panX, panY }
+      },
+      setStoreState: (state) => {
+        useEditorStore.getState().setViewport(state)
+      },
+    })
+  }
+  const viewportController = viewportControllerRef.current
   const [spacePressed, setSpacePressed] = useState(false)
   const [marquee, setMarquee] = useState<{
     startX: number
@@ -83,14 +98,16 @@ export function Stage() {
     () => getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? ''),
     [activeArtboardId, project],
   )
-  const storeCurrentTime = useEditorStore((state) => state.currentTime)
+  const storeCurrentTime = useEditorStore((state) =>
+    state.playbackState !== 'playing' ? state.currentTime : null,
+  )
   const playbackState = useEditorStore((state) => state.playbackState)
   const canvasPlaybackActive = shouldUseCanvasPlayback(visibleLayers.length, playbackState)
-  const displayTimeRef = useRef(storeCurrentTime)
-  if (playbackState !== 'playing') {
+  const displayTimeRef = useRef(useEditorStore.getState().currentTime)
+  if (storeCurrentTime !== null) {
     displayTimeRef.current = storeCurrentTime
   }
-  const displayTime = playbackState === 'playing' ? displayTimeRef.current : storeCurrentTime
+  const displayTime = displayTimeRef.current
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
   const selectedLayerIdSet = useMemo(() => new Set(selectedLayerIds), [selectedLayerIds])
@@ -105,13 +122,16 @@ export function Stage() {
   const selectLayers = useEditorStore((state) => state.selectLayers)
   const clearSelection = useEditorStore((state) => state.clearSelection)
   const getAnimatedShape = useEditorStore((state) => state.getAnimatedShape)
-  const zoom = useEditorStore((state) => state.zoom)
-  const panX = useEditorStore((state) => state.panX)
-  const panY = useEditorStore((state) => state.panY)
-  const setPan = useEditorStore((state) => state.setPan)
-  const panBy = useEditorStore((state) => state.panBy)
-  const zoomAtPoint = useEditorStore((state) => state.zoomAtPoint)
+  const experimentalWebGlViewport = useEditorStore((state) => state.experimentalWebGlViewport)
   const setActiveTool = useEditorStore((state) => state.setActiveTool)
+  const webGlViewportActive =
+    canvasPlaybackActive && experimentalWebGlViewport && isWebGl2Available()
+
+  const handlePlaybackFrame = useCallback(() => {
+    if (webGlViewportActive) {
+      webGlOverlayRef.current?.drawFrame()
+    }
+  }, [webGlViewportActive])
   const addPenDraftPoint = useEditorStore((state) => state.addPenDraftPoint)
   const finishPenPath = useEditorStore((state) => state.finishPenPath)
   const cancelPenDraft = useEditorStore((state) => state.cancelPenDraft)
@@ -262,14 +282,43 @@ export function Stage() {
   }, [activeTool, cancelPenDraft, clearSelection, finishPenPath, penDraft, setEditingTextLayerId])
 
   useEffect(() => {
+    viewportController.bindTransformElement(webGlViewportActive ? null : transformRef.current)
+    if (webGlViewportActive && transformRef.current) {
+      transformRef.current.style.transform = 'none'
+    } else {
+      viewportController.syncFromStore()
+    }
+  }, [viewportController, webGlViewportActive])
+
+  useEffect(() => {
+    return useEditorStore.subscribe((state, previousState) => {
+      if (
+        state.zoom === previousState.zoom &&
+        state.panX === previousState.panX &&
+        state.panY === previousState.panY
+      ) {
+        return
+      }
+
+      viewportController.syncFromStore()
+    })
+  }, [viewportController])
+
+  useEffect(() => {
     const onPointerMove = (event: PointerEvent) => {
       const drag = panDragRef.current
       if (drag) {
-        setPan(drag.originX + (event.clientX - drag.startX), drag.originY + (event.clientY - drag.startY))
+        viewportController.setPan(
+          drag.originX + (event.clientX - drag.startX),
+          drag.originY + (event.clientY - drag.startY),
+        )
       }
     }
 
     const onPointerUp = () => {
+      if (panDragRef.current) {
+        viewportController.flushNow()
+      }
       panDragRef.current = null
     }
 
@@ -279,7 +328,7 @@ export function Stage() {
       window.removeEventListener('pointermove', onPointerMove)
       window.removeEventListener('pointerup', onPointerUp)
     }
-  }, [setPan])
+  }, [viewportController])
 
   useEffect(() => {
     const container = containerRef.current
@@ -299,7 +348,7 @@ export function Stage() {
         }
 
         const point = getViewportPoint(viewport, event.clientX, event.clientY)
-        zoomAtPoint(
+        viewportController.zoomAtPoint(
           wheelZoomFactor(event.deltaY, event.deltaMode),
           point.x,
           point.y,
@@ -309,14 +358,14 @@ export function Stage() {
         return
       }
 
-      panBy(event.deltaX, event.deltaY)
+      viewportController.panBy(event.deltaX, event.deltaY)
     }
 
     container.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       container.removeEventListener('wheel', onWheel)
     }
-  }, [panBy, zoomAtPoint])
+  }, [viewportController])
 
   const finishMarquee = () => {
     const current = marqueeRef.current
@@ -378,6 +427,7 @@ export function Stage() {
 
   const beginPan = (event: React.PointerEvent) => {
     event.preventDefault()
+    const { panX, panY } = viewportController.getLiveState()
     panDragRef.current = {
       startX: event.clientX,
       startY: event.clientY,
@@ -424,7 +474,7 @@ export function Stage() {
       }
 
       const point = getViewportPoint(viewport, event.clientX, event.clientY)
-      zoomAtPoint(
+      viewportController.zoomAtPoint(
         event.altKey ? 0.8 : 1.25,
         point.x,
         point.y,
@@ -633,25 +683,35 @@ export function Stage() {
       }}
     >
       <CanvasContextMenu onPrepare={prepareContextMenu}>
+        <UnifiedPlaybackDriver
+          layers={visibleLayers}
+          svgRef={svgRef}
+          canvasRef={playbackCanvasRef}
+          artboardWidth={width}
+          artboardHeight={height}
+          useCanvasOutput={canvasPlaybackActive}
+          onAfterFrame={webGlViewportActive ? handlePlaybackFrame : undefined}
+        />
         <div ref={canvasAreaRef} className="absolute inset-0 overflow-hidden">
           <div className="flex h-full w-full items-center justify-center">
           <div
-            className="relative ring-1 ring-border/40"
-            style={{
-              transform: `translate(${panX}px, ${panY}px) scale(${zoom})`,
-              transformOrigin: 'center center',
-            }}
+            ref={transformRef}
+            className={cn('relative ring-1 ring-border/40', webGlViewportActive && 'invisible')}
           >
             {canvasPlaybackActive ? (
               <canvas
                 ref={playbackCanvasRef}
                 width={width}
                 height={height}
-                className={cn('absolute inset-0 block', artboardUsesGrid && 'artboard-surface')}
+                className={cn(
+                  'absolute inset-0 block',
+                  artboardUsesGrid && 'artboard-surface',
+                  webGlViewportActive && 'invisible',
+                )}
                 aria-hidden
               />
             ) : null}
-            <FastPreviewBadge active={canvasPlaybackActive} />
+            <FastPreviewBadge active={canvasPlaybackActive} gpu={webGlViewportActive} />
             <svg
               ref={svgRef}
               width={width}
@@ -673,17 +733,6 @@ export function Stage() {
               }}
             >
               <AnimatedMaskDefs layers={visibleLayers} />
-              {canvasPlaybackActive ? (
-                <CanvasPlaybackRenderer
-                  layers={visibleLayers}
-                  svgRef={svgRef}
-                  canvasRef={playbackCanvasRef}
-                  width={width}
-                  height={height}
-                />
-              ) : (
-                <PlaybackTransformDriver layers={visibleLayers} svgRef={svgRef} />
-              )}
               <defs>
                 <clipPath id="artboard-clip">
                   <rect width={width} height={height} />
@@ -761,6 +810,16 @@ export function Stage() {
             {!editingTextLayerId ? null : <TextEditOverlay />}
           </div>
           </div>
+          <WebGlViewportOverlay
+            ref={webGlOverlayRef}
+            active={webGlViewportActive}
+            artboardWidth={width}
+            artboardHeight={height}
+            sourceCanvasRef={playbackCanvasRef}
+            viewportController={viewportController}
+            containerRef={canvasAreaRef}
+            playbackDriven={webGlViewportActive}
+          />
         </div>
       </CanvasContextMenu>
 

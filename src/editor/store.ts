@@ -113,6 +113,7 @@ type EditorStore = {
   layersPanelWidth: number
   propertiesPanelWidth: number
   onionSkinEnabled: boolean
+  experimentalWebGlViewport: boolean
   onionSkinSettings: OnionSkinSettings
   activeSnapLines: SnapLine[]
   guideDraft: Pick<Guide, 'axis' | 'position'> | null
@@ -169,6 +170,7 @@ type EditorStore = {
   toggleRecordMode: () => void
   setZoom: (zoom: number) => void
   setPan: (panX: number, panY: number) => void
+  setViewport: (viewport: { zoom: number; panX: number; panY: number }) => void
   panBy: (deltaX: number, deltaY: number) => void
   zoomAtPoint: (
     factor: number,
@@ -214,6 +216,7 @@ type EditorStore = {
   toggleLayersPanel: () => void
   togglePropertiesPanel: () => void
   toggleOnionSkinEnabled: () => void
+  toggleExperimentalWebGlViewport: () => void
   setOnionSkinSettings: (patch: Partial<OnionSkinSettings>) => void
   setActiveSnapLines: (lines: SnapLine[]) => void
   setGuideDraft: (draft: Pick<Guide, 'axis' | 'position'> | null) => void
@@ -458,6 +461,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   layersPanelWidth: initialPreferences.layersPanelWidth,
   propertiesPanelWidth: initialPreferences.propertiesPanelWidth,
   onionSkinEnabled: initialPreferences.onionSkinEnabled,
+  experimentalWebGlViewport: initialPreferences.experimentalWebGlViewport,
   onionSkinSettings: { ...DEFAULT_ONION_SKIN_SETTINGS },
   activeSnapLines: [],
   guideDraft: null,
@@ -1197,6 +1201,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setPan: (panX, panY) => set({ panX, panY }),
 
+  setViewport: ({ zoom, panX, panY }) => set({ zoom: clampZoom(zoom), panX, panY }),
+
   panBy: (deltaX, deltaY) =>
     set((state) => ({
       panX: state.panX - deltaX,
@@ -1510,6 +1516,13 @@ export const useEditorStore = create<EditorStore>((set) => ({
       const onionSkinEnabled = !state.onionSkinEnabled
       saveEditorPreferences({ onionSkinEnabled })
       return { onionSkinEnabled }
+    }),
+
+  toggleExperimentalWebGlViewport: () =>
+    set((state) => {
+      const experimentalWebGlViewport = !state.experimentalWebGlViewport
+      saveEditorPreferences({ experimentalWebGlViewport })
+      return { experimentalWebGlViewport }
     }),
 
   setOnionSkinSettings: (patch) =>
