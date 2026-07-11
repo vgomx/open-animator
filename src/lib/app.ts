@@ -11,6 +11,13 @@ export const APP_AUTHOR_URL = 'https://vitorgomes.design'
 
 export const APP_LICENSE = 'MIT'
 
+export const APP_SITE_URL = 'https://vgomx.github.io/open-animator/'
+
+export const APP_DESCRIPTION =
+  'Browser-based SVG animator for authoring simple shape animations with keyframes.'
+
+export const APP_OG_IMAGE_URL = `${APP_SITE_URL}og-image.png`
+
 export const APP_GITHUB_URL = 'https://github.com/vgomx/open-animator'
 
 export const STORAGE_KEYS = {

@@ -27,7 +27,8 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 | Command | Description |
 |---------|-------------|
 | `npm run dev` | Start dev server |
-| `npm run build` | Typecheck and production build |
+| `npm run build` | Typecheck, generate brand assets, and production build |
+| `npm run generate:brand-assets` | Regenerate favicons and Open Graph image from SVG sources |
 | `npm run preview` | Preview production build |
 | `npm run test` | Run unit tests |
 | `npm run lint` | Run oxlint |
