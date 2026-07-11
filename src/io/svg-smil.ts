@@ -141,6 +141,233 @@ function sampleRotateAnimateTransform(element: Element, progress: number): Affin
   return IDENTITY_MATRIX
 }
 
+function parseMotionPath(raw: string): Array<{ x: number; y: number }> {
+  const trimmed = raw.trim()
+  if (!trimmed || /^url\(/i.test(trimmed)) {
+    return []
+  }
+
+  const points: Array<{ x: number; y: number }> = []
+  const tokens = trimmed.match(/[a-zA-Z]|-?\d*\.?\d+(?:e[-+]?\d+)?/g) ?? []
+  let index = 0
+  let currentX = 0
+  let currentY = 0
+  let command = ''
+  let pendingLine = false
+
+  const readNumber = () => {
+    const value = Number.parseFloat(tokens[index] ?? '0')
+    index += 1
+    return Number.isFinite(value) ? value : 0
+  }
+
+  const pushPoint = (x: number, y: number) => {
+    currentX = x
+    currentY = y
+    points.push({ x, y })
+  }
+
+  while (index < tokens.length) {
+    const token = tokens[index]!
+    if (/^[a-zA-Z]$/.test(token)) {
+      command = token
+      index += 1
+      pendingLine = false
+    } else if (command === '' || pendingLine) {
+      command = pendingLine ? command : 'L'
+    }
+
+    const relative = command === command.toLowerCase() && command !== 'Z' && command !== 'z'
+    const upper = command.toUpperCase()
+    pendingLine = upper === 'M'
+
+    if (upper === 'M' || upper === 'L') {
+      const x = readNumber()
+      const y = readNumber()
+      pushPoint(relative ? currentX + x : x, relative ? currentY + y : y)
+      continue
+    }
+
+    if (upper === 'H') {
+      const x = readNumber()
+      pushPoint(relative ? currentX + x : x, currentY)
+      continue
+    }
+
+    if (upper === 'V') {
+      const y = readNumber()
+      pushPoint(currentX, relative ? currentY + y : y)
+      continue
+    }
+
+    if (upper === 'Q') {
+      readNumber()
+      readNumber()
+      const x = readNumber()
+      const y = readNumber()
+      pushPoint(relative ? currentX + x : x, relative ? currentY + y : y)
+      continue
+    }
+
+    if (upper === 'C') {
+      readNumber()
+      readNumber()
+      readNumber()
+      readNumber()
+      const x = readNumber()
+      const y = readNumber()
+      pushPoint(relative ? currentX + x : x, relative ? currentY + y : y)
+      continue
+    }
+
+    if (upper === 'Z') {
+      if (points.length > 0) {
+        points.push({ ...points[0]! })
+      }
+      continue
+    }
+
+    index += 1
+  }
+
+  return points
+}
+
+function samplePointOnPath(points: Array<{ x: number; y: number }>, progress: number): { x: number; y: number } {
+  if (points.length === 0) {
+    return { x: 0, y: 0 }
+  }
+
+  if (points.length === 1) {
+    return points[0]!
+  }
+
+  const segments: Array<{ from: { x: number; y: number }; to: { x: number; y: number }; length: number }> = []
+  let totalLength = 0
+
+  for (let index = 1; index < points.length; index += 1) {
+    const from = points[index - 1]!
+    const to = points[index]!
+    const length = Math.hypot(to.x - from.x, to.y - from.y)
+    segments.push({ from, to, length })
+    totalLength += length
+  }
+
+  if (totalLength <= 0) {
+    return points[0]!
+  }
+
+  const target = Math.max(0, Math.min(1, progress)) * totalLength
+  let walked = 0
+
+  for (const segment of segments) {
+    if (walked + segment.length >= target) {
+      const local = segment.length === 0 ? 0 : (target - walked) / segment.length
+      return lerpPair(segment.from, segment.to, local)
+    }
+    walked += segment.length
+  }
+
+  return points[points.length - 1]!
+}
+
+function resolveFragmentRef(raw: string | null | undefined): string | null {
+  if (!raw) {
+    return null
+  }
+
+  const trimmed = raw.trim()
+  if (trimmed.startsWith('#')) {
+    return trimmed.slice(1)
+  }
+
+  const match = trimmed.match(/^url\(\s*['"]?#([^'")]+)['"]?\s*\)$/i)
+  return match ? match[1]! : null
+}
+
+function pathDataFromReferencedElement(element: Element | null): string | null {
+  if (!element) {
+    return null
+  }
+
+  const tag = element.tagName.toLowerCase()
+  if (tag === 'path') {
+    return element.getAttribute('d')
+  }
+
+  const nestedPath = element.querySelector('path')
+  return nestedPath?.getAttribute('d') ?? null
+}
+
+function resolveMotionPath(element: Element): Array<{ x: number; y: number }> {
+  const pathAttr = element.getAttribute('path')
+  if (pathAttr && !/^url\(/i.test(pathAttr.trim())) {
+    return parseMotionPath(pathAttr)
+  }
+
+  const directRef = resolveFragmentRef(
+    element.getAttribute('href') ?? element.getAttribute('xlink:href'),
+  )
+  if (directRef) {
+    const pathData = pathDataFromReferencedElement(element.ownerDocument?.getElementById(directRef) ?? null)
+    if (pathData) {
+      return parseMotionPath(pathData)
+    }
+  }
+
+  for (const child of [...element.children]) {
+    if (child.tagName.toLowerCase() !== 'mpath') {
+      continue
+    }
+
+    const mpathRef = resolveFragmentRef(child.getAttribute('href') ?? child.getAttribute('xlink:href'))
+    if (!mpathRef) {
+      continue
+    }
+
+    const pathData = pathDataFromReferencedElement(element.ownerDocument?.getElementById(mpathRef) ?? null)
+    if (pathData) {
+      return parseMotionPath(pathData)
+    }
+  }
+
+  return []
+}
+
+let matrixTimeCache: WeakMap<Element, Map<number, AffineMatrix>> | null = null
+
+export function beginMatrixTimeCache(): void {
+  matrixTimeCache = new WeakMap()
+}
+
+export function endMatrixTimeCache(): void {
+  matrixTimeCache = null
+}
+
+function sampleAnimateMotion(element: Element, time: number): AffineMatrix {
+  const duration = parseDurationMs(element.getAttribute('dur'))
+  if (duration <= 0) {
+    return IDENTITY_MATRIX
+  }
+
+  const clampedTime = Math.min(Math.max(time, 0), duration)
+  const progress = duration === 0 ? 0 : clampedTime / duration
+  const points = resolveMotionPath(element)
+  if (points.length === 0) {
+    return IDENTITY_MATRIX
+  }
+
+  const start = points[0]!
+  const point = samplePointOnPath(points, progress)
+  const additive = (element.getAttribute('additive') ?? '').toLowerCase() === 'sum'
+
+  if (additive) {
+    return translateMatrix(point.x - start.x, point.y - start.y)
+  }
+
+  return translateMatrix(point.x, point.y)
+}
+
 function sampleAnimateTransform(element: Element, time: number): AffineMatrix {
   const tag = element.tagName.toLowerCase()
   const duration = parseDurationMs(element.getAttribute('dur'))
@@ -222,7 +449,7 @@ function sampleAnimateTransform(element: Element, time: number): AffineMatrix {
 function hasSmilChildren(element: Element): boolean {
   return [...element.children].some((child) => {
     const tag = child.tagName.toLowerCase()
-    return tag === 'animatetransform' || tag === 'animate'
+    return tag === 'animatetransform' || tag === 'animate' || tag === 'animatemotion'
   })
 }
 
@@ -263,6 +490,11 @@ export function evaluateSmilTransforms(element: Element, time: number): AffineMa
     const tag = child.tagName.toLowerCase()
     if (tag === 'animatetransform' || tag === 'animate') {
       matrix = multiplyMatrix(matrix, sampleAnimateTransform(child, time))
+      continue
+    }
+
+    if (tag === 'animatemotion') {
+      matrix = multiplyMatrix(matrix, sampleAnimateMotion(child, time))
     }
   }
 
@@ -270,6 +502,28 @@ export function evaluateSmilTransforms(element: Element, time: number): AffineMa
 }
 
 export function effectiveMatrixAtTime(node: Element, time: number): AffineMatrix {
+  const cache = matrixTimeCache
+  if (cache) {
+    let times = cache.get(node)
+    if (!times) {
+      times = new Map()
+      cache.set(node, times)
+    }
+
+    const cached = times.get(time)
+    if (cached) {
+      return cached
+    }
+
+    const computed = computeEffectiveMatrixAtTime(node, time)
+    times.set(time, computed)
+    return computed
+  }
+
+  return computeEffectiveMatrixAtTime(node, time)
+}
+
+function computeEffectiveMatrixAtTime(node: Element, time: number): AffineMatrix {
   const chain: Element[] = []
   let current: Element | null = node
 
@@ -315,7 +569,7 @@ function collectSampleTimes(node: Element): number[] {
   while (current && current.tagName.toLowerCase() !== 'svg') {
     for (const child of [...current.children]) {
       const tag = child.tagName.toLowerCase()
-      if (tag !== 'animatetransform' && tag !== 'animate') {
+      if (tag !== 'animatetransform' && tag !== 'animate' && tag !== 'animatemotion') {
         continue
       }
 

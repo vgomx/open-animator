@@ -5,6 +5,8 @@ import {
   getFrameStep,
   getRulerTicks,
   getTimelineContentWidth,
+  getTimelineFrameDigitCount,
+  getTimelineTimeLabelWidthCh,
   snapTimelineTime,
   timeFromClientX,
   timeToPercent,
@@ -85,5 +87,12 @@ describe('timeline-utils', () => {
         scrollLeft: 0,
       }),
     ).toBe(0)
+  })
+
+  it('computes stable timeline clock widths from duration', () => {
+    expect(getTimelineFrameDigitCount(8, 30)).toBe(3)
+    expect(getTimelineTimeLabelWidthCh(8, 30)).toBeGreaterThanOrEqual(
+      '8.00s · f240'.length - 1,
+    )
   })
 })

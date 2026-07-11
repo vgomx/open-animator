@@ -5,6 +5,8 @@ import { migrateProject } from '@/io/migrate'
 import { openFilePicker } from '@/io/file-picker'
 import { STORAGE_KEYS } from '@/lib/app'
 
+export const LARGE_PROJECT_PERSIST_LAYER_THRESHOLD = 100
+
 const STALE_IMPORT_NOTICE_KEY = `${STORAGE_KEYS.project}:stale-cleared`
 
 /**
@@ -82,6 +84,10 @@ export function isStaleSvgImportProject(project: Project): boolean {
   }
 
   return false
+}
+
+export function shouldPersistProject(project: Project): boolean {
+  return project.layers.length < LARGE_PROJECT_PERSIST_LAYER_THRESHOLD
 }
 
 export function serializeProject(project: Project): string {
@@ -165,6 +171,12 @@ export function loadProjectFromStorage(): Project | null {
 }
 
 export function saveProjectToStorage(project: Project): void {
+  if (!shouldPersistProject(project)) {
+    localStorage.removeItem(STORAGE_KEYS.project)
+    localStorage.removeItem(STORAGE_KEYS.legacyProject)
+    return
+  }
+
   localStorage.setItem(STORAGE_KEYS.project, serializeProject(project))
 }
 

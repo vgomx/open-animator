@@ -16,60 +16,6 @@ import { showToast } from '@/lib/toast'
 
 const LARGE_PROJECT_NOTICE_KEY = `${STORAGE_KEYS.project}:large-notice`
 
-function PlaybackLoop() {
-  const playbackState = useEditorStore((state) => state.playbackState)
-  const duration = useEditorStore((state) => state.project.duration)
-  const loopIn = useEditorStore((state) => state.project.loopIn)
-  const loopOut = useEditorStore((state) => state.project.loopOut)
-  const loop = useEditorStore((state) => state.loop)
-
-  useEffect(() => {
-    if (playbackState !== 'playing') {
-      return
-    }
-
-    let frameId = 0
-    let lastTimestamp = performance.now()
-
-    const tick = (timestamp: number) => {
-      const delta = (timestamp - lastTimestamp) / 1000
-      lastTimestamp = timestamp
-
-      const store = useEditorStore.getState()
-      if (store.playbackState !== 'playing') {
-        return
-      }
-
-      const regionEnd = store.project.loopOut ?? duration
-      const regionStart = store.project.loopIn ?? 0
-
-      let nextTime = store.currentTime + delta
-      if (nextTime >= regionEnd) {
-        if (loop) {
-          nextTime = regionStart
-        } else {
-          store.setCurrentTime(regionEnd)
-          store.setPlaybackState('idle')
-          return
-        }
-      }
-
-      if (nextTime !== store.currentTime) {
-        store.setCurrentTime(nextTime)
-      }
-      frameId = window.requestAnimationFrame(tick)
-    }
-
-    frameId = window.requestAnimationFrame(tick)
-
-    return () => {
-      window.cancelAnimationFrame(frameId)
-    }
-  }, [duration, loop, loopIn, loopOut, playbackState])
-
-  return null
-}
-
 export function EditorLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
 
@@ -140,7 +86,6 @@ export function EditorLayout() {
 
   return (
     <div className="flex h-svh overflow-hidden bg-background text-foreground">
-      <PlaybackLoop />
       <UiZoomGuard />
       <KeyboardShortcuts onOpenShortcuts={() => setShortcutsOpen(true)} />
       <ActivityRail onOpenShortcuts={() => setShortcutsOpen(true)} />

@@ -98,11 +98,21 @@ describe('stale svg import cache', () => {
     expect(localStorage.getItem(STORAGE_KEYS.project)).toBeNull()
   })
 
-  it('keeps fresh cached projects on load', () => {
+  it('keeps fresh cached projects on load when under the persistence threshold', () => {
     const fresh = getBalloonProject()
-    saveProjectToStorage(fresh)
+    const smallFresh = {
+      ...fresh,
+      layers: fresh.layers.slice(0, 20),
+    }
+    saveProjectToStorage(smallFresh)
     const loaded = loadProjectFromStorage()
     expect(loaded).not.toBeNull()
     expect(isStaleSvgImportProject(loaded!)).toBe(false)
+  })
+
+  it('does not persist large cached projects', () => {
+    const fresh = getBalloonProject()
+    saveProjectToStorage(fresh)
+    expect(localStorage.getItem(STORAGE_KEYS.project)).toBeNull()
   })
 })

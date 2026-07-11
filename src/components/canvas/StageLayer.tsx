@@ -5,6 +5,9 @@ import { SelectionOverlay } from '@/components/canvas/SelectionOverlay'
 import { ShapeView } from '@/components/canvas/ShapeView'
 import type { EditorTool } from '@/editor/tools'
 import type { Layer, Shape } from '@/editor/types'
+import { useEditorStore } from '@/editor/store'
+import { importedClipPathId } from '@/io/svg-clippaths'
+import { importedFilterId } from '@/io/svg-filters'
 import { importedMaskId } from '@/io/svg-masks'
 
 type StageLayerProps = {
@@ -30,14 +33,33 @@ export const StageLayer = memo(function StageLayer({
   onSelect,
   onEditText,
 }: StageLayerProps) {
+  const importedSvg = useEditorStore((state) => state.project.importedSvg)
+
   const maskId =
     layer.svgMaskId && shape.type === 'path' && shape.transformMatrix
       ? `${layer.svgMaskId}__${layer.id}`
       : layer.svgMaskId
 
+  const clipPathId =
+    layer.svgClipPathId && shape.type === 'path' && shape.transformMatrix
+      ? `${layer.svgClipPathId}__${layer.id}`
+      : layer.svgClipPathId
+
+  const filterId = layer.svgFilterId
+  const importedFilter = filterId ? importedSvg?.filters?.[filterId] : undefined
+
+  const nativeFilter =
+    filterId && importedFilter?.markup
+      ? `url(#${importedFilterId(filterId)})`
+      : undefined
+
+  const cssFilter = !nativeFilter ? importedFilter?.cssFilter : undefined
+
   return (
     <g
       mask={maskId ? `url(#${importedMaskId(maskId)})` : undefined}
+      clipPath={clipPathId ? `url(#${importedClipPathId(clipPathId)})` : undefined}
+      filter={nativeFilter}
       onPointerDown={(event) => {
         if (!allowLayerSelect || isPanning) {
           return
@@ -57,7 +79,10 @@ export const StageLayer = memo(function StageLayer({
         onEditText(layer.id)
       }}
       className={allowLayerSelect ? 'cursor-pointer' : undefined}
-      style={{ pointerEvents: allowLayerSelect ? 'auto' : 'none' }}
+      style={{
+        pointerEvents: allowLayerSelect ? 'auto' : 'none',
+        ...(cssFilter ? { filter: cssFilter } : {}),
+      }}
     >
       <ShapeView shape={shape} playbackLayerId={layer.id} />
       <g data-eyedropper-ignore>

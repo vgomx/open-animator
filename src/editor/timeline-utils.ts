@@ -23,6 +23,17 @@ export function formatTimelineTime(seconds: number, fps = DEFAULT_PROJECT_FPS): 
   return `${seconds.toFixed(2)}s · f${frames}`
 }
 
+export function getTimelineFrameDigitCount(duration: number, fps = DEFAULT_PROJECT_FPS): number {
+  return Math.max(1, String(Math.round(duration * fps)).length)
+}
+
+/** Stable `ch` width for `formatTimelineTime` labels (prevents footer jitter during playback). */
+export function getTimelineTimeLabelWidthCh(maxSeconds: number, fps = DEFAULT_PROJECT_FPS): number {
+  const frameDigits = getTimelineFrameDigitCount(maxSeconds, fps)
+  const timeChars = maxSeconds.toFixed(2).length + 1
+  return timeChars + 4 + frameDigits
+}
+
 export function timeToPercent(time: number, duration: number): number {
   if (duration <= 0) {
     return 0

@@ -18,12 +18,14 @@ import {
   collectKeyframeTimes,
   formatTimelineTime,
   getTimelineContentWidth,
+  getTimelineTimeLabelWidthCh,
   snapTimelineTime,
   timeFromClientX,
   timeToPixel,
 } from '@/editor/timeline-utils'
 import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
+import { cn } from '@/lib/utils'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, ClipboardPaste, Copy, Flag, Minus, Plus, Sparkles } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -114,12 +116,65 @@ function TimelineClock({
   loopIn: number
   loopOut: number
 }) {
-  const currentTime = useEditorStore((state) => state.currentTime)
+  const currentTimeRef = useRef<HTMLSpanElement>(null)
+  const timeLabelWidthCh = getTimelineTimeLabelWidthCh(duration, fps)
+
+  const renderTimeText = (seconds: number) => {
+    return `${seconds.toFixed(2)}s · f${Math.round(seconds * fps)}`
+  }
+
+  useEffect(() => {
+    const updateCurrentTime = (currentTime: number) => {
+      if (currentTimeRef.current) {
+        currentTimeRef.current.textContent = renderTimeText(currentTime)
+      }
+    }
+
+    updateCurrentTime(useEditorStore.getState().currentTime)
+
+    return useEditorStore.subscribe((state, previousState) => {
+      if (state.currentTime === previousState.currentTime) {
+        return
+      }
+
+      updateCurrentTime(state.currentTime)
+    })
+  }, [fps])
+
+  const timeLabel = (seconds: number, emphasize = false, current = false) => (
+    <span
+      className={cn(
+        'inline-flex items-baseline justify-end gap-1 tabular-nums',
+        emphasize ? 'font-medium text-foreground/90' : 'text-muted-foreground',
+      )}
+      style={emphasize ? { minWidth: `${timeLabelWidthCh}ch` } : undefined}
+    >
+      <span ref={current ? currentTimeRef : undefined}>{renderTimeText(seconds)}</span>
+    </span>
+  )
 
   return (
-    <span className="text-xs text-muted-foreground">
-      {formatTimelineTime(currentTime, fps)} / {formatTimelineTime(duration, fps)} · loop{' '}
-      {formatTimelineTime(loopIn, fps)}–{formatTimelineTime(loopOut, fps)}
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
+      {timeLabel(useEditorStore.getState().currentTime, true, true)}
+      <span className="text-muted-foreground/40" aria-hidden>
+        /
+      </span>
+      {timeLabel(duration)}
+      <span className="text-muted-foreground/40" aria-hidden>
+        ·
+      </span>
+      <span className="text-muted-foreground/70">loop</span>
+      <span className="inline-flex items-baseline gap-1">
+        <span className="inline-flex items-baseline justify-end gap-1 tabular-nums text-muted-foreground">
+          <span>{renderTimeText(loopIn)}</span>
+        </span>
+        <span className="text-muted-foreground/40" aria-hidden>
+          –
+        </span>
+        <span className="inline-flex items-baseline justify-end gap-1 tabular-nums text-muted-foreground">
+          <span>{renderTimeText(loopOut)}</span>
+        </span>
+      </span>
     </span>
   )
 }

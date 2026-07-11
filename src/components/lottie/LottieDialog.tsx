@@ -17,38 +17,50 @@ type LottieDialogProps = {
 
 type LottieAnimationItem = {
   destroy: () => void
+  addEventListener: (name: 'data_failed' | 'error', handler: () => void) => void
+  removeEventListener: (name: 'data_failed' | 'error', handler: () => void) => void
 }
 
 export function LottieDialog({ open, onOpenChange, animationData }: LottieDialogProps) {
   const animationRef = useRef<LottieAnimationItem | null>(null)
-  const [containerNode, setContainerNode] = useState<HTMLDivElement | null>(null)
+  const mountRef = useRef<HTMLDivElement | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    if (!open || !animationData || !containerNode) {
+    if (!open || !animationData || !mountRef.current) {
       return
     }
 
+    const mountNode = mountRef.current
     let cancelled = false
     setIsLoading(true)
     setError(null)
-    containerNode.replaceChildren()
+    mountNode.replaceChildren()
+
+    const handleFailure = () => {
+      if (!cancelled) {
+        setError('Lottie could not render this animation.')
+      }
+    }
 
     void import('lottie-web')
       .then((module) => {
-        if (cancelled || !containerNode) {
+        if (cancelled || !mountNode) {
           return
         }
 
         animationRef.current?.destroy()
-        animationRef.current = module.default.loadAnimation({
-          container: containerNode,
+        const animation = module.default.loadAnimation({
+          container: mountNode,
           renderer: 'svg',
           loop: true,
           autoplay: true,
           animationData,
         })
+        animationRef.current = animation as unknown as LottieAnimationItem
+        animation.addEventListener('data_failed', handleFailure)
+        animation.addEventListener('error', handleFailure)
       })
       .catch(() => {
         if (!cancelled) {
@@ -63,15 +75,20 @@ export function LottieDialog({ open, onOpenChange, animationData }: LottieDialog
 
     return () => {
       cancelled = true
-      animationRef.current?.destroy()
+      const animation = animationRef.current
+      if (animation) {
+        animation.removeEventListener('data_failed', handleFailure)
+        animation.removeEventListener('error', handleFailure)
+        animation.destroy()
+      }
       animationRef.current = null
+      mountNode.replaceChildren()
       setIsLoading(false)
     }
-  }, [animationData, containerNode, open])
+  }, [animationData, open])
 
   useEffect(() => {
     if (!open) {
-      setContainerNode(null)
       setError(null)
       setIsLoading(false)
     }
@@ -88,18 +105,22 @@ export function LottieDialog({ open, onOpenChange, animationData }: LottieDialog
         </DialogHeader>
 
         <DialogBody className="px-6 py-5">
-          <div
-            ref={setContainerNode}
-            className="flex min-h-64 items-center justify-center rounded-lg border border-border bg-muted/20 p-4"
-          >
+          <div className="relative min-h-64 rounded-lg border border-border bg-muted/20 p-4">
+            <div ref={mountRef} className="flex min-h-56 w-full items-center justify-center" />
             {isLoading ? (
-              <p className="text-sm text-muted-foreground">Loading Lottie player…</p>
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                Loading Lottie player…
+              </p>
             ) : null}
             {!isLoading && error ? (
-              <p className="text-sm text-destructive">{error}</p>
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center px-4 text-center text-sm text-destructive">
+                {error}
+              </p>
             ) : null}
             {!isLoading && !error && !animationData ? (
-              <p className="text-sm text-muted-foreground">No animation data to preview.</p>
+              <p className="pointer-events-none absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                No animation data to preview.
+              </p>
             ) : null}
           </div>
         </DialogBody>
