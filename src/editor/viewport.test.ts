@@ -38,4 +38,10 @@ describe('viewport', () => {
     expect(wheelZoomFactor(100)).toBeLessThan(1)
     expect(wheelZoomFactor(-100)).toBeGreaterThan(1)
   })
+
+  it('normalizes line and page wheel deltas to pixel scale', () => {
+    expect(wheelZoomFactor(10)).toBeCloseTo(Math.exp(-0.1), 5)
+    expect(wheelZoomFactor(1, 1)).toBeCloseTo(Math.exp(-0.16), 5)
+    expect(wheelZoomFactor(1, 2)).toBeCloseTo(Math.exp(-1.2), 5)
+  })
 })

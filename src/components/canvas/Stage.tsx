@@ -274,59 +274,25 @@ export function Stage() {
       return
     }
 
-    let zoomFrame: number | null = null
-    let pendingZoom: {
-      deltaY: number
-      deltaMode: number
-      clientX: number
-      clientY: number
-    } | null = null
-
-    const applyPendingZoom = () => {
-      zoomFrame = null
-      const pending = pendingZoom
-      pendingZoom = null
-      if (!pending) {
-        return
-      }
-
-      const viewport = canvasViewportRef.current
-      if (!viewport) {
-        return
-      }
-
-      const point = getViewportPoint(viewport, pending.clientX, pending.clientY)
-      zoomAtPoint(
-        wheelZoomFactor(pending.deltaY, pending.deltaMode),
-        point.x,
-        point.y,
-        point.width,
-        point.height,
-      )
-    }
-
     const onWheel = (event: WheelEvent) => {
       event.preventDefault()
 
       const shouldZoom = event.ctrlKey || event.altKey
 
       if (shouldZoom) {
-        if (pendingZoom) {
-          pendingZoom.deltaY += event.deltaY
-          pendingZoom.clientX = event.clientX
-          pendingZoom.clientY = event.clientY
-        } else {
-          pendingZoom = {
-            deltaY: event.deltaY,
-            deltaMode: event.deltaMode,
-            clientX: event.clientX,
-            clientY: event.clientY,
-          }
+        const viewport = canvasViewportRef.current
+        if (!viewport) {
+          return
         }
 
-        if (zoomFrame === null) {
-          zoomFrame = requestAnimationFrame(applyPendingZoom)
-        }
+        const point = getViewportPoint(viewport, event.clientX, event.clientY)
+        zoomAtPoint(
+          wheelZoomFactor(event.deltaY, event.deltaMode),
+          point.x,
+          point.y,
+          point.width,
+          point.height,
+        )
         return
       }
 
@@ -336,9 +302,6 @@ export function Stage() {
     container.addEventListener('wheel', onWheel, { passive: false })
     return () => {
       container.removeEventListener('wheel', onWheel)
-      if (zoomFrame !== null) {
-        cancelAnimationFrame(zoomFrame)
-      }
     }
   }, [panBy, zoomAtPoint])
 

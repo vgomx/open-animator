@@ -68,15 +68,35 @@ function TimelinePlayhead({
   contentWidth: number
   headerBandHeight: number
 }) {
-  const currentTime = useEditorStore((state) => state.currentTime)
+  const playheadRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const updatePlayhead = (currentTime: number) => {
+      if (!playheadRef.current) {
+        return
+      }
+
+      playheadRef.current.style.left = `${timeToPixel(currentTime, duration, contentWidth)}px`
+    }
+
+    updatePlayhead(useEditorStore.getState().currentTime)
+
+    return useEditorStore.subscribe((state, previousState) => {
+      if (state.currentTime === previousState.currentTime) {
+        return
+      }
+
+      updatePlayhead(state.currentTime)
+    })
+  }, [contentWidth, duration])
 
   return (
     <div
+      ref={playheadRef}
       className="pointer-events-none absolute z-10 w-px bg-primary"
       style={{
         top: 32 + headerBandHeight,
         bottom: 0,
-        left: timeToPixel(currentTime, duration, contentWidth),
       }}
     />
   )

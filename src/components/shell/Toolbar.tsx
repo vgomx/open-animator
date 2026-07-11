@@ -6,6 +6,7 @@ import {
   Download,
   Expand,
   FileUp,
+  FilePlus,
   FolderOpen,
   Magnet,
   PanelLeft,
@@ -39,6 +40,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { ToolbarDivider } from '@/components/ui/toolbar-divider'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { createDefaultProject } from '@/editor/scene'
 import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
 import { downloadProject, openProjectFile } from '@/io/project'
@@ -127,6 +129,16 @@ export function Toolbar() {
     }
 
     fitToScreen(rect.width, rect.height)
+  }
+
+  const startNewProject = () => {
+    setProject(createDefaultProject(), { clearLayerSelection: true })
+    requestAnimationFrame(fitCanvasToScreen)
+    showToast({
+      title: 'New project',
+      description: 'Canvas cleared.',
+      variant: 'success',
+    })
   }
 
   const openImportedSvgProject = (imported: SvgImportResult) => {
@@ -618,6 +630,14 @@ export function Toolbar() {
             <TooltipContent>{showRulers ? 'Hide rulers' : 'Show rulers'}</TooltipContent>
           </Tooltip>
           <ToolbarDivider />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="ghost" size="icon-sm" onClick={startNewProject}>
+                <FilePlus />
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>New project</TooltipContent>
+          </Tooltip>
           <Tooltip>
             <TooltipTrigger asChild>
               <Button variant="ghost" size="icon-sm" onClick={() => downloadProject(project)}>

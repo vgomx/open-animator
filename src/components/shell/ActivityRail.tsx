@@ -105,7 +105,13 @@ export function ActivityRail({ onOpenShortcuts }: ActivityRailProps) {
       <TemplatesDialog
         open={templatesOpen}
         onOpenChange={setTemplatesOpen}
-        onSelectTemplate={setProject}
+        onSelectTemplate={(project) => {
+          const viewport = document.querySelector('[data-stage-viewport]')?.getBoundingClientRect()
+          setProject(project, {
+            fitViewport: viewport ?? undefined,
+            clearLayerSelection: true,
+          })
+        }}
       />
     </>
   )

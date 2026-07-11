@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 
 import {
   formatTimelineTime,
@@ -17,6 +17,60 @@ type TimelineRulerProps = {
   onPointerDown: (event: React.PointerEvent<HTMLDivElement>) => void
 }
 
+function TimelineRulerPlayhead({
+  duration,
+  contentWidth,
+  fps,
+}: {
+  duration: number
+  contentWidth: number
+  fps: number
+}) {
+  const lineRef = useRef<HTMLDivElement>(null)
+  const badgeRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const sync = (currentTime: number) => {
+      const left = timeToPixel(currentTime, duration, contentWidth)
+      if (lineRef.current) {
+        lineRef.current.style.left = `${left}px`
+      }
+      if (badgeRef.current) {
+        badgeRef.current.style.left = `${left}px`
+        badgeRef.current.textContent = formatTimelineTime(currentTime, fps)
+      }
+    }
+
+    sync(useEditorStore.getState().currentTime)
+
+    return useEditorStore.subscribe((state, previousState) => {
+      if (state.currentTime === previousState.currentTime) {
+        return
+      }
+
+      sync(state.currentTime)
+    })
+  }, [contentWidth, duration, fps])
+
+  return (
+    <>
+      <div
+        ref={lineRef}
+        className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
+        style={{ left: 0 }}
+      >
+        <div className="absolute -top-px left-1/2 z-30 size-0 -translate-x-1/2 border-x-[6px] border-t-[8px] border-x-transparent border-t-primary" />
+      </div>
+
+      <div
+        ref={badgeRef}
+        className="pointer-events-none absolute top-7 z-30 -translate-x-1/2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm"
+        style={{ left: 0 }}
+      />
+    </>
+  )
+}
+
 export function TimelineRuler({
   duration,
   contentWidth,
@@ -25,9 +79,7 @@ export function TimelineRuler({
   loopOut,
   onPointerDown,
 }: TimelineRulerProps) {
-  const currentTime = useEditorStore((state) => state.currentTime)
   const ticks = useMemo(() => getRulerTicks(duration), [duration])
-  const playheadLeft = timeToPixel(currentTime, duration, contentWidth)
   const loopLeft = timeToPixel(loopIn, duration, contentWidth)
   const loopWidth = timeToPixel(loopOut, duration, contentWidth) - loopLeft
 
@@ -55,19 +107,7 @@ export function TimelineRuler({
         style={{ left: loopLeft, width: loopWidth }}
       />
 
-      <div
-        className="pointer-events-none absolute top-0 bottom-0 z-20 w-px bg-primary"
-        style={{ left: playheadLeft }}
-      >
-        <div className="absolute -top-px left-1/2 z-30 size-0 -translate-x-1/2 border-x-[6px] border-t-[8px] border-x-transparent border-t-primary" />
-      </div>
-
-      <div
-        className="pointer-events-none absolute top-7 z-30 -translate-x-1/2 rounded bg-primary px-1.5 py-0.5 text-[10px] font-medium text-primary-foreground shadow-sm"
-        style={{ left: playheadLeft }}
-      >
-        {formatTimelineTime(currentTime, fps)}
-      </div>
+      <TimelineRulerPlayhead duration={duration} contentWidth={contentWidth} fps={fps} />
 
       <LoopHandle
         side="in"
