@@ -6,6 +6,7 @@ import { buildShapeTransform } from '@/editor/transforms'
 
 type ShapeViewProps = {
   shape: Shape
+  playbackLayerId?: string
 }
 
 function matrixToTransform(matrix: {
@@ -85,7 +86,7 @@ function shapePropsEqual(previous: Shape, next: Shape): boolean {
   return true
 }
 
-function ShapeViewComponent({ shape }: ShapeViewProps) {
+function ShapeViewComponent({ shape, playbackLayerId }: ShapeViewProps) {
   const transform =
     shape.type === 'path' && shape.transformMatrix
       ? matrixToTransform(shape.transformMatrix)
@@ -96,6 +97,7 @@ function ShapeViewComponent({ shape }: ShapeViewProps) {
     stroke: shape.stroke === 'none' ? undefined : shape.stroke,
     strokeWidth: shape.strokeWidth,
     opacity: shape.opacity,
+    ...(playbackLayerId ? { 'data-playback-layer': playbackLayerId } : {}),
   }
 
   if (shape.type === 'ellipse') {
@@ -112,6 +114,7 @@ function ShapeViewComponent({ shape }: ShapeViewProps) {
         fontFamily={shape.fontFamily}
         fill={shape.fill}
         opacity={shape.opacity}
+        {...(playbackLayerId ? { 'data-playback-layer': playbackLayerId } : {})}
       >
         {shape.text}
       </text>
@@ -134,6 +137,7 @@ function ShapeViewComponent({ shape }: ShapeViewProps) {
         opacity={shape.opacity}
         strokeLinejoin="round"
         strokeLinecap="round"
+        {...(playbackLayerId ? { 'data-playback-layer': playbackLayerId } : {})}
       />
     )
   }

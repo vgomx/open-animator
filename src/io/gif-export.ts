@@ -1,5 +1,5 @@
 import type { ExportOptions } from '@/io/export-options'
-import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
+import { DEFAULT_EXPORT_OPTIONS, resolveExportScale } from '@/io/export-options'
 import { exportSvgAtTime } from '@/io/svg-export'
 import { getExportArtboard } from '@/editor/artboard-utils'
 import type { Project } from '@/editor/types'
@@ -16,8 +16,9 @@ async function renderFrame(
   artboardId?: string,
 ): Promise<ImageData> {
   const artboard = getExportArtboard(project, artboardId)
-  const width = scaledDimension(artboard.width, options.scale)
-  const height = scaledDimension(artboard.height, options.scale)
+  const scale = resolveExportScale(artboard, options)
+  const width = scaledDimension(artboard.width, scale)
+  const height = scaledDimension(artboard.height, scale)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height

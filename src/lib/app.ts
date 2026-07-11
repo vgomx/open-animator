@@ -1,7 +1,7 @@
 export const APP_NAME = 'Open Animator'
 
 /** Pre-release stage shown in About and other product surfaces. */
-export const APP_RELEASE_STAGE = 'alpha' as const
+export const APP_RELEASE_STAGE = 'beta' as const
 
 export { APP_BRAND_ACCENT, BRAND, UI_PATH_STROKE, UI_STROKE } from '@/lib/brand-colors'
 
@@ -28,4 +28,6 @@ export const STORAGE_KEYS = {
   legacyProject: 'svg-animator:project',
   theme: `${APP_SLUG}:theme`,
   preferences: `${APP_SLUG}:preferences`,
+  layerClipboard: `${APP_SLUG}:layer-clipboard`,
+  shortcutsHintSeen: `${APP_SLUG}:shortcuts-hint-seen`,
 } as const

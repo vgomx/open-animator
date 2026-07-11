@@ -781,6 +781,8 @@ export function Toolbar() {
           title={exportDialogCopy.title}
           description={exportDialogCopy.description}
           confirmLabel={exportDialogCopy.confirmLabel}
+          loopHint={`Uses loop region ${(project.loopIn ?? 0).toFixed(2)}s–${(project.loopOut ?? project.duration).toFixed(2)}s.`}
+          showFps={exportKind === 'gif' || exportKind === 'webm'}
           onConfirm={handleExport}
         />
       ) : null}

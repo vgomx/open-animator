@@ -13,10 +13,12 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import {
   DEFAULT_EXPORT_OPTIONS,
+  EXPORT_SIZE_PRESETS,
   type ExportBackgroundMode,
   type ExportOptions,
+  type ExportSizePreset,
 } from '@/io/export-options'
-import { loadEditorPreferences } from '@/lib/preferences'
+import { loadEditorPreferences, saveEditorPreferences } from '@/lib/preferences'
 
 type ExportOptionsDialogProps = {
   open: boolean
@@ -24,6 +26,8 @@ type ExportOptionsDialogProps = {
   title: string
   description: string
   confirmLabel: string
+  loopHint?: string
+  showFps?: boolean
   onConfirm: (options: ExportOptions) => void | Promise<void>
 }
 
@@ -33,6 +37,8 @@ export function ExportOptionsDialog({
   title,
   description,
   confirmLabel,
+  loopHint,
+  showFps = true,
   onConfirm,
 }: ExportOptionsDialogProps) {
   const [options, setOptions] = useState<ExportOptions>(() => ({
@@ -45,9 +51,14 @@ export function ExportOptionsDialog({
     setOptions((current) => ({ ...current, background }))
   }
 
+  const setSizePreset = (sizePreset: ExportSizePreset) => {
+    setOptions((current) => ({ ...current, sizePreset }))
+  }
+
   const handleConfirm = async () => {
     setIsSubmitting(true)
     try {
+      saveEditorPreferences({ defaultExportFps: options.fps })
       await onConfirm(options)
       onOpenChange(false)
     } finally {
@@ -60,29 +71,53 @@ export function ExportOptionsDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>{description}</DialogDescription>
+          <DialogDescription>
+            {description}
+            {loopHint ? ` ${loopHint}` : ''}
+          </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label htmlFor="export-fps">Frame rate (WebM)</Label>
-            <Input
-              id="export-fps"
-              type="number"
-              min={1}
-              max={60}
-              value={options.fps}
-              onChange={(event) =>
-                setOptions((current) => ({
-                  ...current,
-                  fps: Math.max(1, Math.min(60, Number(event.target.value) || 30)),
-                }))
-              }
-            />
+            <Label>Output size</Label>
+            <div className="flex flex-wrap gap-2">
+              {EXPORT_SIZE_PRESETS.map((preset) => (
+                <Button
+                  key={preset.id}
+                  type="button"
+                  size="sm"
+                  variant={options.sizePreset === preset.id ? 'secondary' : 'outline'}
+                  onClick={() => setSizePreset(preset.id)}
+                >
+                  {preset.label}
+                </Button>
+              ))}
+            </div>
           </div>
 
+          {showFps ? (
+            <div className="space-y-2">
+              <Label htmlFor="export-fps">Frame rate (GIF / WebM)</Label>
+              <Input
+                id="export-fps"
+                type="number"
+                min={1}
+                max={60}
+                value={options.fps}
+                onChange={(event) =>
+                  setOptions((current) => ({
+                    ...current,
+                    fps: Math.max(1, Math.min(60, Number(event.target.value) || 30)),
+                  }))
+                }
+              />
+            </div>
+          ) : null}
+
           <div className="space-y-2">
-            <Label htmlFor="export-scale">Scale</Label>
+            <Label htmlFor="export-scale">
+              {options.sizePreset === 'custom' ? 'Scale' : 'Extra scale multiplier'}
+            </Label>
             <Input
               id="export-scale"
               type="number"

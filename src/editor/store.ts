@@ -24,6 +24,7 @@ import {
   type HistoryStacks,
 } from '@/editor/history'
 import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape } from '@/editor/scene'
+import { loadLayerClipboard, saveLayerClipboard } from '@/lib/layer-clipboard-storage'
 import {
   ensureActiveArtboardId,
   getActiveArtboard,
@@ -117,6 +118,7 @@ type EditorStore = {
   guideDraft: Pick<Guide, 'axis' | 'position'> | null
   history: HistoryStacks
   keyframeClipboard: Keyframe[]
+  layerClipboard: Layer[]
   selectedKeyframeIds: string[]
   timelineSnapTime: number | null
   activeTool: EditorTool
@@ -135,6 +137,8 @@ type EditorStore = {
   removeSelectedLayer: () => void
   duplicateSelectedLayer: () => void
   duplicateSelectedLayerInPlace: () => string[]
+  copySelectedLayers: () => void
+  pasteSelectedLayers: () => void
   updateSelectedShapes: (patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
   copyStyleFromSelection: () => void
   pasteStyleToSelection: () => void
@@ -458,6 +462,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   guideDraft: null,
   history: { past: [], future: [] },
   keyframeClipboard: [],
+  layerClipboard: loadLayerClipboard(),
   selectedKeyframeIds: [],
   timelineSnapTime: null,
   activeTool: 'select',
@@ -737,6 +742,54 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
     return createdIds
   },
+
+  copySelectedLayers: () =>
+    set((state) => {
+      if (state.selectedLayerIds.length === 0) {
+        return state
+      }
+
+      const layers = state.selectedLayerIds
+        .map((layerId) => state.project.layers.find((item) => item.id === layerId))
+        .filter((layer): layer is Layer => Boolean(layer))
+        .map((layer) => cloneLayer(layer, 0))
+
+      saveLayerClipboard(layers)
+
+      return {
+        layerClipboard: layers,
+      }
+    }),
+
+  pasteSelectedLayers: () =>
+    set((state) => {
+      const clipboard =
+        state.layerClipboard.length > 0 ? state.layerClipboard : loadLayerClipboard()
+      if (clipboard.length === 0) {
+        return state
+      }
+
+      return withHistory(state, (current) => {
+        const artboardId = resolveArtboardId(current)
+        const pasted = clipboard.map((layer) => {
+          const copy = cloneLayer(layer, 20)
+          return {
+            ...copy,
+            artboardId,
+            name: layer.name.replace(/ copy$/, '') + ' copy',
+          }
+        })
+
+        return {
+          layerClipboard: clipboard,
+          project: {
+            ...current.project,
+            layers: [...current.project.layers, ...pasted],
+          },
+          ...syncSelection(pasted.map((layer) => layer.id)),
+        }
+      })
+    }),
 
   updateSelectedShapes: (patch, options) =>
     set((state) => {

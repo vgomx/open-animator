@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { ImportedSvgDefs } from '@/components/canvas/ImportedSvgDefs'
+import { AnimatedMaskDefs } from '@/components/canvas/AnimatedMaskDefs'
+import { PlaybackTransformDriver } from '@/components/canvas/PlaybackTransformDriver'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
@@ -76,8 +77,13 @@ export function Stage() {
     () => getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? ''),
     [activeArtboardId, project],
   )
-  const currentTime = useEditorStore((state) => state.currentTime)
+  const storeCurrentTime = useEditorStore((state) => state.currentTime)
   const playbackState = useEditorStore((state) => state.playbackState)
+  const displayTimeRef = useRef(storeCurrentTime)
+  if (playbackState !== 'playing') {
+    displayTimeRef.current = storeCurrentTime
+  }
+  const displayTime = playbackState === 'playing' ? displayTimeRef.current : storeCurrentTime
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
   const selectedLayerIdSet = useMemo(() => new Set(selectedLayerIds), [selectedLayerIds])
@@ -137,11 +143,11 @@ export function Stage() {
     const shapes = new Map<string, Shape>()
     for (const layer of visibleLayers) {
       if (layer.visible) {
-        shapes.set(layer.id, getAnimatedShape(layer, currentTime))
+        shapes.set(layer.id, getAnimatedShape(layer, displayTime))
       }
     }
     return shapes
-  }, [currentTime, getAnimatedShape, visibleLayers])
+  }, [displayTime, getAnimatedShape, visibleLayers])
 
   const handleLayerSelect = useCallback(
     (layerId: string, options: { additive: boolean }) => {
@@ -166,7 +172,7 @@ export function Stage() {
 
     for (let index = 1; index <= onionSkinSettings.framesBefore; index += 1) {
       frames.push({
-        time: currentTime - index * frameStep,
+        time: displayTime - index * frameStep,
         opacity: onionSkinSettings.opacityBefore / index,
         tint: onionSkinSettings.tintBefore,
       })
@@ -174,7 +180,7 @@ export function Stage() {
 
     for (let index = 1; index <= onionSkinSettings.framesAfter; index += 1) {
       frames.push({
-        time: currentTime + index * frameStep,
+        time: displayTime + index * frameStep,
         opacity: onionSkinSettings.opacityAfter / index,
         tint: onionSkinSettings.tintAfter,
       })
@@ -319,7 +325,7 @@ export function Stage() {
     const hits = visibleLayers
       .filter((layer) => layer.visible)
       .filter((layer) => {
-        const bounds = getShapeBounds(getAnimatedShape(layer, currentTime))
+        const bounds = getShapeBounds(getAnimatedShape(layer, displayTime))
         return bounds.x < right && bounds.x + bounds.width > left && bounds.y < bottom && bounds.y + bounds.height > top
       })
       .map((layer) => layer.id)
@@ -575,7 +581,7 @@ export function Stage() {
         continue
       }
 
-      const bounds = getShapeBounds(getAnimatedShape(layer, currentTime))
+      const bounds = getShapeBounds(getAnimatedShape(layer, displayTime))
       const hit =
         point.x >= bounds.x &&
         point.x <= bounds.x + bounds.width &&
@@ -645,7 +651,8 @@ export function Stage() {
                 }
               }}
             >
-              <ImportedSvgDefs defs={project.importedSvg} />
+              <AnimatedMaskDefs layers={visibleLayers} />
+              <PlaybackTransformDriver layers={visibleLayers} svgRef={svgRef} />
               <defs>
                 <clipPath id="artboard-clip">
                   <rect width={width} height={height} />

@@ -60,7 +60,7 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 - Playback with loop toggle; click-to-scrub timeline
 - Layer groups — select and move grouped layers together on canvas; collapsible groups in layers panel
 - Multi-select property editing with mixed-value UI
-- Pen bezier curves (click-drag), text inline edit, Alt+drag duplicate, copy/paste style
+- Pen bezier curves (click-drag), text inline edit, Alt+drag duplicate, copy/paste style, copy/paste layers
 - Onion skin controls — frame count, opacity, and tint for previous/next frames
 
 ### Workflow
@@ -76,13 +76,19 @@ Open the local URL from Vite (usually `http://localhost:5173`).
 
 Supported on import:
 
-- Shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path`, `text`
+- Shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` (including arc `A`/`a` commands), `text`
 - Groups: nested `<g>` elements (flattened into layers)
-- Styles: inline `fill`, `stroke`, `stroke-width`, `opacity`
-- Transforms: `translate`, `rotate`, `scale`
+- Styles: inline `fill`, `stroke`, `stroke-width`, `opacity`; basic `<style>` blocks with `.className` selectors
+- Transforms: `translate`, `rotate`, `scale`, `matrix()`
+- SMIL animation: `animateTransform` and matrix-based path motion
+- Gradients and masks from imported SVG defs
 - Artboard: `viewBox` or `width` / `height`
 
-Not yet supported: CSS classes, `<style>` blocks, `matrix()` transforms, arc path commands, and preserved group hierarchy.
+Not yet supported: complex CSS selectors, preserved group hierarchy, and full Illustrator/Figma fidelity.
+
+### Export
+
+- Static SVG, **animated SVG** (SMIL), HTML animation, WebM, GIF, CSS keyframes, React component, and Lottie JSON (subset)
 
 ## Project structure
 

@@ -30,9 +30,14 @@ export const StageLayer = memo(function StageLayer({
   onSelect,
   onEditText,
 }: StageLayerProps) {
+  const maskId =
+    layer.svgMaskId && shape.type === 'path' && shape.transformMatrix
+      ? `${layer.svgMaskId}__${layer.id}`
+      : layer.svgMaskId
+
   return (
     <g
-      mask={layer.svgMaskId ? `url(#${importedMaskId(layer.svgMaskId)})` : undefined}
+      mask={maskId ? `url(#${importedMaskId(maskId)})` : undefined}
       onPointerDown={(event) => {
         if (!allowLayerSelect || isPanning) {
           return
@@ -54,7 +59,7 @@ export const StageLayer = memo(function StageLayer({
       className={allowLayerSelect ? 'cursor-pointer' : undefined}
       style={{ pointerEvents: allowLayerSelect ? 'auto' : 'none' }}
     >
-      <ShapeView shape={shape} />
+      <ShapeView shape={shape} playbackLayerId={layer.id} />
       <g data-eyedropper-ignore>
         {isSelected && activeTool === 'select' ? (
           <SelectionOverlay layerId={layer.id} shape={shape} interactive={isPrimary} />

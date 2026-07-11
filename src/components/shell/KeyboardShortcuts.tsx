@@ -12,6 +12,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const redo = useEditorStore((state) => state.redo)
   const removeSelectedLayer = useEditorStore((state) => state.removeSelectedLayer)
   const duplicateSelectedLayer = useEditorStore((state) => state.duplicateSelectedLayer)
+  const copySelectedLayers = useEditorStore((state) => state.copySelectedLayers)
+  const pasteSelectedLayers = useEditorStore((state) => state.pasteSelectedLayers)
   const copyKeyframesAtCurrentTime = useEditorStore((state) => state.copyKeyframesAtCurrentTime)
   const pasteKeyframesAtCurrentTime = useEditorStore((state) => state.pasteKeyframesAtCurrentTime)
   const copyStyleFromSelection = useEditorStore((state) => state.copyStyleFromSelection)
@@ -98,13 +100,21 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
 
       if (mod && key === 'c' && !event.altKey) {
         event.preventDefault()
-        copyKeyframesAtCurrentTime()
+        if (selectedKeyframeIds.length > 0) {
+          copyKeyframesAtCurrentTime()
+        } else if (selectedLayerIds.length > 0) {
+          copySelectedLayers()
+        }
         return
       }
 
       if (mod && key === 'v' && !event.altKey) {
         event.preventDefault()
-        pasteKeyframesAtCurrentTime()
+        if (selectedKeyframeIds.length > 0) {
+          pasteKeyframesAtCurrentTime()
+        } else {
+          pasteSelectedLayers()
+        }
         return
       }
 
@@ -207,6 +217,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     clearSelection,
     cancelPenDraft,
     copyKeyframesAtCurrentTime,
+    copySelectedLayers,
     copyStyleFromSelection,
     deleteSelectedNodes,
     duplicateSelectedLayer,
@@ -215,6 +226,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     nudgeSelectedKeyframes,
     onOpenShortcuts,
     pasteKeyframesAtCurrentTime,
+    pasteSelectedLayers,
     pasteStyleToSelection,
     playbackState,
     redo,

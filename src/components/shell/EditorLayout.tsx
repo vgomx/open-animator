@@ -11,7 +11,10 @@ import { UiZoomGuard } from '@/components/shell/UiZoomGuard'
 import { Timeline } from '@/components/timeline/Timeline'
 import { useEditorStore } from '@/editor/store'
 import { consumeStaleImportClearNotice } from '@/io/project'
+import { STORAGE_KEYS } from '@/lib/app'
 import { showToast } from '@/lib/toast'
+
+const LARGE_PROJECT_NOTICE_KEY = `${STORAGE_KEYS.project}:large-notice`
 
 function PlaybackLoop() {
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -79,6 +82,41 @@ export function EditorLayout() {
       title: 'Previous SVG import was outdated',
       description:
         'Cached animation data was cleared. Open your SVG again as a new project to restore motion.',
+      variant: 'default',
+    })
+  }, [])
+
+  useEffect(() => {
+    if (localStorage.getItem(STORAGE_KEYS.shortcutsHintSeen) === '1') {
+      return
+    }
+
+    localStorage.setItem(STORAGE_KEYS.shortcutsHintSeen, '1')
+    showToast({
+      title: 'Keyboard shortcuts',
+      description: 'Press ? any time to open the shortcut cheat sheet.',
+      variant: 'default',
+    })
+  }, [])
+
+  useEffect(() => {
+    const project = useEditorStore.getState().project
+    if (project.layers.length < 100) {
+      return
+    }
+
+    if (typeof sessionStorage !== 'undefined' && sessionStorage.getItem(LARGE_PROJECT_NOTICE_KEY) === '1') {
+      return
+    }
+
+    if (typeof sessionStorage !== 'undefined') {
+      sessionStorage.setItem(LARGE_PROJECT_NOTICE_KEY, '1')
+    }
+
+    showToast({
+      title: 'Large cached project loaded',
+      description:
+        'This project has 100+ layers and may feel slower. Use File → New project to clear the cached import.',
       variant: 'default',
     })
   }, [])
