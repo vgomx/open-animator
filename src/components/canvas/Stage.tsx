@@ -28,7 +28,7 @@ import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { isWebGl2Available } from '@/lib/webgl-viewport'
 import { cn } from '@/lib/utils'
-import { wheelZoomFactor } from '@/editor/viewport'
+import { normalizeWheelDelta, wheelZoomFactorFromPixels } from '@/editor/viewport'
 import type { Shape } from '@/editor/types'
 
 type DrawDraft = {
@@ -88,6 +88,7 @@ export function Stage() {
   const panDragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(
     null,
   )
+  const wheelEndFlushTimerRef = useRef<number | null>(null)
 
   const project = useEditorStore((state) => state.project)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
@@ -344,9 +345,17 @@ export function Stage() {
     }
 
     const onWheel = (event: WheelEvent) => {
-      event.preventDefault()
+      if (event.cancelable !== false) {
+        event.preventDefault()
+      }
 
       const shouldZoom = event.ctrlKey || event.altKey
+      const { deltaX, deltaY } = normalizeWheelDelta(
+        event.deltaX,
+        event.deltaY,
+        event.deltaMode,
+        { shiftKey: event.shiftKey, clampZoomDelta: shouldZoom },
+      )
 
       if (shouldZoom) {
         const viewport = canvasViewportRef.current
@@ -356,21 +365,32 @@ export function Stage() {
 
         const point = getViewportPoint(viewport, event.clientX, event.clientY)
         viewportController.zoomAtPoint(
-          wheelZoomFactor(event.deltaY, event.deltaMode),
+          wheelZoomFactorFromPixels(deltaY),
           point.x,
           point.y,
           point.width,
           point.height,
         )
-        return
+      } else {
+        viewportController.panBy(deltaX, deltaY)
       }
 
-      viewportController.panBy(event.deltaX, event.deltaY)
+      if (wheelEndFlushTimerRef.current !== null) {
+        window.clearTimeout(wheelEndFlushTimerRef.current)
+      }
+      wheelEndFlushTimerRef.current = window.setTimeout(() => {
+        wheelEndFlushTimerRef.current = null
+        viewportController.flushNow()
+      }, 150)
     }
 
-    container.addEventListener('wheel', onWheel, { passive: false })
+    container.addEventListener('wheel', onWheel, { passive: false, capture: true })
     return () => {
-      container.removeEventListener('wheel', onWheel)
+      if (wheelEndFlushTimerRef.current !== null) {
+        window.clearTimeout(wheelEndFlushTimerRef.current)
+        wheelEndFlushTimerRef.current = null
+      }
+      container.removeEventListener('wheel', onWheel, { capture: true })
     }
   }, [viewportController])
 
@@ -704,7 +724,7 @@ export function Stage() {
           <div className="flex h-full w-full items-center justify-center">
           <div
             ref={transformRef}
-            className="relative ring-1 ring-border/40"
+            className="relative ring-1 ring-border/40 [backface-visibility:hidden] [contain:layout_paint] [will-change:transform]"
           >
             {canvasPlaybackActive ? (
               <canvas

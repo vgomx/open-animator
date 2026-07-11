@@ -32,4 +32,33 @@ describe('viewport-controller', () => {
 
     vi.unstubAllGlobals()
   })
+
+  it('coalesces multiple transform applies into one frame', () => {
+    const rafCallbacks: FrameRequestCallback[] = []
+    vi.stubGlobal('window', {
+      requestAnimationFrame: (callback: FrameRequestCallback) => {
+        rafCallbacks.push(callback)
+        return rafCallbacks.length
+      },
+      cancelAnimationFrame: () => {},
+    })
+
+    const element = {
+      style: {} as CSSStyleDeclaration,
+    } as HTMLElement
+    const controller = createViewportController({
+      getStoreState: () => ({ zoom: 1, panX: 0, panY: 0 }),
+      setStoreState: () => {},
+    })
+    controller.bindTransformElement(element)
+
+    controller.panBy(10, 0)
+    controller.panBy(5, 0)
+    expect(element.style.transform).toBe('translate3d(0px, 0px, 0) scale(1)')
+
+    rafCallbacks.shift()?.(0)
+    expect(element.style.transform).toBe('translate3d(-15px, 0px, 0) scale(1)')
+
+    vi.unstubAllGlobals()
+  })
 })

@@ -45,18 +45,51 @@ export function zoomAtPoint(params: {
   }
 }
 
-const DOM_DELTA_PIXEL = 0
-const DOM_DELTA_LINE = 1
-const DOM_DELTA_PAGE = 2
+export const DOM_DELTA_PIXEL = 0
+export const DOM_DELTA_LINE = 1
+export const DOM_DELTA_PAGE = 2
+
+/** Caps per-event pinch delta to avoid jumpy zoom from large wheel ticks (common in Safari). */
+export const MAX_WHEEL_ZOOM_DELTA_PX = 24
+
+export type NormalizeWheelDeltaOptions = {
+  shiftKey?: boolean
+  clampZoomDelta?: boolean
+}
+
+export function normalizeWheelDelta(
+  deltaX: number,
+  deltaY: number,
+  deltaMode: number = DOM_DELTA_PIXEL,
+  options: NormalizeWheelDeltaOptions = {},
+): { deltaX: number; deltaY: number } {
+  let dx = deltaX
+  let dy = deltaY
+
+  if (dx === 0 && options.shiftKey && dy !== 0) {
+    dx = dy
+    dy = 0
+  }
+
+  const scale =
+    deltaMode === DOM_DELTA_LINE ? 16 : deltaMode === DOM_DELTA_PAGE ? 120 : 1
+  dx *= scale
+  dy *= scale
+
+  if (options.clampZoomDelta && dy !== 0 && deltaMode === DOM_DELTA_PIXEL) {
+    dy = Math.sign(dy) * Math.min(MAX_WHEEL_ZOOM_DELTA_PX, Math.abs(dy))
+  }
+
+  return { deltaX: dx, deltaY: dy }
+}
+
+export function wheelZoomFactorFromPixels(deltaY: number): number {
+  return Math.exp(-deltaY * 0.01)
+}
 
 export function wheelZoomFactor(deltaY: number, deltaMode: number = DOM_DELTA_PIXEL): number {
-  const scale =
-    deltaMode === DOM_DELTA_LINE
-      ? 16
-      : deltaMode === DOM_DELTA_PAGE
-        ? 120
-        : 1
-
-  const normalizedDelta = deltaY * scale
-  return Math.exp(-normalizedDelta * 0.01)
+  const { deltaY: normalizedDeltaY } = normalizeWheelDelta(0, deltaY, deltaMode, {
+    clampZoomDelta: true,
+  })
+  return wheelZoomFactorFromPixels(normalizedDeltaY)
 }
