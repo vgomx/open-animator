@@ -18,12 +18,15 @@ import {
   collectKeyframeTimes,
   formatTimelineTime,
   getTimelineContentWidth,
+  getTimelineFrameDigitCount,
+  getTimelineTimeLabelWidthCh,
   snapTimelineTime,
   timeFromClientX,
   timeToPixel,
 } from '@/editor/timeline-utils'
 import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
+import { cn } from '@/lib/utils'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, ClipboardPaste, Copy, Flag, Minus, Plus, Sparkles } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -115,11 +118,41 @@ function TimelineClock({
   loopOut: number
 }) {
   const currentTime = useEditorStore((state) => state.currentTime)
+  const frameDigits = getTimelineFrameDigitCount(duration, fps)
+  const timeLabelWidthCh = getTimelineTimeLabelWidthCh(duration, fps)
+
+  const timeLabel = (seconds: number, emphasize = false) => (
+    <span
+      className={cn(
+        'inline-flex items-baseline justify-end gap-1 tabular-nums',
+        emphasize ? 'font-medium text-foreground/90' : 'text-muted-foreground',
+      )}
+      style={emphasize ? { minWidth: `${timeLabelWidthCh}ch` } : undefined}
+    >
+      <span>{seconds.toFixed(2)}s</span>
+      <span className="text-muted-foreground/50">·</span>
+      <span style={{ minWidth: `${frameDigits + 1}ch` }}>f{Math.round(seconds * fps)}</span>
+    </span>
+  )
 
   return (
-    <span className="text-xs text-muted-foreground">
-      {formatTimelineTime(currentTime, fps)} / {formatTimelineTime(duration, fps)} · loop{' '}
-      {formatTimelineTime(loopIn, fps)}–{formatTimelineTime(loopOut, fps)}
+    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs tabular-nums">
+      {timeLabel(currentTime, true)}
+      <span className="text-muted-foreground/40" aria-hidden>
+        /
+      </span>
+      {timeLabel(duration)}
+      <span className="text-muted-foreground/40" aria-hidden>
+        ·
+      </span>
+      <span className="text-muted-foreground/70">loop</span>
+      <span className="inline-flex items-baseline gap-1">
+        {timeLabel(loopIn)}
+        <span className="text-muted-foreground/40" aria-hidden>
+          –
+        </span>
+        {timeLabel(loopOut)}
+      </span>
     </span>
   )
 }

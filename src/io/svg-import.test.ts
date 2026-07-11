@@ -174,4 +174,49 @@ describe('svg import', () => {
     const project = svgImportToProject(imported!)
     expect(project.layerGroups?.[groupId!]?.name).toBe('shapes')
   })
+
+  it('preserves nested svg group parent links', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g id="outer">
+          <g id="inner">
+            <rect x="10" y="10" width="20" height="20" fill="#000" />
+          </g>
+          <circle cx="80" cy="40" r="10" fill="#fff" />
+        </g>
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    expect(imported).not.toBeNull()
+    expect(Object.keys(imported!.groups)).toHaveLength(2)
+
+    const outer = Object.entries(imported!.groups).find(([, meta]) => meta.name === 'outer')
+    const inner = Object.entries(imported!.groups).find(([, meta]) => meta.name === 'inner')
+
+    expect(outer?.[1].parentGroupId).toBeNull()
+    expect(inner?.[1].parentGroupId).toBe(outer?.[0])
+  })
+
+  it('imports id-based css selectors and inherited group styles', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          #hero { fill: #ff0000; opacity: 0.7; }
+          .accent { stroke: #00ff00; stroke-width: 2; }
+        </style>
+        <g class="accent">
+          <rect id="hero" x="10" y="10" width="40" height="30" />
+        </g>
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+    const layer = imported?.layers[0]
+
+    expect(layer?.shape.fill).toBe('#ff0000')
+    expect(layer?.shape.stroke).toBe('#00ff00')
+    expect(layer?.shape.strokeWidth).toBe(2)
+    expect(layer?.shape.opacity).toBe(0.7)
+  })
 })

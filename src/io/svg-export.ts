@@ -6,6 +6,7 @@ import { isTransparentColor } from '@/editor/color-utils'
 import { getAnimatedShape } from '@/editor/animation'
 import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
+import { importedFilterId } from '@/io/svg-filters'
 
 function escapeXml(value: string): string {
   return value
@@ -84,6 +85,47 @@ function shapeMarkup(shape: Shape, className?: string, animated = false): string
   return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
 }
 
+function layerFilterAttr(layer: Layer, project: Project): string {
+  const filterId = layer.svgFilterId
+  if (!filterId || !project.importedSvg?.filters?.[filterId]?.markup) {
+    return ''
+  }
+
+  return ` filter="url(#${importedFilterId(filterId)})"`
+}
+
+function wrapLayerMarkup(layer: Layer, project: Project, innerMarkup: string): string {
+  const filterAttr = layerFilterAttr(layer, project)
+  if (!filterAttr) {
+    return innerMarkup
+  }
+
+  return `<g${filterAttr}>${innerMarkup}</g>`
+}
+
+function buildImportedFilterDefs(project: Project, artboardId?: string): string {
+  const filters = project.importedSvg?.filters
+  if (!filters) {
+    return ''
+  }
+
+  const usedFilterIds = new Set(
+    getExportLayers(project, artboardId)
+      .map((layer) => layer.svgFilterId)
+      .filter(Boolean) as string[],
+  )
+
+  const markup = Object.values(filters)
+    .filter((filter) => usedFilterIds.has(filter.id) && filter.markup)
+    .map(
+      (filter) =>
+        `<filter id="${importedFilterId(filter.id)}" filterUnits="userSpaceOnUse">${filter.markup}</filter>`,
+    )
+    .join('\n    ')
+
+  return markup ? `<defs>\n    ${markup}\n  </defs>\n  ` : ''
+}
+
 function backgroundMarkup(artboard: Artboard, options: ExportOptions): string {
   if (options.background === 'transparent') {
     return ''
@@ -134,7 +176,9 @@ export function exportSvgAtTime(
   const { width, height, scale } = exportDimensions(artboard, options)
   const visibleLayers = getExportLayers(project, artboardId).filter((layer) => layer.visible)
   const shapes = visibleLayers
-    .map((layer) => shapeMarkup(getAnimatedShape(layer, time)))
+    .map((layer) =>
+      wrapLayerMarkup(layer, project, shapeMarkup(getAnimatedShape(layer, time))),
+    )
     .join('\n    ')
 
   const scaleGroup =
@@ -144,7 +188,7 @@ export function exportSvgAtTime(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${backgroundMarkup(artboard, options)}
+  ${buildImportedFilterDefs(project, artboardId)}${backgroundMarkup(artboard, options)}
   ${scaleGroup}
 </svg>`
 }
@@ -168,7 +212,8 @@ export function exportAnimatedSvg(
     }
 
     const baseShape = getAnimatedShape(layer, 0)
-    shapes.push(shapeMarkup(baseShape, css ? className : undefined, Boolean(css)))
+    const innerMarkup = shapeMarkup(baseShape, css ? className : undefined, Boolean(css))
+    shapes.push(wrapLayerMarkup(layer, project, innerMarkup))
   })
 
   const styleBlock =
@@ -180,7 +225,7 @@ export function exportAnimatedSvg(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${styleBlock}${backgroundMarkup(artboard, options)}
+  ${styleBlock}${buildImportedFilterDefs(project, artboardId)}${backgroundMarkup(artboard, options)}
   ${scaleGroup}
 </svg>`
 }

@@ -1,18 +1,8 @@
 import { useEffect } from 'react'
 
-import { getAnimatedShape } from '@/editor/animation'
-import { buildShapeTransform } from '@/editor/transforms'
+import { updatePlaybackLayerTransforms } from '@/components/canvas/playback-utils'
 import { useEditorStore } from '@/editor/store'
-import type { Layer, Shape } from '@/editor/types'
-
-function shapeTransform(shape: Shape): string {
-  if (shape.type === 'path' && shape.transformMatrix) {
-    const matrix = shape.transformMatrix
-    return `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`
-  }
-
-  return buildShapeTransform(shape)
-}
+import type { Layer } from '@/editor/types'
 
 type PlaybackTransformDriverProps = {
   layers: Layer[]
@@ -37,22 +27,7 @@ export function PlaybackTransformDriver({ layers, svgRef }: PlaybackTransformDri
 
       const svg = svgRef.current
       if (svg) {
-        const time = state.currentTime
-        for (const layer of layers) {
-          if (!layer.visible) {
-            continue
-          }
-
-          const element = svg.querySelector<SVGGraphicsElement>(
-            `[data-playback-layer="${layer.id}"]`,
-          )
-          if (!element) {
-            continue
-          }
-
-          const shape = getAnimatedShape(layer, time)
-          element.setAttribute('transform', shapeTransform(shape))
-        }
+        updatePlaybackLayerTransforms(svg, layers, state.currentTime)
       }
 
       frameId = window.requestAnimationFrame(tick)

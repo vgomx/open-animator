@@ -264,7 +264,7 @@ export type ImportedSvgDefs = {
   gradients: Record<string, ImportedLinearGradient | ImportedRadialGradient>
   masks?: Record<string, { id: string; markup: string }>
   clipPaths?: Record<string, { id: string; markup: string }>
-  filters?: Record<string, { id: string; cssFilter?: string }>
+  filters?: Record<string, { id: string; markup: string; cssFilter?: string; partial?: boolean }>
 }
 
 export type Project = {

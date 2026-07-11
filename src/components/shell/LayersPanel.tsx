@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   ChevronDown,
   ChevronRight,
@@ -23,18 +23,15 @@ import {
   getLayerTypeIcon,
   GROUP_ICON,
 } from '@/editor/layer-display'
+import {
+  buildLayerTreeRows,
+  collectGroupLayers,
+  flattenLayerTreeRows,
+  type LayerTreeRow,
+} from '@/editor/layer-tree'
 import { useEditorStore } from '@/editor/store'
 import type { Layer } from '@/editor/types'
 import { cn } from '@/lib/utils'
-
-type LayerRow = {
-  kind: 'group'
-  groupId: string
-  layers: Layer[]
-} | {
-  kind: 'layer'
-  layer: Layer
-}
 
 type LayerDragState = {
   sourceIndex: number
@@ -365,42 +362,15 @@ export function LayersPanel() {
     return Boolean(layer?.groupId)
   })
 
-  const rows = useMemo(() => {
-    const result: LayerRow[] = []
-    const seenGroups = new Set<string>()
+  const rows = useMemo(
+    () => buildLayerTreeRows(displayLayers, project.layerGroups),
+    [displayLayers, project.layerGroups],
+  )
 
-    for (const layer of displayLayers) {
-      if (!layer.groupId) {
-        result.push({ kind: 'layer', layer })
-        continue
-      }
-
-      if (seenGroups.has(layer.groupId)) {
-        continue
-      }
-
-      seenGroups.add(layer.groupId)
-      const groupLayers = displayLayers.filter((item) => item.groupId === layer.groupId)
-      result.push({ kind: 'group', groupId: layer.groupId, layers: groupLayers })
-    }
-
-    return result
-  }, [displayLayers])
-
-  const flatLayers = useMemo(() => {
-    const flat: Layer[] = []
-    for (const row of rows) {
-      if (row.kind === 'layer') {
-        flat.push(row.layer)
-        continue
-      }
-
-      if (!collapsedGroupIds.includes(row.groupId)) {
-        flat.push(...row.layers)
-      }
-    }
-    return flat
-  }, [collapsedGroupIds, rows])
+  const flatLayers = useMemo(
+    () => flattenLayerTreeRows(rows, collapsedGroupIds),
+    [collapsedGroupIds, rows],
+  )
 
   const flatLayersRef = useRef(flatLayers)
   useLayoutEffect(() => {
@@ -596,6 +566,59 @@ export function LayersPanel() {
     )
   }
 
+  const renderTreeRow = (row: LayerTreeRow, depth = 0): ReactNode => {
+    if (row.kind === 'layer') {
+      const flatIndex = flatLayers.findIndex((item) => item.id === row.layer.id)
+      return renderLayerRow(row.layer, flatIndex, depth > 0)
+    }
+
+    const collapsed = collapsedGroupIds.includes(row.groupId)
+    const groupLayers = collectGroupLayers(row)
+    const groupSelected = groupLayers.some((layer) => selectedLayerIds.includes(layer.id))
+    const GroupIcon = GROUP_ICON
+    const indentClass = depth > 0 ? 'ml-2 border-l border-border/50 pl-1' : ''
+
+    return (
+      <div key={row.groupId} className={cn('space-y-1', indentClass)}>
+        <div
+          className={cn(
+            'flex items-center gap-1 rounded-md border px-1.5 py-1.5 transition-colors duration-200',
+            groupSelected ? 'border-primary/30 bg-primary/5' : 'border-transparent hover:bg-muted/40',
+          )}
+        >
+          <button
+            type="button"
+            className="flex size-5 items-center justify-center text-muted-foreground"
+            aria-label={collapsed ? 'Expand group' : 'Collapse group'}
+            onClick={() => toggleGroupCollapsed(row.groupId)}
+          >
+            {collapsed ? <ChevronRight className="size-3.5" /> : <ChevronDown className="size-3.5" />}
+          </button>
+          <GroupIcon className="size-3.5 shrink-0 text-muted-foreground" />
+          <button
+            type="button"
+            className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground"
+            onClick={() =>
+              selectLayer(groupLayers[0]!.id, {
+                additive: false,
+              })
+            }
+          >
+            <span className="block truncate">
+              {getGroupDisplayName(groupLayers, row.groupId, project.layerGroups)}
+            </span>
+            <span className="block truncate text-[10px]">
+              {project.layerGroups?.[row.groupId] ? 'SVG group' : 'Nested group'}
+            </span>
+          </button>
+        </div>
+        {collapsed ? null : (
+          <div className="space-y-1">{row.children.map((child) => renderTreeRow(child, depth + 1))}</div>
+        )}
+      </div>
+    )
+  }
+
   const renderLayerRow = (layer: Layer, flatIndex: number, indented = false) => {
     if (drag?.sourceIndex === flatIndex) {
       return (
@@ -696,67 +719,7 @@ export function LayersPanel() {
             </p>
           ) : (
             <>
-              {rows.map((row) => {
-                if (row.kind === 'layer') {
-                  const flatIndex = flatLayers.findIndex((item) => item.id === row.layer.id)
-                  return renderLayerRow(row.layer, flatIndex)
-                }
-
-                const collapsed = collapsedGroupIds.includes(row.groupId)
-                const groupSelected = row.layers.some((layer) =>
-                  selectedLayerIds.includes(layer.id),
-                )
-                const GroupIcon = GROUP_ICON
-
-                return (
-                  <div key={row.groupId} className="space-y-1">
-                    <div
-                      className={cn(
-                        'flex items-center gap-1 rounded-md border px-1.5 py-1.5 transition-colors duration-200',
-                        groupSelected
-                          ? 'border-primary/30 bg-primary/5'
-                          : 'border-transparent hover:bg-muted/40',
-                      )}
-                    >
-                      <button
-                        type="button"
-                        className="flex size-5 items-center justify-center text-muted-foreground"
-                        aria-label={collapsed ? 'Expand group' : 'Collapse group'}
-                        onClick={() => toggleGroupCollapsed(row.groupId)}
-                      >
-                        {collapsed ? (
-                          <ChevronRight className="size-3.5" />
-                        ) : (
-                          <ChevronDown className="size-3.5" />
-                        )}
-                      </button>
-                      <GroupIcon className="size-3.5 shrink-0 text-muted-foreground" />
-                      <button
-                        type="button"
-                        className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground"
-                        onClick={() =>
-                          selectLayer(row.layers[0]!.id, {
-                            additive: false,
-                          })
-                        }
-                      >
-                        <span className="block truncate">{getGroupDisplayName(row.layers, row.groupId, project.layerGroups)}</span>
-                        <span className="block truncate text-[10px]">
-                          {project.layerGroups?.[row.groupId] ? 'SVG group' : 'Nested group'}
-                        </span>
-                      </button>
-                    </div>
-                    {collapsed ? null : (
-                      <div className="ml-2 space-y-1 border-l border-border/50 pl-1">
-                        {row.layers.map((layer) => {
-                          const flatIndex = flatLayers.findIndex((item) => item.id === layer.id)
-                          return renderLayerRow(layer, flatIndex, true)
-                        })}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
+              {rows.map((row) => renderTreeRow(row))}
               {drag && placeholderBeforeIndex === flatLayers.length ? (
                 <LayerDropPlaceholder
                   height={drag.rowHeight}

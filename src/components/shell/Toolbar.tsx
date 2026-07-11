@@ -43,10 +43,11 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { createDefaultProject } from '@/editor/scene'
 import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
-import { downloadProject, openProjectFile } from '@/io/project'
+import { downloadProject, LARGE_PROJECT_PERSIST_LAYER_THRESHOLD, openProjectFile } from '@/io/project'
 import { downloadLottie, exportLottie, readLottieFromFile } from '@/io/lottie'
 import {
   createImportLayerIds,
+  formatSvgImportProgress,
   getSvgImportSummary,
   readSvgImportFromFile,
   svgImportToProject,
@@ -87,6 +88,7 @@ export function Toolbar() {
   const [lottiePreviewOpen, setLottiePreviewOpen] = useState(false)
   const [lottiePreviewData, setLottiePreviewData] = useState<object | null>(null)
   const [isExporting, setIsExporting] = useState(false)
+  const [isImportingSvg, setIsImportingSvg] = useState(false)
   const project = useEditorStore((state) => state.project)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -223,6 +225,13 @@ export function Toolbar() {
     }
 
     openImportedSvgProject(imported)
+    if (summary.layerCount >= LARGE_PROJECT_PERSIST_LAYER_THRESHOLD) {
+      showToast({
+        title: 'Auto-save skipped',
+        description: `This project has ${summary.layerCount}+ layers. Local auto-save is disabled to keep the editor responsive. Export manually to keep a copy.`,
+        variant: 'default',
+      })
+    }
     showToast({
       title: 'SVG opened',
       description:
@@ -238,7 +247,33 @@ export function Toolbar() {
       return
     }
 
-    notifySvgImportResult(await readSvgImportFromFile(file), mode)
+    setIsImportingSvg(true)
+    const toastId = showToast({
+      title: 'Importing SVG',
+      description: 'Parsing SVG structure…',
+      variant: 'loading',
+    })
+
+    try {
+      const result = await readSvgImportFromFile(file, {
+        onProgress: (progress) => {
+          updateToast(toastId, {
+            description: formatSvgImportProgress(progress),
+          })
+        },
+      })
+      dismissToast(toastId)
+      notifySvgImportResult(result, mode)
+    } catch (error) {
+      updateToast(toastId, {
+        title: 'SVG import failed',
+        description:
+          error instanceof Error ? error.message : 'Something went wrong while importing.',
+        variant: 'error',
+      })
+    } finally {
+      setIsImportingSvg(false)
+    }
   }
 
   const handleHtmlFileSelection = async (file: File | undefined) => {
@@ -680,7 +715,7 @@ export function Toolbar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm">
+                  <Button variant="ghost" size="icon-sm" disabled={isImportingSvg}>
                     <FileUp />
                   </Button>
                 </DropdownMenuTrigger>

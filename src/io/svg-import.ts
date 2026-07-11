@@ -26,7 +26,9 @@ import {
 import {
   collectMatrixKeyframesForNode,
   collectTransformKeyframesForNode,
+  beginMatrixTimeCache,
   effectiveMatrixAtTime,
+  endMatrixTimeCache,
 } from '@/io/svg-smil'
 import {
   applyMatrixToPoint,
@@ -37,11 +39,16 @@ import {
 } from '@/io/svg-transform'
 import { arcToCubicBeziers } from '@/io/svg-arc'
 import {
-  applyClassStyles,
-  parseSvgClassStyles,
+  applyElementStyles,
+  parseSvgStyleSheet,
   resolveClassStyle,
-  type SvgClassStyle,
+  type SvgStyleSheet,
 } from '@/io/svg-styles'
+import {
+  getNodePath,
+  sampleMatrixKeyframesBatch,
+  sampleMatrixKeyframesInWorker,
+} from '@/io/svg-matrix-batch'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
 
 export { parseSvgColor } from '@/io/svg-colors'
@@ -59,9 +66,23 @@ export type SvgImportResult = {
   gradients: Record<string, ImportedGradient>
   masks: Record<string, { id: string; markup: string }>
   clipPaths: Record<string, { id: string; markup: string }>
-  filters: Record<string, { id: string; cssFilter?: string }>
+  filters: Record<string, { id: string; markup: string; cssFilter?: string; partial?: boolean }>
   groups: Record<string, LayerGroupMeta>
   duration: number
+}
+
+type PendingMatrixSample = {
+  layerIndex: number
+  nodePath: number[]
+}
+
+type CollectLayersContext = {
+  gradients: Record<string, ImportedGradient>
+  styleSheet: SvgStyleSheet
+  groups: Record<string, LayerGroupMeta>
+  layers: Layer[]
+  pendingMatrixSamples: PendingMatrixSample[]
+  deferMatrixSampling: boolean
 }
 
 const SKIP_TAGS = new Set([
@@ -91,10 +112,10 @@ function readStyle(
   element: Element,
   inherited: SvgStyle,
   gradients: Record<string, ImportedGradient>,
-  classStyles: Record<string, SvgClassStyle>,
+  styleSheet: SvgStyleSheet,
 ): SvgStyle {
   const fromClasses = resolveClassStyle(
-    applyClassStyles(element, inherited, classStyles),
+    applyElementStyles(element, inherited, styleSheet),
     inherited,
     gradients,
   )
@@ -499,10 +520,7 @@ function collectLayers(
   inheritedClipPathId: string | null,
   inheritedFilterId: string | null,
   inheritedGroupId: string | null,
-  gradients: Record<string, ImportedGradient>,
-  classStyles: Record<string, SvgClassStyle>,
-  groups: Record<string, LayerGroupMeta>,
-  layers: Layer[],
+  context: CollectLayersContext,
   startIndex: number,
 ): { nextIndex: number; duration: number } {
   let nextIndex = startIndex
@@ -513,7 +531,7 @@ function collectLayers(
     return { nextIndex, duration }
   }
 
-  const style = readStyle(node, inheritedStyle, gradients, classStyles)
+  const style = readStyle(node, inheritedStyle, context.gradients, context.styleSheet)
   const localMatrix = parseTransformAttribute(node.getAttribute('transform'))
   const matrix = multiplyMatrix(inheritedMatrix, localMatrix)
   const maskId = resolveMaskId(node.getAttribute('mask')) ?? inheritedMaskId
@@ -526,8 +544,8 @@ function collectLayers(
     const name =
       node.getAttribute('id') ||
       node.getAttribute('data-name') ||
-      `Group ${Object.keys(groups).length + 1}`
-    groups[activeGroupId] = {
+      `Group ${Object.keys(context.groups).length + 1}`
+    context.groups[activeGroupId] = {
       name,
       parentGroupId: inheritedGroupId,
     }
@@ -543,10 +561,7 @@ function collectLayers(
         clipPathId,
         filterId,
         activeGroupId,
-        gradients,
-        classStyles,
-        groups,
-        layers,
+        context,
         nextIndex,
       )
       nextIndex = childResult.nextIndex
@@ -563,9 +578,6 @@ function collectLayers(
   }
 
   if (isPath && shape.type === 'path') {
-    const matrixAnim = collectMatrixKeyframesForNode(node)
-    duration = Math.max(duration, matrixAnim.duration)
-
     const positionedShape = {
       ...shape,
       x: 0,
@@ -577,7 +589,6 @@ function collectLayers(
 
     const name = node.getAttribute('id') || node.getAttribute('data-name') || `${tag}-${nextIndex + 1}`
     const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
-    layer.matrixKeyframes = matrixAnim.keyframes
     layer.groupId = activeGroupId
     if (maskId) {
       layer.svgMaskId = maskId
@@ -589,7 +600,19 @@ function collectLayers(
       layer.svgFilterId = filterId
     }
 
-    layers.push(attachMatrixDisplayKeyframes(layer))
+    if (context.deferMatrixSampling) {
+      context.pendingMatrixSamples.push({
+        layerIndex: context.layers.length,
+        nodePath: getNodePath(node),
+      })
+      context.layers.push(layer)
+      return { nextIndex: nextIndex + 1, duration }
+    }
+
+    const matrixAnim = collectMatrixKeyframesForNode(node)
+    duration = Math.max(duration, matrixAnim.duration)
+    layer.matrixKeyframes = matrixAnim.keyframes
+    context.layers.push(attachMatrixDisplayKeyframes(layer))
     return { nextIndex: nextIndex + 1, duration }
   }
 
@@ -612,8 +635,137 @@ function collectLayers(
     layer.svgFilterId = filterId
   }
 
-  layers.push(layer)
+  context.layers.push(layer)
   return { nextIndex: nextIndex + 1, duration }
+}
+
+async function finalizeMatrixSamples(
+  layers: Layer[],
+  pendingSamples: PendingMatrixSample[],
+  svgMarkup: string,
+  duration: number,
+  useWorker: boolean,
+  onProgress?: (progress: SvgImportProgress) => void,
+): Promise<number> {
+  if (pendingSamples.length === 0) {
+    return duration
+  }
+
+  const total = pendingSamples.length
+  const chunkSize = useWorker ? 50 : 25
+  let maxDuration = duration
+
+  for (let offset = 0; offset < total; offset += chunkSize) {
+    const chunk = pendingSamples.slice(offset, offset + chunkSize)
+    const requests = chunk.map((sample) => ({ nodePath: sample.nodePath }))
+    const results = useWorker
+      ? await sampleMatrixKeyframesInWorker(svgMarkup, requests)
+      : sampleMatrixKeyframesBatch(svgMarkup, requests)
+
+    for (let index = 0; index < chunk.length; index += 1) {
+      const sample = chunk[index]!
+      const matrixAnim = results[index]!
+      const layer = layers[sample.layerIndex]
+      if (!layer) {
+        continue
+      }
+
+      layer.matrixKeyframes = matrixAnim.keyframes
+      maxDuration = Math.max(maxDuration, matrixAnim.duration)
+      const enriched = attachMatrixDisplayKeyframes(layer)
+      layers[sample.layerIndex] = enriched
+    }
+
+    onProgress?.({
+      stage: 'matrix-sampling',
+      current: Math.min(offset + chunk.length, total),
+      total,
+    })
+  }
+
+  onProgress?.({ stage: 'applying', current: total, total })
+  return maxDuration
+}
+
+function parseSvgDocument(raw: string, deferMatrixSampling: boolean): {
+  svg: SVGSVGElement
+  layers: Layer[]
+  groups: Record<string, LayerGroupMeta>
+  gradients: Record<string, ImportedGradient>
+  masks: ReturnType<typeof parseSvgMasks>
+  clipPaths: ReturnType<typeof parseSvgClipPaths>
+  filters: ReturnType<typeof parseSvgFilters>
+  duration: number
+  pendingMatrixSamples: PendingMatrixSample[]
+} | null {
+  const parser = new DOMParser()
+  const document = parser.parseFromString(raw, 'image/svg+xml')
+  const parserError = document.querySelector('parsererror')
+  if (parserError) {
+    return null
+  }
+
+  const svg = document.querySelector('svg')
+  if (!svg) {
+    return null
+  }
+
+  const gradients = parseSvgGradients(svg)
+  const masks = parseSvgMasks(svg, gradients)
+  const clipPaths = parseSvgClipPaths(svg, gradients)
+  const filters = parseSvgFilters(svg)
+  const styleSheet = parseSvgStyleSheet(svg)
+  const groups: Record<string, LayerGroupMeta> = {}
+  const defaultStyle: SvgStyle = {
+    fill: SHAPE_FILL_SECONDARY,
+    stroke: 'none',
+    strokeWidth: 0,
+    opacity: 1,
+  }
+
+  const context: CollectLayersContext = {
+    gradients,
+    styleSheet,
+    groups,
+    layers: [],
+    pendingMatrixSamples: [],
+    deferMatrixSampling,
+  }
+
+  beginMatrixTimeCache()
+  let duration = 0
+  try {
+    const result = collectLayers(
+      svg,
+      defaultStyle,
+      IDENTITY_MATRIX,
+      null,
+      null,
+      null,
+      null,
+      context,
+      0,
+    )
+    duration = result.duration
+  } finally {
+    endMatrixTimeCache()
+  }
+
+  if (context.layers.length === 0) {
+    return null
+  }
+
+  return {
+    svg,
+    layers: context.layers,
+    groups,
+    gradients,
+    masks,
+    clipPaths,
+    filters,
+    duration,
+    pendingMatrixSamples: context.pendingMatrixSamples,
+  }
 }
 
 function mergeKeyframes(existing: Keyframe[], imported: Keyframe[]): Keyframe[] {
@@ -661,7 +813,7 @@ export function parseShapeElement(element: Element): Shape | null {
     strokeWidth: 0,
     opacity: 1,
   }
-  const style = readStyle(element, defaultStyle, {}, {})
+  const style = readStyle(element, defaultStyle, {}, { classes: {}, ids: {} })
   return elementToShape(element, style, IDENTITY_MATRIX)
 }
 
@@ -676,62 +828,80 @@ export function parseSvgArtboardFromMarkup(raw: string): { width: number; height
   return readArtboard(svg)
 }
 
-export function importSvg(raw: string): SvgImportResult | null {
-  const parser = new DOMParser()
-  const document = parser.parseFromString(raw, 'image/svg+xml')
-  const parserError = document.querySelector('parsererror')
-  if (parserError) {
-    return null
-  }
-
-  const svg = document.querySelector('svg')
-  if (!svg) {
-    return null
-  }
-
-  const gradients = parseSvgGradients(svg)
-  const masks = parseSvgMasks(svg, gradients)
-  const clipPaths = parseSvgClipPaths(svg, gradients)
-  const filters = parseSvgFilters(svg)
-  const classStyles = parseSvgClassStyles(svg)
-  const groups: Record<string, LayerGroupMeta> = {}
-  const defaultStyle: SvgStyle = {
-    fill: SHAPE_FILL_SECONDARY,
-    stroke: 'none',
-    strokeWidth: 0,
-    opacity: 1,
-  }
-
-  const layers: Layer[] = []
-  const { duration } = collectLayers(
-    svg,
-    defaultStyle,
-    IDENTITY_MATRIX,
-    null,
-    null,
-    null,
-    null,
-    gradients,
-    classStyles,
-    groups,
-    layers,
-    0,
-  )
-
-  if (layers.length === 0) {
-    return null
-  }
-
+function buildSvgImportResult(
+  parsed: NonNullable<ReturnType<typeof parseSvgDocument>>,
+  duration: number,
+): SvgImportResult {
   return {
-    layers,
-    artboard: readArtboard(svg),
-    gradients,
-    masks,
-    clipPaths,
-    filters,
-    groups,
+    layers: parsed.layers,
+    artboard: readArtboard(parsed.svg),
+    gradients: parsed.gradients,
+    masks: parsed.masks,
+    clipPaths: parsed.clipPaths,
+    filters: parsed.filters,
+    groups: parsed.groups,
     duration: duration > 0 ? duration : 0,
   }
+}
+
+export function importSvg(raw: string): SvgImportResult | null {
+  const parsed = parseSvgDocument(raw, false)
+  if (!parsed) {
+    return null
+  }
+
+  return buildSvgImportResult(parsed, parsed.duration)
+}
+
+export type SvgImportStage = 'parsing' | 'matrix-sampling' | 'applying'
+
+export type SvgImportProgress = {
+  stage: SvgImportStage
+  current?: number
+  total?: number
+}
+
+export type SvgImportOptions = {
+  onProgress?: (progress: SvgImportProgress) => void
+}
+
+export function formatSvgImportProgress(progress: SvgImportProgress): string {
+  if (progress.stage === 'parsing') {
+    return 'Parsing SVG structure…'
+  }
+
+  if (progress.stage === 'matrix-sampling') {
+    if (progress.total && progress.total > 0 && progress.current !== undefined) {
+      return `Sampling motion (${progress.current}/${progress.total} layers)…`
+    }
+    return 'Sampling motion paths…'
+  }
+
+  return 'Applying transforms…'
+}
+
+export async function importSvgAsync(
+  raw: string,
+  options?: SvgImportOptions,
+): Promise<SvgImportResult | null> {
+  options?.onProgress?.({ stage: 'parsing' })
+  const deferMatrixSampling = true
+  const parsed = parseSvgDocument(raw, deferMatrixSampling)
+  if (!parsed) {
+    return null
+  }
+
+  const useWorker = parsed.pendingMatrixSamples.length >= 300
+  const duration = await finalizeMatrixSamples(
+    parsed.layers,
+    parsed.pendingMatrixSamples,
+    raw,
+    parsed.duration,
+    useWorker,
+    options?.onProgress,
+  )
+
+  return buildSvgImportResult(parsed, duration)
 }
 
 export function importSvgAsProject(raw: string): Project | null {
@@ -797,14 +967,17 @@ export type OpenSvgFileResult =
   | { status: 'rejected'; fileName: string }
   | { status: 'ok'; value: SvgImportResult }
 
-export async function readSvgImportFromFile(file: File): Promise<OpenSvgFileResult> {
+export async function readSvgImportFromFile(
+  file: File,
+  options?: SvgImportOptions,
+): Promise<OpenSvgFileResult> {
   try {
     const text = await file.text()
     if (!isSvgFile(file) && !looksLikeSvgText(text)) {
       return { status: 'rejected', fileName: file.name }
     }
 
-    const value = importSvg(text)
+    const value = await importSvgAsync(text, options)
     if (!value) {
       return { status: 'rejected', fileName: file.name }
     }
@@ -815,7 +988,7 @@ export async function readSvgImportFromFile(file: File): Promise<OpenSvgFileResu
   }
 }
 
-export async function openSvgFile(): Promise<OpenSvgFileResult> {
+export async function openSvgFile(options?: SvgImportOptions): Promise<OpenSvgFileResult> {
   const picked = await openFilePicker({
     validateText: (text, file) => isSvgFile(file) || looksLikeSvgText(text),
   })
@@ -828,7 +1001,7 @@ export async function openSvgFile(): Promise<OpenSvgFileResult> {
     return { status: 'rejected', fileName: picked.file.name }
   }
 
-  return readSvgImportFromFile(picked.file)
+  return readSvgImportFromFile(picked.file, options)
 }
 
 export function createImportLayerIds(layers: Layer[], artboardId: string): Layer[] {

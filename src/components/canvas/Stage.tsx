@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
 import { AnimatedMaskDefs } from '@/components/canvas/AnimatedMaskDefs'
+import {
+  CanvasPlaybackRenderer,
+  FastPreviewBadge,
+} from '@/components/canvas/CanvasPlaybackRenderer'
 import { PlaybackTransformDriver } from '@/components/canvas/PlaybackTransformDriver'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
@@ -19,6 +23,7 @@ import { clientToArtboard } from '@/editor/coordinates'
 import { sampleColorFromArtboard } from '@/editor/eyedropper'
 import { getCanvasChromeInsets, getViewportPoint } from '@/editor/viewport-chrome'
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
+import { shouldUseCanvasPlayback } from '@/editor/canvas-playback'
 import { getArtboardLayers, getProjectFps } from '@/editor/artboard-utils'
 import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
@@ -39,6 +44,7 @@ export function Stage() {
   const canvasAreaRef = useRef<HTMLDivElement>(null)
   const canvasViewportRef = useRef<HTMLDivElement>(null)
   const svgRef = useRef<SVGSVGElement>(null)
+  const playbackCanvasRef = useRef<HTMLCanvasElement>(null)
   const [spacePressed, setSpacePressed] = useState(false)
   const [marquee, setMarquee] = useState<{
     startX: number
@@ -79,6 +85,7 @@ export function Stage() {
   )
   const storeCurrentTime = useEditorStore((state) => state.currentTime)
   const playbackState = useEditorStore((state) => state.playbackState)
+  const canvasPlaybackActive = shouldUseCanvasPlayback(visibleLayers.length, playbackState)
   const displayTimeRef = useRef(storeCurrentTime)
   if (playbackState !== 'playing') {
     displayTimeRef.current = storeCurrentTime
@@ -635,12 +642,26 @@ export function Stage() {
               transformOrigin: 'center center',
             }}
           >
+            {canvasPlaybackActive ? (
+              <canvas
+                ref={playbackCanvasRef}
+                width={width}
+                height={height}
+                className={cn('absolute inset-0 block', artboardUsesGrid && 'artboard-surface')}
+                aria-hidden
+              />
+            ) : null}
+            <FastPreviewBadge active={canvasPlaybackActive} />
             <svg
               ref={svgRef}
               width={width}
               height={height}
               viewBox={`0 0 ${width} ${height}`}
-              className={cn('block', artboardUsesGrid && 'artboard-surface')}
+              className={cn(
+                'block',
+                artboardUsesGrid && 'artboard-surface',
+                canvasPlaybackActive && 'invisible',
+              )}
               onPointerDown={handleArtboardPointerDown}
               onPointerMove={handleArtboardPointerMove}
               onPointerUp={handleArtboardPointerUp}
@@ -652,7 +673,17 @@ export function Stage() {
               }}
             >
               <AnimatedMaskDefs layers={visibleLayers} />
-              <PlaybackTransformDriver layers={visibleLayers} svgRef={svgRef} />
+              {canvasPlaybackActive ? (
+                <CanvasPlaybackRenderer
+                  layers={visibleLayers}
+                  svgRef={svgRef}
+                  canvasRef={playbackCanvasRef}
+                  width={width}
+                  height={height}
+                />
+              ) : (
+                <PlaybackTransformDriver layers={visibleLayers} svgRef={svgRef} />
+              )}
               <defs>
                 <clipPath id="artboard-clip">
                   <rect width={width} height={height} />

@@ -71,4 +71,34 @@ describe('svg export', () => {
     expect(svg).toContain('M 10 20 L 50 80')
     expect(svg).toContain('stroke-linecap="round"')
   })
+
+  it('re-emits imported svg filters on export', () => {
+    const project = createDefaultProject()
+    const artboardId = project.artboards[0]!.id
+    const pathLayer = createLayerFromShape(
+      createPathShape([
+        { x: 10, y: 20 },
+        { x: 50, y: 80 },
+      ]),
+      0,
+      artboardId,
+    )
+    pathLayer.svgFilterId = 'shadow'
+    project.layers = [pathLayer]
+    project.importedSvg = {
+      gradients: {},
+      filters: {
+        shadow: {
+          id: 'shadow',
+          markup: '<feDropShadow dx="4" dy="6" stdDeviation="3" />',
+        },
+      },
+    }
+
+    const svg = exportStaticSvg(project)
+
+    expect(svg).toContain('id="imported-filter-shadow"')
+    expect(svg).toContain('feDropShadow')
+    expect(svg).toContain('filter="url(#imported-filter-shadow)"')
+  })
 })

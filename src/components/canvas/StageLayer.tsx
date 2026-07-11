@@ -7,6 +7,7 @@ import type { EditorTool } from '@/editor/tools'
 import type { Layer, Shape } from '@/editor/types'
 import { useEditorStore } from '@/editor/store'
 import { importedClipPathId } from '@/io/svg-clippaths'
+import { importedFilterId } from '@/io/svg-filters'
 import { importedMaskId } from '@/io/svg-masks'
 
 type StageLayerProps = {
@@ -44,13 +45,21 @@ export const StageLayer = memo(function StageLayer({
       ? `${layer.svgClipPathId}__${layer.id}`
       : layer.svgClipPathId
 
-  const cssFilter =
-    layer.svgFilterId && importedSvg?.filters?.[layer.svgFilterId]?.cssFilter
+  const filterId = layer.svgFilterId
+  const importedFilter = filterId ? importedSvg?.filters?.[filterId] : undefined
+
+  const nativeFilter =
+    filterId && importedFilter?.markup
+      ? `url(#${importedFilterId(filterId)})`
+      : undefined
+
+  const cssFilter = !nativeFilter ? importedFilter?.cssFilter : undefined
 
   return (
     <g
       mask={maskId ? `url(#${importedMaskId(maskId)})` : undefined}
       clipPath={clipPathId ? `url(#${importedClipPathId(clipPathId)})` : undefined}
+      filter={nativeFilter}
       onPointerDown={(event) => {
         if (!allowLayerSelect || isPanning) {
           return
