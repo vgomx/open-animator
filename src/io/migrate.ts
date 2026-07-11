@@ -236,7 +236,7 @@ function migrateV8toV9(project: LegacyProject): LegacyProject {
   }
 }
 
-function migrateV9toV10(project: LegacyProject): Project {
+function migrateV9toV10(project: LegacyProject): LegacyProject {
   const duration = (project as Project).duration ?? 3
   const legacyArtboard = (project as LegacyProject).artboard ?? { width: 800, height: 600 }
   const artboardId = legacyArtboard.id ?? createId()
@@ -250,7 +250,7 @@ function migrateV9toV10(project: LegacyProject): Project {
 
   return {
     ...(project as Project),
-    version: PROJECT_VERSION,
+    version: 10,
     canvas: {
       backgroundColor:
         (project as Project).canvas?.backgroundColor ?? DEFAULT_CANVAS.backgroundColor,
@@ -309,6 +309,14 @@ function normalizeProject(project: Project): Project {
   }
 }
 
+function migrateV10toV11(project: Project): Project {
+  return {
+    ...project,
+    version: PROJECT_VERSION,
+    importedSvg: project.importedSvg,
+  }
+}
+
 export function migrateProject(parsed: LegacyProject): Project {
   let project: LegacyProject = parsed
 
@@ -345,7 +353,11 @@ export function migrateProject(parsed: LegacyProject): Project {
   }
 
   if (project.version === 9) {
-    return migrateV9toV10(project)
+    project = migrateV9toV10(project)
+  }
+
+  if (project.version === 10) {
+    return migrateV10toV11(project as Project)
   }
 
   if (project.version === PROJECT_VERSION) {

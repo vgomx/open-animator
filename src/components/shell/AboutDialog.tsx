@@ -6,7 +6,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { AppLogo } from '@/components/shell/AppLogo'
-import { APP_AUTHOR, APP_AUTHOR_URL, APP_GITHUB_URL, APP_LICENSE, APP_NAME } from '@/lib/app'
+import { APP_AUTHOR, APP_AUTHOR_URL, APP_GITHUB_URL, APP_LICENSE, APP_NAME, APP_RELEASE_STAGE } from '@/lib/app'
 
 type AboutDialogProps = {
   open: boolean
@@ -39,6 +39,9 @@ export function AboutDialog({ open, onOpenChange, onOpenAcknowledgments }: About
           </div>
           <div className="space-y-1">
             <DialogTitle className="text-lg">{APP_NAME}</DialogTitle>
+            <span className="inline-flex rounded-full border border-amber-500/35 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+              {APP_RELEASE_STAGE}
+            </span>
             <DialogDescription>
               by{' '}
               <AuthorLink className="font-medium text-foreground underline underline-offset-4 hover:text-primary" />

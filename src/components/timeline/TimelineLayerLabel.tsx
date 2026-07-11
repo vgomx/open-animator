@@ -1,3 +1,4 @@
+import { layerHasAnimation } from '@/editor/layer-animation'
 import type { Layer } from '@/editor/types'
 import { getLayerTypeIcon } from '@/editor/layer-display'
 import { TIMELINE_ROW_HEIGHT } from '@/editor/layout-constants'
@@ -21,7 +22,7 @@ export function TimelineLayerLabel({
   onToggleExpand,
 }: TimelineLayerLabelProps) {
   const Icon = getLayerTypeIcon(layer.shape.type)
-  const hasKeyframes = layer.keyframes.length > 0
+  const hasKeyframes = layerHasAnimation(layer)
 
   return (
     <div

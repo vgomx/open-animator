@@ -5,6 +5,22 @@ export function clampZoom(zoom: number): number {
   return Math.max(MIN_ZOOM, Math.min(zoom, MAX_ZOOM))
 }
 
+export function computeFitZoom(
+  artboardWidth: number,
+  artboardHeight: number,
+  viewportWidth: number,
+  viewportHeight: number,
+  padding = 80,
+): number {
+  return clampZoom(
+    Math.min(
+      (viewportWidth - padding) / artboardWidth,
+      (viewportHeight - padding) / artboardHeight,
+      MAX_ZOOM,
+    ),
+  )
+}
+
 export function zoomAtPoint(params: {
   zoom: number
   panX: number

@@ -6,8 +6,22 @@ type ShapeViewProps = {
   shape: Shape
 }
 
+function matrixToTransform(matrix: {
+  a: number
+  b: number
+  c: number
+  d: number
+  e: number
+  f: number
+}): string {
+  return `matrix(${matrix.a} ${matrix.b} ${matrix.c} ${matrix.d} ${matrix.e} ${matrix.f})`
+}
+
 export function ShapeView({ shape }: ShapeViewProps) {
-  const transform = buildShapeTransform(shape)
+  const transform =
+    shape.type === 'path' && shape.transformMatrix
+      ? matrixToTransform(shape.transformMatrix)
+      : buildShapeTransform(shape)
   const sharedProps = {
     transform,
     fill: shape.fill,

@@ -1,5 +1,8 @@
 export const APP_NAME = 'Open Animator'
 
+/** Pre-release stage shown in About and other product surfaces. */
+export const APP_RELEASE_STAGE = 'alpha' as const
+
 export { APP_BRAND_ACCENT, BRAND, UI_PATH_STROKE, UI_STROKE } from '@/lib/brand-colors'
 
 /** npm / folder slug */

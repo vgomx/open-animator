@@ -35,6 +35,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const removeSelectedKeyframes = useEditorStore((state) => state.removeSelectedKeyframes)
   const selectedKeyframeIds = useEditorStore((state) => state.selectedKeyframeIds)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
+  const clearSelection = useEditorStore((state) => state.clearSelection)
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
@@ -179,6 +180,16 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
           return
         }
 
+        if (
+          selectedLayerIds.length > 0 ||
+          selectedKeyframeIds.length > 0 ||
+          selectedNodeIndices.length > 0
+        ) {
+          event.preventDefault()
+          clearSelection()
+          return
+        }
+
         cancelPenDraft()
       }
 
@@ -193,6 +204,7 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   }, [
     activeTool,
     cancelEyedropper,
+    clearSelection,
     cancelPenDraft,
     copyKeyframesAtCurrentTime,
     copyStyleFromSelection,

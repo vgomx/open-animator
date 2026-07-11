@@ -34,6 +34,24 @@ export function PropertiesPanel() {
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
 
+  const documentPanel = (
+    <DocumentTab
+      canvas={canvas}
+      artboard={artboard}
+      fps={fps}
+      duration={duration}
+      layerCount={layers.length}
+      stateCount={states.length}
+      onUpdateCanvas={updateCanvas}
+      onUpdateArtboard={(patch) => {
+        if (activeArtboardId) {
+          updateArtboard(activeArtboardId, patch)
+        }
+      }}
+      onUpdateProjectTiming={updateProjectTiming}
+    />
+  )
+
   if (!showPropertiesPanel) {
     return null
   }
@@ -57,23 +75,7 @@ export function PropertiesPanel() {
             </span>
           </div>
         </div>
-        <ScrollArea className="panel-scroll">
-          <DocumentTab
-            canvas={canvas}
-            artboard={artboard}
-            fps={fps}
-            duration={duration}
-            layerCount={layers.length}
-            stateCount={states.length}
-            onUpdateCanvas={updateCanvas}
-            onUpdateArtboard={(patch) => {
-              if (activeArtboardId) {
-                updateArtboard(activeArtboardId, patch)
-              }
-            }}
-            onUpdateProjectTiming={updateProjectTiming}
-          />
-        </ScrollArea>
+        <ScrollArea className="panel-scroll">{documentPanel}</ScrollArea>
       </aside>
     )
   }
@@ -113,7 +115,11 @@ export function PropertiesPanel() {
       </div>
 
       <Tabs defaultValue="design" className="flex min-h-0 flex-1 flex-col overflow-hidden">
-        <TabsList className="mx-3 mt-3 grid w-auto shrink-0 grid-cols-2">
+        <TabsList className="mx-3 mt-3 grid w-auto shrink-0 grid-cols-3">
+          <TabsTrigger value="document" className="gap-1.5 text-xs">
+            <Frame className="size-3.5" />
+            Document
+          </TabsTrigger>
           <TabsTrigger value="design" className="gap-1.5 text-xs">
             <Layers2 className="size-3.5" />
             Design
@@ -125,6 +131,9 @@ export function PropertiesPanel() {
         </TabsList>
 
         <ScrollArea className="panel-scroll">
+          <TabsContent value="document" className="mt-0">
+            {documentPanel}
+          </TabsContent>
           <TabsContent value="design" className="mt-0">
             <DesignTab
               selectedLayer={selectedLayer}

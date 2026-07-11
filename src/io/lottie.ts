@@ -476,6 +476,14 @@ function lottieColorToHex(color: number[]): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
+export async function readLottieFromFile(file: File): Promise<Project | null> {
+  try {
+    return importLottie(await file.text())
+  } catch {
+    return null
+  }
+}
+
 export async function openLottieFile(): Promise<Project | null> {
   const picked = await openFilePicker({
     accept: 'application/json,.json',

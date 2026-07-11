@@ -33,7 +33,7 @@ import { createArtboard } from '@/editor/types'
 import type { EditorTool } from '@/editor/tools'
 import { deletePathNodes } from '@/editor/path-nodes'
 import type { PathPoint } from '@/editor/types'
-import { clampZoom, zoomAtPoint } from '@/editor/viewport'
+import { clampZoom, computeFitZoom, zoomAtPoint } from '@/editor/viewport'
 import type {
   AnimatableProperty,
   Artboard,
@@ -175,8 +175,22 @@ type EditorStore = {
   ) => void
   fitToScreen: (viewportWidth: number, viewportHeight: number) => void
   resetViewport: () => void
-  setProject: (project: Project) => void
-  importSvgLayers: (layers: Layer[], artboard?: Partial<Artboard>) => void
+  setProject: (
+    project: Project,
+    options?: {
+      fitViewport?: { width: number; height: number }
+      /** Keep document properties visible instead of selecting the first layer. */
+      clearLayerSelection?: boolean
+    },
+  ) => void
+  importSvgLayers: (
+    layers: Layer[],
+    options?: {
+      artboard?: Partial<Artboard>
+      duration?: number
+      importedSvg?: Project['importedSvg']
+    },
+  ) => void
   addKeyframeAtCurrentTime: (property: AnimatableProperty) => void
   setKeyframeEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
   moveKeyframe: (keyframeId: string, time: number, options?: { skipHistory?: boolean }) => void
@@ -1141,15 +1155,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
   fitToScreen: (viewportWidth, viewportHeight) =>
     set((state) => {
       const { width, height } = getActiveArtboard(state.project, state.activeArtboardId)
-      const padding = 80
-      const zoom = Math.min(
-        (viewportWidth - padding) / width,
-        (viewportHeight - padding) / height,
-        3,
-      )
 
       return {
-        zoom: clampZoom(zoom),
+        zoom: computeFitZoom(width, height, viewportWidth, viewportHeight),
         panX: 0,
         panY: 0,
       }
@@ -1157,21 +1165,35 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   resetViewport: () => set({ zoom: 1, panX: 0, panY: 0 }),
 
-  setProject: (project) => {
+  setProject: (project, options) => {
     persistProject(project)
     const activeArtboardId = project.artboards[0]?.id ?? null
     const visibleLayers = activeArtboardId
       ? getArtboardLayers(project, activeArtboardId)
       : project.layers
+    const artboard = project.artboards[0]
+    const zoom =
+      options?.fitViewport && artboard
+        ? computeFitZoom(
+            artboard.width,
+            artboard.height,
+            options.fitViewport.width,
+            options.fitViewport.height,
+          )
+        : 1
+
     set({
       project,
       activeArtboardId,
-      ...syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : []),
+      ...(options?.clearLayerSelection
+        ? { ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [] }
+        : syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : [])),
       currentTime: 0,
       playbackState: 'idle',
       history: { past: [], future: [] },
       panX: 0,
       panY: 0,
+      zoom,
     })
   },
 
@@ -1261,7 +1283,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })
     }),
 
-  importSvgLayers: (layers, artboard) =>
+  importSvgLayers: (layers, options) =>
     set((state) => {
       if (layers.length === 0) {
         return state
@@ -1269,21 +1291,30 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
       return withHistory(state, (current) => {
         const activeArtboardId = resolveArtboardId(current)
+        const nextDuration =
+          options?.duration && options.duration > 0
+            ? options.duration
+            : current.project.duration
         const project = {
           ...current.project,
+          duration: nextDuration,
+          loopOut: Math.max(current.project.loopIn, nextDuration),
+          importedSvg: options?.importedSvg ?? current.project.importedSvg,
           layers: [
             ...current.project.layers,
             ...layers.map((layer) => ({ ...layer, artboardId: layer.artboardId ?? activeArtboardId })),
           ],
-          artboards: artboard
+          artboards: options?.artboard
             ? current.project.artboards.map((item) =>
-                item.id === activeArtboardId ? { ...item, ...artboard } : item,
+                item.id === activeArtboardId ? { ...item, ...options.artboard } : item,
               )
             : current.project.artboards,
         }
 
         return {
           project,
+          currentTime: 0,
+          playbackState: 'idle' as const,
           ...syncSelection(layers.map((layer) => layer.id)),
         }
       })

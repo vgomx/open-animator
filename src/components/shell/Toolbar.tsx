@@ -5,6 +5,7 @@ import {
   Copy,
   Download,
   Expand,
+  FileUp,
   FolderOpen,
   Magnet,
   PanelLeft,
@@ -34,7 +35,6 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
 import { ToolbarDivider } from '@/components/ui/toolbar-divider'
@@ -42,8 +42,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
 import { downloadProject, openProjectFile } from '@/io/project'
-import { downloadLottie, exportLottie, openLottieFile } from '@/io/lottie'
-import { createImportLayerIds, openSvgFile, svgImportToProject } from '@/io/svg-import'
+import { downloadLottie, exportLottie, readLottieFromFile } from '@/io/lottie'
+import {
+  createImportLayerIds,
+  getSvgImportSummary,
+  readSvgImportFromFile,
+  svgImportToProject,
+  type SvgImportResult,
+} from '@/io/svg-import'
 import {
   downloadAnimatedSvg,
   downloadStaticSvg,
@@ -53,7 +59,7 @@ import { downloadGif } from '@/io/gif-export'
 import { downloadCssKeyframes } from '@/io/css-export'
 import { downloadReactComponent } from '@/io/react-export'
 import { downloadAnimatedHtml } from '@/io/embed-export'
-import { openHtmlFile } from '@/io/html-import'
+import { readHtmlImportFromFile } from '@/io/html-import'
 import { dismissToast, showToast, updateToast } from '@/lib/toast'
 
 const LottieDialog = lazy(() =>
@@ -63,6 +69,15 @@ const LottieDialog = lazy(() =>
 )
 
 type ExportKind = 'static-svg' | 'animated-svg' | 'html' | 'webm' | 'gif'
+
+const IMPORT_INPUT_CLASS = 'sr-only'
+
+function resetFileInput(inputId: string) {
+  const input = document.getElementById(inputId) as HTMLInputElement | null
+  if (input) {
+    input.value = ''
+  }
+}
 
 export function Toolbar() {
   const [presetsOpen, setPresetsOpen] = useState(false)
@@ -100,18 +115,39 @@ export function Toolbar() {
 
   const isPlaying = playbackState === 'playing'
 
+  const getStageViewportRect = () => {
+    const viewport = document.querySelector('[data-stage-viewport]')
+    return viewport?.getBoundingClientRect()
+  }
+
   const fitCanvasToScreen = () => {
-    const viewport = document.querySelector('[data-canvas-viewport]')
-    if (!viewport) {
+    const rect = getStageViewportRect()
+    if (!rect) {
       return
     }
 
-    const rect = viewport.getBoundingClientRect()
     fitToScreen(rect.width, rect.height)
   }
 
+  const openImportedSvgProject = (imported: SvgImportResult) => {
+    const summary = getSvgImportSummary(imported)
+    const viewport = getStageViewportRect()
+
+    setProject(svgImportToProject(imported), {
+      fitViewport: viewport ?? undefined,
+      clearLayerSelection: true,
+    })
+    if (summary.animatedLayerCount > 0) {
+      useEditorStore.setState({ loop: true })
+      useEditorStore.getState().setPlaybackState('playing')
+    }
+    if (!viewport) {
+      requestAnimationFrame(fitCanvasToScreen)
+    }
+  }
+
   const notifySvgImportResult = (
-    result: Awaited<ReturnType<typeof openSvgFile>>,
+    result: Awaited<ReturnType<typeof readSvgImportFromFile>>,
     mode: 'merge' | 'project',
   ) => {
     if (result.status === 'cancelled') {
@@ -128,6 +164,7 @@ export function Toolbar() {
     }
 
     const imported = result.value
+    const summary = getSvgImportSummary(imported)
 
     if (imported.layers.length === 0) {
       showToast({
@@ -141,41 +178,68 @@ export function Toolbar() {
     if (mode === 'merge') {
       const artboardId =
         activeArtboardId ?? useEditorStore.getState().project.artboards[0]?.id ?? ''
-      importSvgLayers(createImportLayerIds(imported.layers, artboardId), imported.artboard)
-      showToast({
-        title: 'SVG imported',
-        description: `Added ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} to the current project.`,
-        variant: 'success',
+      importSvgLayers(createImportLayerIds(imported.layers, artboardId), {
+        artboard: imported.artboard,
+        duration: imported.duration,
+        importedSvg:
+          Object.keys(imported.gradients).length > 0 || Object.keys(imported.masks).length > 0
+            ? {
+                gradients: imported.gradients,
+                ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
+              }
+            : undefined,
       })
+      requestAnimationFrame(fitCanvasToScreen)
+    showToast({
+      title: 'SVG imported',
+      description: `Added ${summary.layerCount} layer${summary.layerCount === 1 ? '' : 's'}${summary.animatedLayerCount > 0 ? ` (${summary.animatedLayerCount} animated, ${summary.duration}s)` : ''}${summary.maskCount > 0 ? `, ${summary.maskCount} masks` : ''}.`,
+      variant: 'success',
+    })
       return
     }
 
-    setProject(svgImportToProject(imported))
-    requestAnimationFrame(fitCanvasToScreen)
+    openImportedSvgProject(imported)
     showToast({
       title: 'SVG opened',
-      description: `Loaded ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} as a new project.`,
+      description:
+        summary.animatedLayerCount > 0
+          ? `Loaded ${summary.layerCount} layers on ${imported.artboard.width}×${imported.artboard.height} (${summary.animatedLayerCount} animated, ${summary.duration}s${summary.maskCount > 0 ? `, ${summary.maskCount} masks` : ''}). Press Play to preview.`
+          : `Loaded ${summary.layerCount} layer${summary.layerCount === 1 ? '' : 's'} on ${imported.artboard.width}×${imported.artboard.height}.`,
       variant: 'success',
     })
   }
 
-  const runFileImport = (startImport: () => Promise<void>) => (event: Event) => {
-    event.preventDefault()
-    void startImport()
-  }
-
-  const handleImportHtmlAnimation = async () => {
-    const result = await openHtmlFile()
-    if (result.status === 'cancelled') {
+  const handleSvgFileSelection = async (file: File | undefined, mode: 'merge' | 'project') => {
+    if (!file) {
       return
     }
 
-    if (result.status === 'rejected') {
-      showToast({
-        title: 'Not an HTML file',
-        description: `"${result.fileName}" is not a supported HTML animation. Choose a .html or .htm file.`,
-        variant: 'error',
-      })
+    notifySvgImportResult(await readSvgImportFromFile(file), mode)
+  }
+
+  const handleHtmlFileSelection = async (file: File | undefined) => {
+    if (!file) {
+      return
+    }
+
+    const result = await readHtmlImportFromFile(file)
+    if (result.status !== 'ok') {
+      if (result.status === 'rejected') {
+        if (result.reason === 'bundler') {
+          showToast({
+            title: 'JavaScript bundle not supported',
+            description:
+              'This HTML file animates with JavaScript at runtime (e.g. a map or interactive bundle). Open Animator imports CSS @keyframes or SVG SMIL only. Export animated SVG or Lottie from the source instead.',
+            variant: 'error',
+          })
+        } else {
+          showToast({
+            title: 'Not an HTML file',
+            description: `"${result.fileName}" is not a supported HTML animation. Choose a .html or .htm file.`,
+            variant: 'error',
+          })
+        }
+      }
       return
     }
 
@@ -188,9 +252,18 @@ export function Toolbar() {
     })
   }
 
-  const handleImportLottie = async () => {
-    const imported = await openLottieFile()
+  const handleLottieFileSelection = async (file: File | undefined) => {
+    if (!file) {
+      return
+    }
+
+    const imported = await readLottieFromFile(file)
     if (!imported) {
+      showToast({
+        title: 'Lottie import failed',
+        description: `"${file.name}" is not a valid Lottie JSON file.`,
+        variant: 'error',
+      })
       return
     }
 
@@ -201,15 +274,6 @@ export function Toolbar() {
       description: 'Loaded animation as a new project.',
       variant: 'success',
     })
-  }
-  const handleImportSvgIntoProject = async () => {
-    const imported = await openSvgFile()
-    notifySvgImportResult(imported, 'merge')
-  }
-
-  const handleOpenSvgAsProject = async () => {
-    const imported = await openSvgFile()
-    notifySvgImportResult(imported, 'project')
   }
 
   const handleExport = async (options: ExportOptions) => {
@@ -322,6 +386,43 @@ export function Toolbar() {
 
   return (
     <>
+      <input
+        id="import-svg-merge"
+        type="file"
+        className={IMPORT_INPUT_CLASS}
+        onChange={(event) => {
+          void handleSvgFileSelection(event.target.files?.[0], 'merge')
+          event.target.value = ''
+        }}
+      />
+      <input
+        id="import-svg-project"
+        type="file"
+        className={IMPORT_INPUT_CLASS}
+        onChange={(event) => {
+          void handleSvgFileSelection(event.target.files?.[0], 'project')
+          event.target.value = ''
+        }}
+      />
+      <input
+        id="import-html-animation"
+        type="file"
+        className={IMPORT_INPUT_CLASS}
+        onChange={(event) => {
+          void handleHtmlFileSelection(event.target.files?.[0])
+          event.target.value = ''
+        }}
+      />
+      <input
+        id="import-lottie-json"
+        type="file"
+        accept="application/json,.json"
+        className={IMPORT_INPUT_CLASS}
+        onChange={(event) => {
+          void handleLottieFileSelection(event.target.files?.[0])
+          event.target.value = ''
+        }}
+      />
       <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
         <div className="flex items-center gap-1">
           <Tooltip>
@@ -541,8 +642,62 @@ export function Toolbar() {
                 <FolderOpen />
               </Button>
             </TooltipTrigger>
-            <TooltipContent>Open project</TooltipContent>
+            <TooltipContent>Open project JSON</TooltipContent>
           </Tooltip>
+          <DropdownMenu>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon-sm">
+                    <FileUp />
+                  </Button>
+                </DropdownMenuTrigger>
+              </TooltipTrigger>
+              <TooltipContent>Import SVG, HTML, or Lottie</TooltipContent>
+            </Tooltip>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  resetFileInput('import-svg-merge')
+                  document.getElementById('import-svg-merge')?.click()
+                }}
+              >
+                <FolderOpen />
+                Import SVG into project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  resetFileInput('import-svg-project')
+                  document.getElementById('import-svg-project')?.click()
+                }}
+              >
+                <FolderOpen />
+                Open SVG as new project
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  resetFileInput('import-html-animation')
+                  document.getElementById('import-html-animation')?.click()
+                }}
+              >
+                <FolderOpen />
+                Open HTML animation
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onPointerDown={(event) => {
+                  event.preventDefault()
+                  resetFileInput('import-lottie-json')
+                  document.getElementById('import-lottie-json')?.click()
+                }}
+              >
+                <FolderOpen />
+                Import Lottie JSON
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button variant="ghost" size="icon-sm">
@@ -590,23 +745,6 @@ export function Toolbar() {
               >
                 <Play />
                 Preview as Lottie
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={runFileImport(handleImportSvgIntoProject)}>
-                <FolderOpen />
-                Import SVG into project
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={runFileImport(handleOpenSvgAsProject)}>
-                <FolderOpen />
-                Open SVG as new project
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={runFileImport(handleImportHtmlAnimation)}>
-                <FolderOpen />
-                Open HTML animation
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={runFileImport(handleImportLottie)}>
-                <FolderOpen />
-                Import Lottie JSON
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>

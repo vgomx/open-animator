@@ -1,4 +1,4 @@
-import { normalizePathShape } from '@/editor/path-nodes'
+import { attachMatrixDisplayKeyframes, layerHasAnimation } from '@/editor/layer-animation'
 import {
   createEllipseShape,
   createId,
@@ -7,15 +7,35 @@ import {
   createRectShape,
   createTextShape,
 } from '@/editor/scene'
-import type { Layer, PathPoint, Project, Shape, TextShape } from '@/editor/types'
+import type { Keyframe, Layer, PathPoint, Project, Shape, TextShape } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
+import {
+  type ImportedGradient,
+  parseSvgGradients,
+  resolvePaintValue,
+} from '@/io/svg-gradients'
+import { parseSvgMasks, resolveMaskId } from '@/io/svg-masks'
 import {
   isSvgFile,
   looksLikeSvgText,
   openFilePicker,
 } from '@/io/file-picker'
+import {
+  collectMatrixKeyframesForNode,
+  collectTransformKeyframesForNode,
+  effectiveMatrixAtTime,
+} from '@/io/svg-smil'
+import {
+  applyMatrixToPoint,
+  type AffineMatrix,
+  IDENTITY_MATRIX,
+  multiplyMatrix,
+  parseTransformAttribute,
+} from '@/io/svg-transform'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
+
+export { parseSvgColor } from '@/io/svg-colors'
 
 type SvgStyle = {
   fill: string
@@ -24,35 +44,27 @@ type SvgStyle = {
   opacity: number
 }
 
-type TransformState = {
-  x: number
-  y: number
-  rotation: number
-  scale: number
-}
-
 export type SvgImportResult = {
   layers: Layer[]
   artboard: { width: number; height: number }
+  gradients: Record<string, ImportedGradient>
+  masks: Record<string, { id: string; markup: string }>
+  duration: number
 }
 
-const NAMED_COLORS: Record<string, string> = {
-  black: '#000000',
-  white: '#ffffff',
-  red: '#ff0000',
-  green: '#008000',
-  blue: '#0000ff',
-  yellow: '#ffff00',
-  cyan: '#00ffff',
-  magenta: '#ff00ff',
-  orange: '#ffa500',
-  purple: '#800080',
-  pink: '#ffc0cb',
-  gray: '#808080',
-  grey: '#808080',
-  none: 'none',
-  transparent: 'transparent',
-}
+const SKIP_TAGS = new Set([
+  'defs',
+  'style',
+  'metadata',
+  'lineargradient',
+  'radialgradient',
+  'stop',
+  'mask',
+  'clippath',
+  'animatetransform',
+  'animate',
+  'animatemotion',
+])
 
 function parseNumber(value: string | null | undefined, fallback = 0): number {
   if (!value) {
@@ -63,116 +75,45 @@ function parseNumber(value: string | null | undefined, fallback = 0): number {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-export function parseSvgColor(raw: string | null | undefined, fallback = '#000000'): string {
-  if (!raw) {
-    return fallback
-  }
-
-  const trimmed = raw.trim().toLowerCase()
-  if (trimmed in NAMED_COLORS) {
-    return NAMED_COLORS[trimmed]!
-  }
-
-  if (trimmed === 'none' || trimmed === 'transparent') {
-    return 'none'
-  }
-
-  if (trimmed.startsWith('#')) {
-    return trimmed
-  }
-
-  const rgbMatch = trimmed.match(/rgba?\(([^)]+)\)/)
-  if (rgbMatch) {
-    const channels = rgbMatch[1]!
-      .split(',')
-      .map((part) => Number.parseFloat(part.trim()))
-      .filter((value) => Number.isFinite(value))
-
-    if (channels.length >= 3) {
-      const toHex = (value: number) =>
-        Math.max(0, Math.min(255, Math.round(value)))
-          .toString(16)
-          .padStart(2, '0')
-      return `#${toHex(channels[0]!)}${toHex(channels[1]!)}${toHex(channels[2]!)}`
-    }
-  }
-
-  return fallback
-}
-
-function readStyle(element: Element, inherited: SvgStyle): SvgStyle {
+function readStyle(element: Element, inherited: SvgStyle, gradients: Record<string, ImportedGradient>): SvgStyle {
   const fill = element.getAttribute('fill')
   const stroke = element.getAttribute('stroke')
   const strokeWidth = element.getAttribute('stroke-width')
   const opacity = element.getAttribute('opacity')
+  const fillOpacity = element.getAttribute('fill-opacity')
+  const inheritedOpacity = inherited.opacity
 
   return {
-    fill: fill ? parseSvgColor(fill, inherited.fill) : inherited.fill,
-    stroke: stroke ? parseSvgColor(stroke, inherited.stroke) : inherited.stroke,
+    fill: fill
+      ? resolvePaintValue(fill, inherited.fill, gradients)
+      : inherited.fill,
+    stroke: stroke
+      ? resolvePaintValue(stroke, inherited.stroke, gradients)
+      : inherited.stroke,
     strokeWidth: strokeWidth ? parseNumber(strokeWidth, inherited.strokeWidth) : inherited.strokeWidth,
-    opacity: opacity ? parseNumber(opacity, inherited.opacity) : inherited.opacity,
+    opacity: opacity
+      ? parseNumber(opacity, inheritedOpacity)
+      : fillOpacity
+        ? parseNumber(fillOpacity, inheritedOpacity)
+        : inheritedOpacity,
   }
 }
 
-function parseTransform(attr: string | null): TransformState {
-  const state: TransformState = { x: 0, y: 0, rotation: 0, scale: 1 }
-  if (!attr) {
-    return state
-  }
-
-  const translateMatch = attr.match(/translate\(([^)]+)\)/)
-  if (translateMatch) {
-    const parts = translateMatch[1]!.split(/[\s,]+/).map((part) => Number.parseFloat(part))
-    state.x += parts[0] ?? 0
-    state.y += parts[1] ?? 0
-  }
-
-  const rotateMatch = attr.match(/rotate\(([^)]+)\)/)
-  if (rotateMatch) {
-    const parts = rotateMatch[1]!.split(/[\s,]+/).map((part) => Number.parseFloat(part))
-    state.rotation += parts[0] ?? 0
-  }
-
-  const scaleMatch = attr.match(/scale\(([^)]+)\)/)
-  if (scaleMatch) {
-    const parts = scaleMatch[1]!.split(/[\s,]+/).map((part) => Number.parseFloat(part))
-    const scaleX = parts[0] ?? 1
-    const scaleY = parts[1] ?? scaleX
-    state.scale *= (scaleX + scaleY) / 2
-  }
-
-  return state
-}
-
-function applyTransform(shape: Shape, transform: TransformState): Shape {
-  const next = {
-    ...shape,
-    x: shape.x + transform.x,
-    y: shape.y + transform.y,
-    rotation: shape.rotation + transform.rotation,
-    scale: shape.scale * transform.scale,
-  }
-
-  if (shape.type === 'path') {
+function transformPathPoints(points: PathPoint[], matrix: AffineMatrix): PathPoint[] {
+  return points.map((point) => {
+    const mapped = applyMatrixToPoint(matrix, point.x, point.y)
     return {
-      ...next,
-      type: 'path',
-      points: shape.points.map((point) => ({
-        ...point,
-        x: point.x + transform.x,
-        y: point.y + transform.y,
-        handleIn: point.handleIn
-          ? { x: point.handleIn.x + transform.x, y: point.handleIn.y + transform.y }
-          : point.handleIn,
-        handleOut: point.handleOut
-          ? { x: point.handleOut.x + transform.x, y: point.handleOut.y + transform.y }
-          : point.handleOut,
-      })),
-      closed: shape.closed,
+      ...point,
+      x: mapped.x,
+      y: mapped.y,
+      handleIn: point.handleIn
+        ? applyMatrixToPoint(matrix, point.handleIn.x, point.handleIn.y)
+        : point.handleIn,
+      handleOut: point.handleOut
+        ? applyMatrixToPoint(matrix, point.handleOut.x, point.handleOut.y)
+        : point.handleOut,
     }
-  }
-
-  return next
+  })
 }
 
 function applyStyle(shape: Shape, style: SvgStyle): Shape {
@@ -343,7 +284,7 @@ export function parseSvgPathData(d: string): { points: PathPoint[]; closed: bool
   return { points, closed }
 }
 
-function elementToShape(element: Element, style: SvgStyle, transform: TransformState): Shape | null {
+function elementToShape(element: Element, style: SvgStyle, matrix: AffineMatrix): Shape | null {
   const tag = element.tagName.toLowerCase()
 
   if (tag === 'rect') {
@@ -351,15 +292,26 @@ function elementToShape(element: Element, style: SvgStyle, transform: TransformS
     const y = parseNumber(element.getAttribute('y'))
     const width = parseNumber(element.getAttribute('width'), 1)
     const height = parseNumber(element.getAttribute('height'), 1)
-    return applyTransform(applyStyle(createRectShape(x, y, width, height), style), transform)
+    const corners = [
+      applyMatrixToPoint(matrix, x, y),
+      applyMatrixToPoint(matrix, x + width, y + height),
+    ]
+    const minX = Math.min(corners[0]!.x, corners[1]!.x)
+    const minY = Math.min(corners[0]!.y, corners[1]!.y)
+    const maxX = Math.max(corners[0]!.x, corners[1]!.x)
+    const maxY = Math.max(corners[0]!.y, corners[1]!.y)
+    return applyStyle(createRectShape(minX, minY, maxX - minX, maxY - minY), style)
   }
 
   if (tag === 'circle') {
     const cx = parseNumber(element.getAttribute('cx'))
     const cy = parseNumber(element.getAttribute('cy'))
     const r = parseNumber(element.getAttribute('r'), 1)
-    const shape = createEllipseShape(cx - r, cy - r, r * 2, r * 2)
-    return applyTransform(applyStyle(shape, style), transform)
+    const center = applyMatrixToPoint(matrix, cx, cy)
+    const edge = applyMatrixToPoint(matrix, cx + r, cy)
+    const radius = Math.hypot(edge.x - center.x, edge.y - center.y)
+    const shape = createEllipseShape(center.x - radius, center.y - radius, radius * 2, radius * 2)
+    return applyStyle(shape, style)
   }
 
   if (tag === 'ellipse') {
@@ -367,27 +319,33 @@ function elementToShape(element: Element, style: SvgStyle, transform: TransformS
     const cy = parseNumber(element.getAttribute('cy'))
     const rx = parseNumber(element.getAttribute('rx'), 1)
     const ry = parseNumber(element.getAttribute('ry'), rx)
-    const shape = createEllipseShape(cx - rx, cy - ry, rx * 2, ry * 2)
-    return applyTransform(applyStyle(shape, style), transform)
+    const center = applyMatrixToPoint(matrix, cx, cy)
+    const right = applyMatrixToPoint(matrix, cx + rx, cy)
+    const bottom = applyMatrixToPoint(matrix, cx, cy + ry)
+    const shape = createEllipseShape(
+      center.x - Math.abs(right.x - center.x),
+      center.y - Math.abs(bottom.y - center.y),
+      Math.abs(right.x - center.x) * 2,
+      Math.abs(bottom.y - center.y) * 2,
+    )
+    return applyStyle(shape, style)
   }
 
   if (tag === 'text') {
     const x = parseNumber(element.getAttribute('x'))
     const y = parseNumber(element.getAttribute('y'))
+    const mapped = applyMatrixToPoint(matrix, x, y)
     const text = element.textContent?.trim() || 'Text'
     const fontSize = parseNumber(element.getAttribute('font-size'), 24)
     const fontFamily = element.getAttribute('font-family') || 'Geist, system-ui, sans-serif'
-    const base = createTextShape(x, y)
+    const base = createTextShape(mapped.x, mapped.y)
     const styled = applyStyle(base, style) as TextShape
-    return applyTransform(
-      {
-        ...styled,
-        text,
-        fontSize,
-        fontFamily,
-      },
-      transform,
-    )
+    return {
+      ...styled,
+      text,
+      fontSize,
+      fontFamily,
+    }
   }
 
   if (tag === 'path') {
@@ -401,8 +359,8 @@ function elementToShape(element: Element, style: SvgStyle, transform: TransformS
       return null
     }
 
-    const pathShape = normalizePathShape(createPathShape(points, closed))
-    return applyTransform(applyStyle(pathShape, style), transform)
+    const pathShape = createPathShape(transformPathPoints(points, matrix), closed)
+    return applyStyle(pathShape, style)
   }
 
   if (tag === 'line') {
@@ -410,16 +368,16 @@ function elementToShape(element: Element, style: SvgStyle, transform: TransformS
     const y1 = parseNumber(element.getAttribute('y1'))
     const x2 = parseNumber(element.getAttribute('x2'))
     const y2 = parseNumber(element.getAttribute('y2'))
-    const pathShape = normalizePathShape(
-      createPathShape(
-        [
-          { x: x1, y: y1 },
-          { x: x2, y: y2 },
-        ],
-        false,
-      ),
+    const start = applyMatrixToPoint(matrix, x1, y1)
+    const end = applyMatrixToPoint(matrix, x2, y2)
+    const pathShape = createPathShape(
+      [
+        { x: start.x, y: start.y },
+        { x: end.x, y: end.y },
+      ],
+      false,
     )
-    return applyTransform(applyStyle(pathShape, style), transform)
+    return applyStyle(pathShape, style)
   }
 
   if (tag === 'polyline' || tag === 'polygon') {
@@ -441,59 +399,136 @@ function elementToShape(element: Element, style: SvgStyle, transform: TransformS
       if (x === undefined || y === undefined) {
         continue
       }
-      pathPoints.push({ x, y })
+      const mapped = applyMatrixToPoint(matrix, x, y)
+      pathPoints.push({ x: mapped.x, y: mapped.y })
     }
 
     if (pathPoints.length < 2) {
       return null
     }
 
-    const pathShape = normalizePathShape(createPathShape(pathPoints, tag === 'polygon'))
-    return applyTransform(applyStyle(pathShape, style), transform)
+    const pathShape = createPathShape(pathPoints, tag === 'polygon')
+    return applyStyle(pathShape, style)
   }
 
   return null
 }
 
+function isInsideDefs(node: Element): boolean {
+  let parent = node.parentElement
+  while (parent) {
+    if (parent.tagName.toLowerCase() === 'defs') {
+      return true
+    }
+    parent = parent.parentElement
+  }
+  return false
+}
+
 function collectLayers(
   node: Element,
   inheritedStyle: SvgStyle,
-  inheritedTransform: TransformState,
+  inheritedMatrix: AffineMatrix,
+  inheritedMaskId: string | null,
+  gradients: Record<string, ImportedGradient>,
   layers: Layer[],
   startIndex: number,
-): number {
+): { nextIndex: number; duration: number } {
   let nextIndex = startIndex
+  let duration = 0
   const tag = node.tagName.toLowerCase()
 
-  if (tag === 'defs' || tag === 'style' || tag === 'metadata') {
-    return nextIndex
+  if (SKIP_TAGS.has(tag) || isInsideDefs(node)) {
+    return { nextIndex, duration }
   }
 
-  const style = readStyle(node, inheritedStyle)
-  const localTransform = parseTransform(node.getAttribute('transform'))
-  const transform: TransformState = {
-    x: inheritedTransform.x + localTransform.x,
-    y: inheritedTransform.y + localTransform.y,
-    rotation: inheritedTransform.rotation + localTransform.rotation,
-    scale: inheritedTransform.scale * localTransform.scale,
-  }
+  const style = readStyle(node, inheritedStyle, gradients)
+  const localMatrix = parseTransformAttribute(node.getAttribute('transform'))
+  const matrix = multiplyMatrix(inheritedMatrix, localMatrix)
+  const maskId = resolveMaskId(node.getAttribute('mask')) ?? inheritedMaskId
 
   if (tag === 'g' || tag === 'svg') {
     for (const child of [...node.children]) {
-      nextIndex = collectLayers(child, style, transform, layers, nextIndex)
+      const childResult = collectLayers(
+        child,
+        style,
+        matrix,
+        maskId,
+        gradients,
+        layers,
+        nextIndex,
+      )
+      nextIndex = childResult.nextIndex
+      duration = Math.max(duration, childResult.duration)
     }
-    return nextIndex
+    return { nextIndex, duration }
   }
 
-  const shape = elementToShape(node, style, { x: 0, y: 0, rotation: 0, scale: 1 })
+  const baseMatrix = effectiveMatrixAtTime(node, 0)
+  const isPath = tag === 'path'
+  const shape = elementToShape(node, style, isPath ? IDENTITY_MATRIX : matrix)
   if (!shape) {
-    return nextIndex
+    return { nextIndex, duration }
   }
 
-  const finalShape = applyTransform(shape, transform)
+  if (isPath && shape.type === 'path') {
+    const matrixAnim = collectMatrixKeyframesForNode(node)
+    duration = Math.max(duration, matrixAnim.duration)
+
+    const positionedShape = {
+      ...shape,
+      x: 0,
+      y: 0,
+      rotation: 0,
+      scale: 1,
+      localCoords: true,
+    }
+
+    const name = node.getAttribute('id') || node.getAttribute('data-name') || `${tag}-${nextIndex + 1}`
+    const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
+    layer.matrixKeyframes = matrixAnim.keyframes
+    if (maskId) {
+      layer.svgMaskId = maskId
+    }
+
+    layers.push(attachMatrixDisplayKeyframes(layer))
+    return { nextIndex: nextIndex + 1, duration }
+  }
+
+  const positionedShape = shape
+
+  const smil = collectTransformKeyframesForNode(node, baseMatrix)
+  duration = Math.max(duration, smil.duration)
+
   const name = node.getAttribute('id') || node.getAttribute('data-name') || `${tag}-${nextIndex + 1}`
-  layers.push(createLayerFromShape(finalShape, nextIndex, name))
-  return nextIndex + 1
+  const layer = createLayerFromShape(positionedShape, nextIndex, '', name)
+  layer.keyframes = mergeKeyframes(layer.keyframes, smil.keyframes)
+  if (maskId) {
+    layer.svgMaskId = maskId
+  }
+
+  layers.push(layer)
+  return { nextIndex: nextIndex + 1, duration }
+}
+
+function mergeKeyframes(existing: Keyframe[], imported: Keyframe[]): Keyframe[] {
+  if (imported.length === 0) {
+    return existing
+  }
+
+  const merged = [...existing]
+  for (const keyframe of imported) {
+    const match = merged.find(
+      (entry) => entry.time === keyframe.time && entry.property === keyframe.property,
+    )
+    if (match) {
+      match.value = keyframe.value
+      continue
+    }
+    merged.push({ ...keyframe, id: createId() })
+  }
+
+  return merged
 }
 
 function readArtboard(svg: SVGSVGElement): { width: number; height: number } {
@@ -521,8 +556,8 @@ export function parseShapeElement(element: Element): Shape | null {
     strokeWidth: 0,
     opacity: 1,
   }
-  const style = readStyle(element, defaultStyle)
-  return elementToShape(element, style, { x: 0, y: 0, rotation: 0, scale: 1 })
+  const style = readStyle(element, defaultStyle, {})
+  return elementToShape(element, style, IDENTITY_MATRIX)
 }
 
 export function parseSvgArtboardFromMarkup(raw: string): { width: number; height: number } | null {
@@ -549,6 +584,8 @@ export function importSvg(raw: string): SvgImportResult | null {
     return null
   }
 
+  const gradients = parseSvgGradients(svg)
+  const masks = parseSvgMasks(svg, gradients)
   const defaultStyle: SvgStyle = {
     fill: SHAPE_FILL_SECONDARY,
     stroke: 'none',
@@ -557,7 +594,7 @@ export function importSvg(raw: string): SvgImportResult | null {
   }
 
   const layers: Layer[] = []
-  collectLayers(svg, defaultStyle, { x: 0, y: 0, rotation: 0, scale: 1 }, layers, 0)
+  const { duration } = collectLayers(svg, defaultStyle, IDENTITY_MATRIX, null, gradients, layers, 0)
 
   if (layers.length === 0) {
     return null
@@ -566,6 +603,9 @@ export function importSvg(raw: string): SvgImportResult | null {
   return {
     layers,
     artboard: readArtboard(svg),
+    gradients,
+    masks,
+    duration: duration > 0 ? duration : 0,
   }
 }
 
@@ -580,10 +620,39 @@ export function importSvgAsProject(raw: string): Project | null {
 
 export function svgImportToProject(imported: SvgImportResult): Project {
   const artboard = createArtboard(imported.artboard)
+  const duration = imported.duration > 0 ? imported.duration : 3
+  const animatedLayerCount = imported.layers.filter(layerHasAnimation).length
+
   return {
     ...createDefaultProject(),
     artboards: [artboard],
+    duration,
+    loopOut: duration,
     layers: createImportLayerIds(imported.layers, artboard.id),
+    importedSvg:
+      Object.keys(imported.gradients).length > 0 || Object.keys(imported.masks).length > 0
+        ? {
+            gradients: imported.gradients,
+            ...(Object.keys(imported.masks).length > 0 ? { masks: imported.masks } : {}),
+          }
+        : undefined,
+    ...(animatedLayerCount > 0 ? { loopIn: 0 } : {}),
+  }
+}
+
+export function getSvgImportSummary(imported: SvgImportResult): {
+  layerCount: number
+  animatedLayerCount: number
+  duration: number
+  gradientCount: number
+  maskCount: number
+} {
+  return {
+    layerCount: imported.layers.length,
+    animatedLayerCount: imported.layers.filter(layerHasAnimation).length,
+    duration: imported.duration > 0 ? imported.duration : 3,
+    gradientCount: Object.keys(imported.gradients).length,
+    maskCount: Object.keys(imported.masks).length,
   }
 }
 
@@ -591,6 +660,24 @@ export type OpenSvgFileResult =
   | { status: 'cancelled' }
   | { status: 'rejected'; fileName: string }
   | { status: 'ok'; value: SvgImportResult }
+
+export async function readSvgImportFromFile(file: File): Promise<OpenSvgFileResult> {
+  try {
+    const text = await file.text()
+    if (!isSvgFile(file) && !looksLikeSvgText(text)) {
+      return { status: 'rejected', fileName: file.name }
+    }
+
+    const value = importSvg(text)
+    if (!value) {
+      return { status: 'rejected', fileName: file.name }
+    }
+
+    return { status: 'ok', value }
+  } catch {
+    return { status: 'rejected', fileName: file.name }
+  }
+}
 
 export async function openSvgFile(): Promise<OpenSvgFileResult> {
   const picked = await openFilePicker({
@@ -605,16 +692,7 @@ export async function openSvgFile(): Promise<OpenSvgFileResult> {
     return { status: 'rejected', fileName: picked.file.name }
   }
 
-  try {
-    const value = importSvg(picked.text)
-    if (!value) {
-      return { status: 'rejected', fileName: picked.file.name }
-    }
-
-    return { status: 'ok', value }
-  } catch {
-    return { status: 'rejected', fileName: picked.file.name }
-  }
+  return readSvgImportFromFile(picked.file)
 }
 
 export function createImportLayerIds(layers: Layer[], artboardId: string): Layer[] {
@@ -626,5 +704,11 @@ export function createImportLayerIds(layers: Layer[], artboardId: string): Layer
       ...layer.shape,
       id: createId(),
     },
+    keyframes: layer.keyframes.map((keyframe) => ({
+      ...keyframe,
+      id: createId(),
+    })),
+    matrixKeyframes: layer.matrixKeyframes?.map((keyframe) => ({ ...keyframe })),
+    svgMaskId: layer.svgMaskId,
   }))
 }
