@@ -1,5 +1,4 @@
 import type { Project } from '@/editor/types'
-import { PROJECT_VERSION } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import { migrateProject } from '@/io/migrate'
 import { STORAGE_KEYS } from '@/lib/app'
@@ -10,30 +9,7 @@ export function serializeProject(project: Project): string {
 
 export function deserializeProject(raw: string): Project {
   const parsed = JSON.parse(raw) as Project & { version: number }
-
-  if (parsed.version === PROJECT_VERSION) {
-    return {
-      ...parsed,
-      guides: parsed.guides ?? [],
-      states: parsed.states ?? [],
-      layers: parsed.layers.map((layer) => ({
-        ...layer,
-        locked: layer.locked ?? false,
-      })),
-    }
-  }
-
-  if (
-    parsed.version === 1 ||
-    parsed.version === 2 ||
-    parsed.version === 3 ||
-    parsed.version === 4 ||
-    parsed.version === 5
-  ) {
-    return migrateProject(parsed)
-  }
-
-  throw new Error(`Unsupported project version: ${String(parsed.version)}`)
+  return migrateProject(parsed)
 }
 
 export function downloadProject(project: Project, filename = 'open-animator-project.json'): void {

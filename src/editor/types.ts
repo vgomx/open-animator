@@ -1,6 +1,34 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 7 as const
+export const PROJECT_VERSION = 9 as const
+
+export type CanvasSettings = {
+  backgroundColor: string
+}
+
+export const DEFAULT_CANVAS: CanvasSettings = {
+  backgroundColor: BRAND.canvasLight,
+}
+
+export type Artboard = {
+  name: string
+  width: number
+  height: number
+  backgroundColor: string
+}
+
+export const DEFAULT_ARTBOARD: Artboard = {
+  name: 'Artboard',
+  width: 800,
+  height: 600,
+  backgroundColor: '#fdfcf9',
+}
+
+export function createArtboard(
+  partial: Partial<Artboard> & Pick<Artboard, 'width' | 'height'>,
+): Artboard {
+  return { ...DEFAULT_ARTBOARD, ...partial }
+}
 
 export type GuideAxis = 'x' | 'y'
 
@@ -170,10 +198,8 @@ export type AnimationState = {
 
 export type Project = {
   version: typeof PROJECT_VERSION
-  artboard: {
-    width: number
-    height: number
-  }
+  canvas: CanvasSettings
+  artboard: Artboard
   duration: number
   loopIn: number
   loopOut: number

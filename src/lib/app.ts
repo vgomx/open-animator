@@ -7,6 +7,8 @@ export const APP_SLUG = 'open-animator'
 
 export const APP_AUTHOR = 'Vitor Gomes'
 
+export const APP_AUTHOR_URL = 'https://vitorgomes.design'
+
 export const APP_LICENSE = 'MIT'
 
 export const APP_GITHUB_URL = 'https://github.com/vgomx/open-animator'

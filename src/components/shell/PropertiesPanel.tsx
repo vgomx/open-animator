@@ -1,11 +1,12 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { AnimationTab } from '@/components/shell/properties/AnimationTab'
+import { DocumentTab } from '@/components/shell/properties/DocumentTab'
 import { DesignTab } from '@/components/shell/properties/PropertyTabs'
 import { getAnimatedShape } from '@/editor/animation'
 import { getSelectedAnimatedShapes } from '@/editor/selection-utils'
 import { useEditorStore, useSelectedLayer } from '@/editor/store'
-import { Layers2, Sparkles } from 'lucide-react'
+import { Frame, Layers2, Sparkles } from 'lucide-react'
 
 export function PropertiesPanel() {
   const selectedLayer = useSelectedLayer()
@@ -18,6 +19,10 @@ export function PropertiesPanel() {
   const layers = useEditorStore((state) => state.project.layers)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const updateLayer = useEditorStore((state) => state.updateLayer)
+  const artboard = useEditorStore((state) => state.project.artboard)
+  const canvas = useEditorStore((state) => state.project.canvas)
+  const updateArtboard = useEditorStore((state) => state.updateArtboard)
+  const updateCanvas = useEditorStore((state) => state.updateCanvas)
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
 
@@ -27,20 +32,23 @@ export function PropertiesPanel() {
 
   if (!selectedLayer) {
     return (
-      <aside
-        className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50"
-      >
+      <aside className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground">
         <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
           <div className="flex items-center gap-2">
-            <Layers2 className="size-3.5 text-muted-foreground" />
+            <Frame className="size-3.5 text-muted-foreground" />
             <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-              Properties
+              Document
             </span>
           </div>
         </div>
-        <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden p-4 text-sm text-muted-foreground">
-          Select a layer to edit properties.
-        </div>
+        <ScrollArea className="panel-scroll">
+          <DocumentTab
+            canvas={canvas}
+            artboard={artboard}
+            onUpdateCanvas={updateCanvas}
+            onUpdateArtboard={updateArtboard}
+          />
+        </ScrollArea>
       </aside>
     )
   }
@@ -60,9 +68,7 @@ export function PropertiesPanel() {
   }
 
   return (
-    <aside
-      className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border/50"
-    >
+    <aside className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground">
       <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Layers2 className="size-3.5 text-muted-foreground" />

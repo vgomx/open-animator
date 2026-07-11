@@ -9,7 +9,7 @@ import type {
   ShapeType,
   TextShape,
 } from '@/editor/types'
-import { PROJECT_VERSION } from '@/editor/types'
+import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
 import {
   BRAND,
   SHAPE_FILL_PRIMARY,
@@ -26,10 +26,8 @@ export function createId(): string {
 export function createDefaultProject(): Project {
   return {
     version: PROJECT_VERSION,
-    artboard: {
-      width: 800,
-      height: 600,
-    },
+    canvas: { ...DEFAULT_CANVAS },
+    artboard: { ...DEFAULT_ARTBOARD },
     duration: 3,
     loopIn: 0,
     loopOut: 3,

@@ -7,12 +7,13 @@ import {
   smartAnimateBetweenStates,
 } from '@/editor/smart-animate'
 import type { Project } from '@/editor/types'
-import { PROJECT_VERSION } from '@/editor/types'
+import { createArtboard, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
 
 function createTestProject(): Project {
   return {
     version: PROJECT_VERSION,
-    artboard: { width: 800, height: 600 },
+    canvas: { ...DEFAULT_CANVAS },
+    artboard: createArtboard({ width: 800, height: 600 }),
     duration: 3,
     loopIn: 0,
     loopOut: 3,

@@ -32,6 +32,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
   const eyedropperActive = useEditorStore((state) => state.eyedropperActive)
   const cancelEyedropper = useEditorStore((state) => state.cancelEyedropper)
   const zoomToSelection = useEditorStore((state) => state.zoomToSelection)
+  const removeSelectedKeyframes = useEditorStore((state) => state.removeSelectedKeyframes)
+  const selectedKeyframeIds = useEditorStore((state) => state.selectedKeyframeIds)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
 
   useEffect(() => {
@@ -158,6 +160,10 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
 
       if (event.key === 'Delete' || event.key === 'Backspace') {
         event.preventDefault()
+        if (selectedKeyframeIds.length > 0) {
+          removeSelectedKeyframes()
+          return
+        }
         if (activeTool === 'node' && selectedNodeIndices.length > 0) {
           deleteSelectedNodes()
           return
@@ -201,6 +207,8 @@ export function KeyboardShortcuts({ onOpenShortcuts }: KeyboardShortcutsProps) {
     playbackState,
     redo,
     removeSelectedLayer,
+    removeSelectedKeyframes,
+    selectedKeyframeIds.length,
     selectedLayerIds.length,
     selectedNodeIndices.length,
     setActiveTool,

@@ -1,5 +1,6 @@
-import type { AnimatableProperty, Keyframe, Layer, Project } from '@/editor/types'
-import { isNumericProperty, PROJECT_VERSION } from '@/editor/types'
+import type { Keyframe, Layer, Project } from '@/editor/types'
+import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
+import { getAnimatedShape } from '@/editor/animation'
 import { createId } from '@/editor/scene'
 
 type LottieKeyframe = {
@@ -62,74 +63,94 @@ function lottieEasingHandles(
   }
 }
 
-function readShapeNumericValue(shape: Layer['shape'], property: AnimatableProperty): number {
-  if (property === 'width' || property === 'height') {
-    return shape.type === 'rect' ? shape[property] : 0
+function collectAnimatedTimes(layer: Layer): number[] {
+  const times = new Set<number>([0])
+  for (const keyframe of layer.keyframes) {
+    times.add(keyframe.time)
   }
 
-  if (property === 'rx' || property === 'ry') {
-    return shape.type === 'ellipse' ? shape[property] : 0
-  }
-
-  if (
-    property === 'x' ||
-    property === 'y' ||
-    property === 'rotation' ||
-    property === 'opacity' ||
-    property === 'scale'
-  ) {
-    return shape[property]
-  }
-
-  return 0
+  return [...times].sort((a, b) => a - b)
 }
 
-function buildPropertyKeyframes(
-  layer: Layer,
-  property: AnimatableProperty,
-  frameRate: number,
-  mapValue: (value: number, shape: Layer['shape']) => number[],
-): LottieKeyframe[] {
-  if (!isNumericProperty(property)) {
-    return []
+function layerPosition(shape: Layer['shape']): [number, number, number] {
+  if (shape.type === 'rect') {
+    return [shape.x + shape.width / 2, shape.y + shape.height / 2, 0]
   }
 
-  const baseValue = readShapeNumericValue(layer.shape, property)
-  const track = layer.keyframes
-    .filter((keyframe) => keyframe.property === property)
-    .sort((a, b) => a.time - b.time)
-
-  if (track.length === 0) {
-    return [{ t: 0, s: mapValue(baseValue, layer.shape) }]
-  }
-
-  return track.map((keyframe) => ({
-    t: Math.round(keyframe.time * frameRate),
-    s: mapValue(keyframe.value as number, layer.shape),
-    ...lottieEasingHandles(keyframe.easing, keyframe.bezier),
-  }))
+  return [shape.x, shape.y, 0]
 }
 
-function layerToLottieShape(layer: Layer, frameRate: number) {
-  const { shape } = layer
-  const position = buildPropertyKeyframes(layer, 'x', frameRate, (value, currentShape) => {
-    const y = currentShape.y
-    return [value, y, 0]
-  }).map((keyframe, index) => {
-    if (layer.keyframes.some((item) => item.property === 'y')) {
-      const yTrack = buildPropertyKeyframes(layer, 'y', frameRate, (value) => [value])
-      const yFrame = yTrack[index] ?? yTrack[yTrack.length - 1]
-      return {
-        ...keyframe,
-        s: [keyframe.s[0], yFrame?.s[0] ?? shape.y, 0],
-      }
+function toLottieTransformProperty(
+  keyframes: LottieKeyframe[],
+  staticValue: number | number[],
+): { a: 0 | 1; k: LottieKeyframe[] | number | number[] } {
+  if (keyframes.length > 1) {
+    return { a: 1, k: keyframes }
+  }
+
+  if (keyframes.length === 1) {
+    const sample = keyframes[0]!.s
+    if (sample.length === 1) {
+      return { a: 0, k: sample[0]! }
     }
-    return keyframe
-  })
 
-  const opacity = buildPropertyKeyframes(layer, 'opacity', frameRate, (value) => [value * 100])
-  const scale = buildPropertyKeyframes(layer, 'scale', frameRate, (value) => [value * 100, value * 100, 100])
-  const rotation = buildPropertyKeyframes(layer, 'rotation', frameRate, (value) => [value])
+    return { a: 0, k: sample }
+  }
+
+  return { a: 0, k: staticValue }
+}
+
+function buildTransformKeyframes(layer: Layer, frameRate: number) {
+  const times = collectAnimatedTimes(layer)
+  const position: LottieKeyframe[] = []
+  const rotation: LottieKeyframe[] = []
+  const opacity: LottieKeyframe[] = []
+  const scale: LottieKeyframe[] = []
+
+  for (const time of times) {
+    const shape = getAnimatedShape(layer, time)
+    const frame = Math.round(time * frameRate)
+    const easing = layer.keyframes.find((keyframe) => keyframe.time === time)?.easing
+    const bezier = layer.keyframes.find((keyframe) => keyframe.time === time)?.bezier
+    const easingHandles = lottieEasingHandles(easing, bezier)
+
+    position.push({
+      t: frame,
+      s: layerPosition(shape),
+      ...easingHandles,
+    })
+    rotation.push({
+      t: frame,
+      s: [shape.rotation],
+      ...easingHandles,
+    })
+    opacity.push({
+      t: frame,
+      s: [shape.opacity * 100],
+      ...easingHandles,
+    })
+    scale.push({
+      t: frame,
+      s: [shape.scale * 100, shape.scale * 100, 100],
+      ...easingHandles,
+    })
+  }
+
+  return {
+    position: toLottieTransformProperty(position, layerPosition(layer.shape)),
+    rotation: toLottieTransformProperty(rotation, layer.shape.rotation),
+    opacity: toLottieTransformProperty(opacity, layer.shape.opacity * 100),
+    scale: toLottieTransformProperty(scale, [
+      layer.shape.scale * 100,
+      layer.shape.scale * 100,
+      100,
+    ]),
+  }
+}
+
+function layerToLottieShape(layer: Layer, frameRate: number, layerIndex: number) {
+  const { shape } = layer
+  const transform = buildTransformKeyframes(layer, frameRate)
 
   const shapeItem =
     shape.type === 'rect'
@@ -176,38 +197,49 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
 
   return {
     ddd: 0,
-    ind: 1,
+    ind: layerIndex + 1,
     ty: 4,
     nm: layer.name,
     sr: 1,
     ks: {
-      o: { a: opacity.length > 1 ? 1 : 0, k: opacity },
-      r: { a: rotation.length > 1 ? 1 : 0, k: rotation },
-      p: { a: position.length > 1 ? 1 : 0, k: position },
+      o: transform.opacity,
+      r: transform.rotation,
+      p: transform.position,
       a: { a: 0, k: [0, 0, 0] },
-      s: { a: scale.length > 1 ? 1 : 0, k: scale },
+      s: transform.scale,
     },
     ao: 0,
     shapes: [
       {
         ty: 'gr',
+        nm: `${layer.name} Group`,
         it: [
           shapeItem,
           {
             ty: 'fl',
+            nm: 'Fill',
             c: { a: 0, k: hexToLottieColor(shape.fill) },
             o: { a: 0, k: 100 },
             r: 1,
           },
           {
             ty: 'st',
+            nm: 'Stroke',
             c: { a: 0, k: hexToLottieColor(shape.stroke) },
             o: { a: 0, k: 100 },
             w: { a: 0, k: shape.strokeWidth },
             lc: 1,
             lj: 1,
           },
-          { ty: 'tr', p: { a: 0, k: [0, 0] }, a: { a: 0, k: [0, 0] }, s: { a: 0, k: [100, 100] }, r: { a: 0, k: 0 }, o: { a: 0, k: 100 } },
+          {
+            ty: 'tr',
+            nm: 'Transform',
+            p: { a: 0, k: [0, 0] },
+            a: { a: 0, k: [0, 0] },
+            s: { a: 0, k: [100, 100] },
+            r: { a: 0, k: 0 },
+            o: { a: 0, k: 100 },
+          },
         ],
       },
     ],
@@ -219,6 +251,10 @@ function layerToLottieShape(layer: Layer, frameRate: number) {
 }
 
 function hexToLottieColor(hex: string): number[] {
+  if (hex === 'none' || hex === 'transparent' || !hex.startsWith('#')) {
+    return [0, 0, 0, 0]
+  }
+
   const normalized = hex.replace('#', '')
   const value =
     normalized.length === 3
@@ -252,7 +288,7 @@ export function exportLottie(project: Project): object {
     layers: [...project.layers]
       .filter((layer) => layer.visible)
       .reverse()
-      .map((layer) => layerToLottieShape(layer, frameRate)),
+      .map((layer, index) => layerToLottieShape(layer, frameRate, index)),
   }
 }
 
@@ -314,6 +350,8 @@ export function importLottie(raw: string): Project | null {
       const firstPosition = readStaticVector(lottieLayer.ks?.p?.k, [0, 0, 0])
       const fill = lottieColorToHex(fillNode?.c?.k ?? [0, 0, 0, 1])
       const stroke = lottieColorToHex(strokeNode?.c?.k ?? [0, 0, 0, 1])
+      const rectWidth = shapeNode.s?.k?.[0] ?? 100
+      const rectHeight = shapeNode.s?.k?.[1] ?? 100
 
       const layerId = createId()
       const shapeId = createId()
@@ -325,8 +363,8 @@ export function importLottie(raw: string): Project | null {
               x: firstPosition[0],
               y: firstPosition[1],
               rotation: 0,
-              rx: (shapeNode.s?.k?.[0] ?? 100) / 2,
-              ry: (shapeNode.s?.k?.[1] ?? 100) / 2,
+              rx: rectWidth / 2,
+              ry: rectHeight / 2,
               fill,
               stroke,
               strokeWidth: strokeNode?.w?.k ?? 0,
@@ -336,11 +374,11 @@ export function importLottie(raw: string): Project | null {
           : {
               id: shapeId,
               type: 'rect' as const,
-              x: firstPosition[0],
-              y: firstPosition[1],
+              x: firstPosition[0] - rectWidth / 2,
+              y: firstPosition[1] - rectHeight / 2,
               rotation: 0,
-              width: shapeNode.s?.k?.[0] ?? 100,
-              height: shapeNode.s?.k?.[1] ?? 100,
+              width: rectWidth,
+              height: rectHeight,
               fill,
               stroke,
               strokeWidth: strokeNode?.w?.k ?? 0,
@@ -350,18 +388,22 @@ export function importLottie(raw: string): Project | null {
 
       const keyframes: Keyframe[] = []
       for (const frame of positionTrack) {
+        const x =
+          shapeNode.ty === 'el' ? frame.s[0] : frame.s[0] - rectWidth / 2
+        const y =
+          shapeNode.ty === 'el' ? frame.s[1] : frame.s[1] - rectHeight / 2
         keyframes.push({
           id: createId(),
           time: frame.t / frameRate,
           property: 'x',
-          value: frame.s[0],
+          value: x,
           easing: 'linear',
         })
         keyframes.push({
           id: createId(),
           time: frame.t / frameRate,
           property: 'y',
-          value: frame.s[1],
+          value: y,
           easing: 'linear',
         })
       }
@@ -398,9 +440,12 @@ export function importLottie(raw: string): Project | null {
 
     return {
       version: PROJECT_VERSION,
+      canvas: { ...DEFAULT_CANVAS },
       artboard: {
-        width: data.w ?? 800,
-        height: data.h ?? 600,
+        name: DEFAULT_ARTBOARD.name,
+        width: data.w ?? DEFAULT_ARTBOARD.width,
+        height: data.h ?? DEFAULT_ARTBOARD.height,
+        backgroundColor: DEFAULT_ARTBOARD.backgroundColor,
       },
       duration,
       loopIn: 0,
