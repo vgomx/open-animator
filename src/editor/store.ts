@@ -24,6 +24,12 @@ import {
   type HistoryStacks,
 } from '@/editor/history'
 import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape } from '@/editor/scene'
+import {
+  ensureActiveArtboardId,
+  getActiveArtboard,
+  getArtboardLayers,
+} from '@/editor/artboard-utils'
+import { createArtboard } from '@/editor/types'
 import type { EditorTool } from '@/editor/tools'
 import { deletePathNodes } from '@/editor/path-nodes'
 import type { PathPoint } from '@/editor/types'
@@ -50,11 +56,27 @@ import { UI_STROKE } from '@/lib/brand-colors'
 import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
 import { createInitialProject, saveProjectToStorage } from '@/io/project'
 import {
+  clampExportFps,
+  clampPanelWidth,
   loadEditorPreferences,
   saveEditorPreferences,
 } from '@/lib/preferences'
 
 const initialPreferences = loadEditorPreferences()
+const initialProject = createInitialProject()
+
+function resolveArtboardId(state: Pick<EditorStore, 'project' | 'activeArtboardId'>): string {
+  return ensureActiveArtboardId(state.project, state.activeArtboardId)
+}
+
+function createLayerForActiveArtboard(
+  state: Pick<EditorStore, 'project' | 'activeArtboardId'>,
+  create: (index: number, artboardId: string) => Layer,
+): Layer {
+  const artboardId = resolveArtboardId(state)
+  const index = getArtboardLayers(state.project, artboardId).length
+  return create(index, artboardId)
+}
 
 const animatableProperties = new Set<AnimatableProperty>([
   'x',
@@ -73,6 +95,7 @@ const animatableProperties = new Set<AnimatableProperty>([
 
 type EditorStore = {
   project: Project
+  activeArtboardId: string | null
   selectedLayerIds: string[]
   selectedLayerId: string | null
   currentTime: number
@@ -86,6 +109,8 @@ type EditorStore = {
   showRulers: boolean
   showLayersPanel: boolean
   showPropertiesPanel: boolean
+  layersPanelWidth: number
+  propertiesPanelWidth: number
   onionSkinEnabled: boolean
   onionSkinSettings: OnionSkinSettings
   activeSnapLines: SnapLine[]
@@ -118,8 +143,20 @@ type EditorStore = {
   toggleGroupCollapsed: (groupId: string) => void
   setEditingTextLayerId: (layerId: string | null) => void
   updateLayer: (layerId: string, patch: Partial<Layer>) => void
-  updateArtboard: (patch: Partial<Artboard>) => void
+  updateArtboard: (artboardId: string, patch: Partial<Artboard>) => void
   updateCanvas: (patch: Partial<CanvasSettings>) => void
+  updateProjectTiming: (patch: {
+    duration?: number
+    fps?: number
+    loopIn?: number
+    loopOut?: number
+  }) => void
+  setActiveArtboardId: (artboardId: string) => void
+  addArtboard: () => void
+  removeArtboard: (artboardId: string) => void
+  duplicateArtboard: (artboardId: string) => void
+  setLayersPanelWidth: (width: number) => void
+  setPropertiesPanelWidth: (width: number) => void
   reorderLayers: (fromIndex: number, toIndex: number) => void
   updateShape: (layerId: string, patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
   setCurrentTime: (time: number) => void
@@ -378,7 +415,8 @@ function restoreSnapshot(snapshot: ReturnType<typeof createSnapshot>): Partial<E
 }
 
 export const useEditorStore = create<EditorStore>((set) => ({
-  project: createInitialProject(),
+  project: initialProject,
+  activeArtboardId: initialProject.artboards[0]?.id ?? null,
   selectedLayerIds: [],
   selectedLayerId: null,
   currentTime: 0,
@@ -392,6 +430,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
   showRulers: initialPreferences.showRulers,
   showLayersPanel: initialPreferences.showLayersPanel,
   showPropertiesPanel: initialPreferences.showPropertiesPanel,
+  layersPanelWidth: initialPreferences.layersPanelWidth,
+  propertiesPanelWidth: initialPreferences.propertiesPanelWidth,
   onionSkinEnabled: initialPreferences.onionSkinEnabled,
   onionSkinSettings: { ...DEFAULT_ONION_SKIN_SETTINGS },
   activeSnapLines: [],
@@ -477,7 +517,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
       }
 
       const shape = createPathShape(state.penDraft, closed)
-      const layer = createLayerFromShape(shape, state.project.layers.length)
+      const layer = createLayerForActiveArtboard(state, (index, artboardId) =>
+        createLayerFromShape(shape, index, artboardId),
+      )
 
       return withHistory(state, (current) => ({
         project: {
@@ -533,7 +575,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
   addLayerWithShape: (shape) =>
     set((state) =>
       withHistory(state, (current) => {
-        const layer = createLayerFromShape(shape, current.project.layers.length)
+        const layer = createLayerForActiveArtboard(current, (index, artboardId) =>
+          createLayerFromShape(shape, index, artboardId),
+        )
         return {
           project: {
             ...current.project,
@@ -581,7 +625,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
   addShape: (type) =>
     set((state) =>
       withHistory(state, (current) => {
-        const layer = createLayer(type, current.project.layers.length)
+        const layer = createLayerForActiveArtboard(current, (index, artboardId) =>
+          createLayer(type, index, artboardId),
+        )
         const project = {
           ...current.project,
           layers: [...current.project.layers, layer],
@@ -826,23 +872,27 @@ export const useEditorStore = create<EditorStore>((set) => ({
       })),
     ),
 
-  updateArtboard: (patch) =>
+  updateArtboard: (artboardId, patch) =>
     set((state) =>
       withHistory(state, (current) => ({
         project: {
           ...current.project,
-          artboard: {
-            ...current.project.artboard,
-            ...patch,
-            width:
-              patch.width !== undefined
-                ? Math.max(1, Math.round(patch.width))
-                : current.project.artboard.width,
-            height:
-              patch.height !== undefined
-                ? Math.max(1, Math.round(patch.height))
-                : current.project.artboard.height,
-          },
+          artboards: current.project.artboards.map((artboard) =>
+            artboard.id === artboardId
+              ? {
+                  ...artboard,
+                  ...patch,
+                  width:
+                    patch.width !== undefined
+                      ? Math.max(1, Math.round(patch.width))
+                      : artboard.width,
+                  height:
+                    patch.height !== undefined
+                      ? Math.max(1, Math.round(patch.height))
+                      : artboard.height,
+                }
+              : artboard,
+          ),
         },
       })),
     ),
@@ -859,6 +909,124 @@ export const useEditorStore = create<EditorStore>((set) => ({
         },
       })),
     ),
+
+  updateProjectTiming: (patch) =>
+    set((state) =>
+      withHistory(state, (current) => {
+        const duration = patch.duration ?? current.project.duration
+        const loopIn = patch.loopIn ?? current.project.loopIn
+        const loopOut = patch.loopOut ?? current.project.loopOut
+
+        return {
+          project: {
+            ...current.project,
+            duration: Math.max(0.1, duration),
+            fps: patch.fps !== undefined ? clampExportFps(patch.fps) : current.project.fps,
+            loopIn: Math.max(0, Math.min(loopIn, duration)),
+            loopOut: Math.max(0, Math.min(loopOut, duration)),
+          },
+        }
+      }),
+    ),
+
+  setActiveArtboardId: (artboardId) =>
+    set((state) => {
+      if (!getActiveArtboard(state.project, artboardId)) {
+        return state
+      }
+
+      const visibleLayers = getArtboardLayers(state.project, artboardId)
+      return {
+        activeArtboardId: artboardId,
+        ...syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : []),
+      }
+    }),
+
+  addArtboard: () =>
+    set((state) =>
+      withHistory(state, (current) => {
+        const source = getActiveArtboard(current.project, current.activeArtboardId)
+        const artboard = createArtboard({
+          name: `Artboard ${current.project.artboards.length + 1}`,
+          width: source.width,
+          height: source.height,
+          backgroundColor: source.backgroundColor,
+        })
+
+        return {
+          project: {
+            ...current.project,
+            artboards: [...current.project.artboards, artboard],
+          },
+          activeArtboardId: artboard.id,
+          ...syncSelection([]),
+        }
+      }),
+    ),
+
+  removeArtboard: (artboardId) =>
+    set((state) => {
+      if (state.project.artboards.length <= 1) {
+        return state
+      }
+
+      return withHistory(state, (current) => {
+        const nextArtboards = current.project.artboards.filter((item) => item.id !== artboardId)
+        const nextActiveId =
+          current.activeArtboardId === artboardId
+            ? nextArtboards[0]?.id ?? null
+            : current.activeArtboardId
+
+        return {
+          project: {
+            ...current.project,
+            artboards: nextArtboards,
+            layers: current.project.layers.filter((layer) => layer.artboardId !== artboardId),
+          },
+          activeArtboardId: nextActiveId,
+          ...syncSelection([]),
+        }
+      })
+    }),
+
+  duplicateArtboard: (artboardId) =>
+    set((state) =>
+      withHistory(state, (current) => {
+        const source = getActiveArtboard(current.project, artboardId)
+        const duplicate = createArtboard({
+          name: `${source.name} copy`,
+          width: source.width,
+          height: source.height,
+          backgroundColor: source.backgroundColor,
+        })
+        const duplicatedLayers = getArtboardLayers(current.project, artboardId).map((layer) => ({
+          ...cloneLayer(layer),
+          artboardId: duplicate.id,
+        }))
+
+        return {
+          project: {
+            ...current.project,
+            artboards: [...current.project.artboards, duplicate],
+            layers: [...current.project.layers, ...duplicatedLayers],
+          },
+          activeArtboardId: duplicate.id,
+          ...syncSelection(duplicatedLayers[0]?.id ? [duplicatedLayers[0].id] : []),
+        }
+      }),
+    ),
+
+  setLayersPanelWidth: (width) => {
+    const next = clampPanelWidth(width)
+    saveEditorPreferences({ layersPanelWidth: next })
+    set({ layersPanelWidth: next })
+  },
+
+  setPropertiesPanelWidth: (width) => {
+    const next = clampPanelWidth(width)
+    saveEditorPreferences({ propertiesPanelWidth: next })
+    set({ propertiesPanelWidth: next })
+  },
 
   reorderLayers: (fromIndex, toIndex) =>
     set((state) => {
@@ -972,7 +1140,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   fitToScreen: (viewportWidth, viewportHeight) =>
     set((state) => {
-      const { width, height } = state.project.artboard
+      const { width, height } = getActiveArtboard(state.project, state.activeArtboardId)
       const padding = 80
       const zoom = Math.min(
         (viewportWidth - padding) / width,
@@ -991,9 +1159,14 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   setProject: (project) => {
     persistProject(project)
+    const activeArtboardId = project.artboards[0]?.id ?? null
+    const visibleLayers = activeArtboardId
+      ? getArtboardLayers(project, activeArtboardId)
+      : project.layers
     set({
       project,
-      ...syncSelection(project.layers[0]?.id ? [project.layers[0].id] : []),
+      activeArtboardId,
+      ...syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : []),
       currentTime: 0,
       playbackState: 'idle',
       history: { past: [], future: [] },
@@ -1095,12 +1268,18 @@ export const useEditorStore = create<EditorStore>((set) => ({
       }
 
       return withHistory(state, (current) => {
+        const activeArtboardId = resolveArtboardId(current)
         const project = {
           ...current.project,
-          layers: [...current.project.layers, ...layers],
-          artboard: artboard
-            ? { ...current.project.artboard, ...artboard }
-            : current.project.artboard,
+          layers: [
+            ...current.project.layers,
+            ...layers.map((layer) => ({ ...layer, artboardId: layer.artboardId ?? activeArtboardId })),
+          ],
+          artboards: artboard
+            ? current.project.artboards.map((item) =>
+                item.id === activeArtboardId ? { ...item, ...artboard } : item,
+              )
+            : current.project.artboards,
         }
 
         return {
@@ -1357,7 +1536,11 @@ export const useEditorStore = create<EditorStore>((set) => ({
           return {}
         }
 
-        const patches = alignSelectionToArtboard(items, current.project.artboard, alignment)
+        const patches = alignSelectionToArtboard(
+          items,
+          getActiveArtboard(current.project, current.activeArtboardId),
+          alignment,
+        )
 
         return {
           project: applyShapePatchesToProject(
@@ -1694,8 +1877,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
       const centerX = minX + selectionWidth / 2
       const centerY = minY + selectionHeight / 2
-      const artboardCenterX = state.project.artboard.width / 2
-      const artboardCenterY = state.project.artboard.height / 2
+      const artboard = getActiveArtboard(state.project, state.activeArtboardId)
+      const artboardCenterX = artboard.width / 2
+      const artboardCenterY = artboard.height / 2
 
       return {
         zoom,
@@ -1737,6 +1921,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   getAnimatedShape,
 }))
+
+export function useActiveArtboard(): Artboard {
+  return useEditorStore((state) => getActiveArtboard(state.project, state.activeArtboardId))
+}
 
 export function useSelectedLayerIds(): string[] {
   return useEditorStore((state) => state.selectedLayerIds)

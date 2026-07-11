@@ -239,6 +239,7 @@ function buildLayerFromTrack(
   className: string,
   track: CssAnimationTrack,
   index: number,
+  artboardId: string,
 ): Layer | null {
   const shapeElement = resolveShapeElement(element)
   if (!shapeElement) {
@@ -272,6 +273,7 @@ function buildLayerFromTrack(
     ...createLayerFromShape(
       { ...initialShape, id: createId() },
       index,
+      artboardId,
       element.getAttribute('id') || className || `Layer ${index + 1}`,
     ),
     keyframes,
@@ -307,6 +309,7 @@ export function importHtmlAnimation(raw: string): Project | null {
     return importSvgAsProject(svg.outerHTML)
   }
 
+  const artboard = createArtboard(readArtboard(svg))
   const layers: Layer[] = []
   let duration = 0
   let index = 0
@@ -317,7 +320,7 @@ export function importHtmlAnimation(raw: string): Project | null {
       continue
     }
 
-    const layer = buildLayerFromTrack(element, className, track, index)
+    const layer = buildLayerFromTrack(element, className, track, index, artboard.id)
     if (!layer) {
       continue
     }
@@ -331,12 +334,11 @@ export function importHtmlAnimation(raw: string): Project | null {
     return null
   }
 
-  const artboard = readArtboard(svg)
   const resolvedDuration = duration > 0 ? duration : 3
 
   return {
     ...createDefaultProject(),
-    artboard: createArtboard(artboard),
+    artboards: [artboard],
     duration: resolvedDuration,
     loopOut: resolvedDuration,
     layers,

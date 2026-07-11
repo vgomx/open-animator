@@ -72,6 +72,7 @@ export function Toolbar() {
   const [lottiePreviewData, setLottiePreviewData] = useState<object | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const project = useEditorStore((state) => state.project)
+  const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const playbackState = useEditorStore((state) => state.playbackState)
   const loop = useEditorStore((state) => state.loop)
   const recordMode = useEditorStore((state) => state.recordMode)
@@ -131,7 +132,9 @@ export function Toolbar() {
     }
 
     if (mode === 'merge') {
-      importSvgLayers(createImportLayerIds(imported.layers), imported.artboard)
+      const artboardId =
+        activeArtboardId ?? useEditorStore.getState().project.artboards[0]?.id ?? ''
+      importSvgLayers(createImportLayerIds(imported.layers, artboardId), imported.artboard)
       showToast({
         title: 'SVG imported',
         description: `Added ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} to the current project.`,
@@ -164,18 +167,20 @@ export function Toolbar() {
       return
     }
 
+    const artboardId = activeArtboardId ?? undefined
+
     if (exportKind === 'static-svg') {
-      downloadStaticSvg(project, 'artboard.svg', options)
+      downloadStaticSvg(project, 'artboard.svg', options, artboardId)
       return
     }
 
     if (exportKind === 'animated-svg') {
-      downloadAnimatedSvg(project, 'animation.svg', options)
+      downloadAnimatedSvg(project, 'animation.svg', options, artboardId)
       return
     }
 
     if (exportKind === 'html') {
-      downloadAnimatedHtml(project, 'animation.html', options)
+      downloadAnimatedHtml(project, 'animation.html', options, artboardId)
       return
     }
 
@@ -187,7 +192,7 @@ export function Toolbar() {
         variant: 'loading',
       })
       try {
-        await downloadGif(project, 'animation.gif', options)
+        await downloadGif(project, 'animation.gif', options, artboardId)
         updateToast(toastId, {
           title: 'GIF exported',
           description: 'Your download should start shortly.',
@@ -215,7 +220,7 @@ export function Toolbar() {
     })
 
     try {
-      await downloadWebm(project, 'animation.webm', options)
+      await downloadWebm(project, 'animation.webm', options, artboardId)
       updateToast(toastId, {
         title: 'WebM exported',
         description: 'Your download should start shortly.',
@@ -535,13 +540,13 @@ export function Toolbar() {
                 <Download />
                 Export React component
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => downloadLottie(project)}>
+              <DropdownMenuItem onClick={() => downloadLottie(project, 'animation.json', activeArtboardId ?? undefined)}>
                 <Download />
                 Export Lottie JSON
               </DropdownMenuItem>
               <DropdownMenuItem
                 onClick={() => {
-                  setLottiePreviewData(exportLottie(project))
+                  setLottiePreviewData(exportLottie(project, activeArtboardId ?? undefined))
                   setLottiePreviewOpen(true)
                 }}
               >

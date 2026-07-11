@@ -1,6 +1,7 @@
 import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
-import type { Layer, Project, Shape } from '@/editor/types'
+import { getExportArtboard, getExportLayers } from '@/editor/artboard-utils'
+import type { Artboard, Layer, Project, Shape } from '@/editor/types'
 import { isTransparentColor } from '@/editor/color-utils'
 import { getAnimatedShape } from '@/editor/animation'
 import { pathPointsToString } from '@/editor/path-nodes'
@@ -71,12 +72,12 @@ function shapeMarkup(shape: Shape, className?: string, animated = false): string
   return `<ellipse${classAttr} ${shared.join(' ')} rx="${shape.rx}" ry="${shape.ry}" />`
 }
 
-function backgroundMarkup(project: Project, options: ExportOptions): string {
+function backgroundMarkup(artboard: Artboard, options: ExportOptions): string {
   if (options.background === 'transparent') {
     return ''
   }
 
-  const artboardColor = project.artboard.backgroundColor
+  const artboardColor = artboard.backgroundColor
   const color =
     !artboardColor || isTransparentColor(artboardColor)
       ? options.backgroundColor
@@ -115,10 +116,12 @@ export function exportSvgAtTime(
   project: Project,
   time: number,
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): string {
-  const width = scaledDimension(project.artboard.width, options.scale)
-  const height = scaledDimension(project.artboard.height, options.scale)
-  const visibleLayers = project.layers.filter((layer) => layer.visible)
+  const artboard = getExportArtboard(project, artboardId)
+  const width = scaledDimension(artboard.width, options.scale)
+  const height = scaledDimension(artboard.height, options.scale)
+  const visibleLayers = getExportLayers(project, artboardId).filter((layer) => layer.visible)
   const shapes = visibleLayers
     .map((layer) => shapeMarkup(getAnimatedShape(layer, time)))
     .join('\n    ')
@@ -130,7 +133,7 @@ export function exportSvgAtTime(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${backgroundMarkup(project, options)}
+  ${backgroundMarkup(artboard, options)}
   ${scaleGroup}
 </svg>`
 }
@@ -138,10 +141,12 @@ export function exportSvgAtTime(
 export function exportAnimatedSvg(
   project: Project,
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): string {
-  const width = scaledDimension(project.artboard.width, options.scale)
-  const height = scaledDimension(project.artboard.height, options.scale)
-  const visibleLayers = project.layers.filter((layer) => layer.visible)
+  const artboard = getExportArtboard(project, artboardId)
+  const width = scaledDimension(artboard.width, options.scale)
+  const height = scaledDimension(artboard.height, options.scale)
+  const visibleLayers = getExportLayers(project, artboardId).filter((layer) => layer.visible)
   const styles: string[] = []
   const shapes: string[] = []
 
@@ -165,7 +170,7 @@ export function exportAnimatedSvg(
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  ${styleBlock}${backgroundMarkup(project, options)}
+  ${styleBlock}${backgroundMarkup(artboard, options)}
   ${scaleGroup}
 </svg>`
 }
@@ -173,16 +178,18 @@ export function exportAnimatedSvg(
 export function exportStaticSvg(
   project: Project,
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): string {
-  return exportSvgAtTime(project, 0, options)
+  return exportSvgAtTime(project, 0, options, artboardId)
 }
 
 export function downloadStaticSvg(
   project: Project,
   filename = 'artboard.svg',
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): void {
-  const blob = new Blob([exportStaticSvg(project, options)], { type: 'image/svg+xml' })
+  const blob = new Blob([exportStaticSvg(project, options, artboardId)], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
@@ -195,8 +202,9 @@ export function downloadAnimatedSvg(
   project: Project,
   filename = 'animation.svg',
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): void {
-  const blob = new Blob([exportAnimatedSvg(project, options)], { type: 'image/svg+xml' })
+  const blob = new Blob([exportAnimatedSvg(project, options, artboardId)], { type: 'image/svg+xml' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
@@ -209,10 +217,12 @@ export async function downloadWebm(
   project: Project,
   filename = 'animation.webm',
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): Promise<void> {
+  const artboard = getExportArtboard(project, artboardId)
   const fps = options.fps
-  const width = scaledDimension(project.artboard.width, options.scale)
-  const height = scaledDimension(project.artboard.height, options.scale)
+  const width = scaledDimension(artboard.width, options.scale)
+  const height = scaledDimension(artboard.height, options.scale)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -245,7 +255,7 @@ export async function downloadWebm(
 
   for (let frame = 0; frame < frameCount; frame += 1) {
     const time = Math.min(loopOut, loopIn + frame / fps)
-    const svgMarkup = exportSvgAtTime(project, time, options)
+    const svgMarkup = exportSvgAtTime(project, time, options, artboardId)
     const image = new Image()
     const url = URL.createObjectURL(new Blob([svgMarkup], { type: 'image/svg+xml' }))
 

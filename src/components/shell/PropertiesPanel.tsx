@@ -1,28 +1,36 @@
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { PanelResizeHandle } from '@/components/shell/PanelResizeHandle'
 import { AnimationTab } from '@/components/shell/properties/AnimationTab'
 import { DocumentTab } from '@/components/shell/properties/DocumentTab'
 import { DesignTab } from '@/components/shell/properties/PropertyTabs'
 import { getAnimatedShape } from '@/editor/animation'
 import { getSelectedAnimatedShapes } from '@/editor/selection-utils'
-import { useEditorStore, useSelectedLayer } from '@/editor/store'
+import { useEditorStore, useActiveArtboard, useSelectedLayer } from '@/editor/store'
 import { Frame, Layers2, Sparkles } from 'lucide-react'
 
 export function PropertiesPanel() {
   const selectedLayer = useSelectedLayer()
+  const artboard = useActiveArtboard()
   const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
+  const propertiesPanelWidth = useEditorStore((state) => state.propertiesPanelWidth)
+  const setPropertiesPanelWidth = useEditorStore((state) => state.setPropertiesPanelWidth)
   const selectedCount = useEditorStore((state) => state.selectedLayerIds.length)
   const currentTime = useEditorStore((state) => state.currentTime)
   const recordMode = useEditorStore((state) => state.recordMode)
   const updateSelectedShapes = useEditorStore((state) => state.updateSelectedShapes)
   const updateShape = useEditorStore((state) => state.updateShape)
   const layers = useEditorStore((state) => state.project.layers)
+  const states = useEditorStore((state) => state.project.states)
+  const fps = useEditorStore((state) => state.project.fps)
+  const duration = useEditorStore((state) => state.project.duration)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
+  const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const updateLayer = useEditorStore((state) => state.updateLayer)
-  const artboard = useEditorStore((state) => state.project.artboard)
   const canvas = useEditorStore((state) => state.project.canvas)
   const updateArtboard = useEditorStore((state) => state.updateArtboard)
   const updateCanvas = useEditorStore((state) => state.updateCanvas)
+  const updateProjectTiming = useEditorStore((state) => state.updateProjectTiming)
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
 
@@ -32,7 +40,15 @@ export function PropertiesPanel() {
 
   if (!selectedLayer) {
     return (
-      <aside className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground">
+      <aside
+        style={{ width: propertiesPanelWidth }}
+        className="glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground"
+      >
+        <PanelResizeHandle
+          edge="left"
+          getWidth={() => useEditorStore.getState().propertiesPanelWidth}
+          onWidthChange={setPropertiesPanelWidth}
+        />
         <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
           <div className="flex items-center gap-2">
             <Frame className="size-3.5 text-muted-foreground" />
@@ -45,8 +61,17 @@ export function PropertiesPanel() {
           <DocumentTab
             canvas={canvas}
             artboard={artboard}
+            fps={fps}
+            duration={duration}
+            layerCount={layers.length}
+            stateCount={states.length}
             onUpdateCanvas={updateCanvas}
-            onUpdateArtboard={updateArtboard}
+            onUpdateArtboard={(patch) => {
+              if (activeArtboardId) {
+                updateArtboard(activeArtboardId, patch)
+              }
+            }}
+            onUpdateProjectTiming={updateProjectTiming}
           />
         </ScrollArea>
       </aside>
@@ -68,7 +93,15 @@ export function PropertiesPanel() {
   }
 
   return (
-    <aside className="glass-chrome absolute inset-y-0 right-0 z-30 flex w-72 min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground">
+    <aside
+      style={{ width: propertiesPanelWidth }}
+      className="glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground"
+    >
+      <PanelResizeHandle
+        edge="left"
+        getWidth={() => useEditorStore.getState().propertiesPanelWidth}
+        onWidthChange={setPropertiesPanelWidth}
+      />
       <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
         <div className="flex items-center gap-2">
           <Layers2 className="size-3.5 text-muted-foreground" />

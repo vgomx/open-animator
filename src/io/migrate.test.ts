@@ -37,6 +37,8 @@ describe('migrateProject', () => {
     expect(migrated.version).toBe(PROJECT_VERSION)
     expect(migrated.layers[0]?.locked).toBe(false)
     expect(migrated.states).toEqual([])
+    expect(migrated.artboards[0]?.width).toBe(800)
+    expect(migrated.layers[0]?.artboardId).toBe(migrated.artboards[0]?.id)
   })
 
   it('migrates v7 projects with artboard defaults', () => {
@@ -53,7 +55,7 @@ describe('migrateProject', () => {
     })
 
     expect(migrated.version).toBe(PROJECT_VERSION)
-    expect(migrated.artboard).toEqual({
+    expect(migrated.artboards[0]).toMatchObject({
       name: DEFAULT_ARTBOARD.name,
       width: 640,
       height: 480,
@@ -76,5 +78,6 @@ describe('migrateProject', () => {
 
     expect(migrated.version).toBe(PROJECT_VERSION)
     expect(migrated.canvas).toEqual(DEFAULT_CANVAS)
+    expect(migrated.fps).toBe(30)
   })
 })

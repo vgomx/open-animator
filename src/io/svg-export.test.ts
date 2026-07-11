@@ -17,9 +17,11 @@ describe('svg export', () => {
 
   it('exports animated svg with css keyframes when keyframes exist', () => {
     const project = createDefaultProject()
+    const artboardId = project.artboards[0]!.id
     project.layers = [
       {
         id: 'layer-1',
+        artboardId,
         name: 'Ball',
         visible: true,
         locked: false,
@@ -59,6 +61,7 @@ describe('svg export', () => {
         { x: 50, y: 80 },
       ]),
       0,
+      project.artboards[0]!.id,
     )
     project.layers = [pathLayer]
 

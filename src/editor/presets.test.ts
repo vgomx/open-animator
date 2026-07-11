@@ -8,7 +8,7 @@ import { applyEasing } from '@/editor/animation'
 describe('presets', () => {
   it('generates fade-in keyframes', () => {
     const project = createDefaultProject()
-    const layer = createLayer('rect', 0)
+    const layer = createLayer('rect', 0, project.artboards[0]!.id)
     const keyframes = generatePresetKeyframes(layer, 'fadeIn', 0, project, { duration: 1 })
 
     expect(keyframes.some((keyframe) => keyframe.property === 'opacity')).toBe(true)

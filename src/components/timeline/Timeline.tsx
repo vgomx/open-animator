@@ -16,7 +16,7 @@ import { useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
-import { Bookmark, Flag, Sparkles } from 'lucide-react'
+import { Bookmark, ClipboardPaste, Copy, Flag, Sparkles } from 'lucide-react'
 
 const propertyLabels: Record<AnimatableProperty, string> = {
   x: 'X',
@@ -44,6 +44,7 @@ type DragState = {
 
 export function Timeline() {
   const duration = useEditorStore((state) => state.project.duration)
+  const fps = useEditorStore((state) => state.project.fps)
   const loopIn = useEditorStore((state) => state.project.loopIn)
   const loopOut = useEditorStore((state) => state.project.loopOut)
   const states = useEditorStore((state) => state.project.states)
@@ -65,6 +66,9 @@ export function Timeline() {
   const addMarkerAtCurrentTime = useEditorStore((state) => state.addMarkerAtCurrentTime)
   const removeMarker = useEditorStore((state) => state.removeMarker)
   const setLoopRegion = useEditorStore((state) => state.setLoopRegion)
+  const copyKeyframesAtCurrentTime = useEditorStore((state) => state.copyKeyframesAtCurrentTime)
+  const pasteKeyframesAtCurrentTime = useEditorStore((state) => state.pasteKeyframesAtCurrentTime)
+  const keyframeClipboard = useEditorStore((state) => state.keyframeClipboard)
   const selectedLayer = useEditorStore((state) =>
     state.project.layers.find((layer) => layer.id === state.selectedLayerId),
   )
@@ -85,6 +89,7 @@ export function Timeline() {
       const raw = timeFromClientX(clientX, track.getBoundingClientRect(), duration)
       const snapped = snapTimelineTime(raw, {
         duration,
+        fps,
         snapEnabled,
         frameSnap,
         markers: orderedMarkers,
@@ -104,6 +109,7 @@ export function Timeline() {
     [
       currentTime,
       duration,
+      fps,
       layers,
       orderedMarkers,
       orderedStates,
@@ -263,10 +269,28 @@ export function Timeline() {
             <Bookmark />
             Add marker
           </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedLayer}
+            onClick={() => copyKeyframesAtCurrentTime()}
+          >
+            <Copy />
+            Copy keys
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!selectedLayer || keyframeClipboard.length === 0}
+            onClick={() => pasteKeyframesAtCurrentTime()}
+          >
+            <ClipboardPaste />
+            Paste keys
+          </Button>
         </div>
         <span className="text-xs text-muted-foreground">
-          {formatTimelineTime(currentTime)} / {formatTimelineTime(duration)} · loop{' '}
-          {formatTimelineTime(loopIn)}–{formatTimelineTime(loopOut)}
+          {formatTimelineTime(currentTime, fps)} / {formatTimelineTime(duration, fps)} · loop{' '}
+          {formatTimelineTime(loopIn, fps)}–{formatTimelineTime(loopOut, fps)}
         </span>
       </div>
 
@@ -317,7 +341,7 @@ export function Timeline() {
                       left: `${timeToPercent(marker.time, duration)}%`,
                       color: marker.color ?? UI_STROKE,
                     }}
-                    title={`${marker.name} @ ${formatTimelineTime(marker.time)}`}
+                    title={`${marker.name} @ ${formatTimelineTime(marker.time, fps)}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       setCurrentTime(marker.time)
@@ -347,7 +371,7 @@ export function Timeline() {
                     type="button"
                     className="pointer-events-auto absolute top-1 -translate-x-1/2 rounded px-1.5 py-0.5 text-[10px] font-medium text-foreground hover:bg-muted"
                     style={{ left: `${timeToPercent(state.time, duration)}%` }}
-                    title={`${state.name} @ ${formatTimelineTime(state.time)}`}
+                    title={`${state.name} @ ${formatTimelineTime(state.time, fps)}`}
                     onClick={(event) => {
                       event.stopPropagation()
                       setCurrentTime(state.time)
@@ -377,9 +401,16 @@ export function Timeline() {
                   }
                 }}
               >
-                {orderedStates.length < 2
-                  ? 'Add states at different times, adjust layers, then run Smart animate.'
-                  : 'Select a layer to view keyframes.'}
+                {orderedStates.length < 2 ? (
+                  <div className="space-y-1">
+                    <p>Add states at different times to capture layout changes.</p>
+                    <p className="text-xs">
+                      1. Scrub the playhead · 2. Add state · 3. Adjust layers · 4. Smart animate
+                    </p>
+                  </div>
+                ) : (
+                  'Select a layer to view and edit keyframes.'
+                )}
               </div>
             ) : (
               <div

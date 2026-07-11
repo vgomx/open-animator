@@ -8,6 +8,8 @@ import {
 export type ChromePanelState = {
   showLayersPanel?: boolean
   showPropertiesPanel?: boolean
+  layersPanelWidth?: number
+  propertiesPanelWidth?: number
 }
 
 export type CanvasChromeInsets = {
@@ -22,13 +24,15 @@ export function getCanvasChromeInsets(
 ): CanvasChromeInsets {
   const showLayersPanel = panels.showLayersPanel ?? true
   const showPropertiesPanel = panels.showPropertiesPanel ?? true
+  const layersPanelWidth = panels.layersPanelWidth ?? LAYERS_PANEL_WIDTH
+  const propertiesPanelWidth = panels.propertiesPanelWidth ?? PROPERTIES_PANEL_WIDTH
   const rulerY = showRulers ? RULER_Y_SIZE : 0
   const rulerX = showRulers ? RULER_X_SIZE : 0
 
   return {
-    left: (showLayersPanel ? LAYERS_PANEL_WIDTH : 0) + rulerY,
+    left: (showLayersPanel ? layersPanelWidth : 0) + rulerY,
     top: rulerX,
-    right: showPropertiesPanel ? PROPERTIES_PANEL_WIDTH : 0,
+    right: showPropertiesPanel ? propertiesPanelWidth : 0,
   }
 }
 

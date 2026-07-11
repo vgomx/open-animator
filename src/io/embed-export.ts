@@ -1,14 +1,17 @@
 import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
+import { getExportArtboard } from '@/editor/artboard-utils'
 import type { Project } from '@/editor/types'
 import { exportAnimatedSvg } from '@/io/svg-export'
 
 export function exportAnimatedHtml(
   project: Project,
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): string {
-  const svg = exportAnimatedSvg(project, options)
-  const width = Math.round(project.artboard.width * options.scale)
+  const artboard = getExportArtboard(project, artboardId)
+  const svg = exportAnimatedSvg(project, options, artboardId)
+  const width = Math.round(artboard.width * options.scale)
   const pageBackground =
     options.background === 'transparent' ? '#0f172a' : options.backgroundColor
 
@@ -107,8 +110,9 @@ export function downloadAnimatedHtml(
   project: Project,
   filename = 'animation.html',
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): void {
-  const blob = new Blob([exportAnimatedHtml(project, options)], { type: 'text/html' })
+  const blob = new Blob([exportAnimatedHtml(project, options, artboardId)], { type: 'text/html' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url

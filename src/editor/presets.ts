@@ -1,5 +1,6 @@
 import { createId } from '@/editor/scene'
 import { getShapeBounds } from '@/editor/bounds'
+import { getExportArtboard } from '@/editor/artboard-utils'
 import type { Keyframe, Layer, Project, Shape } from '@/editor/types'
 
 export type PresetId =
@@ -67,12 +68,13 @@ export function generatePresetKeyframes(
   const endTime = Math.min(project.duration, startTime + duration)
   const midTime = startTime + duration / 2
   const shape = sampleShape(layer)
+  const artboard = getExportArtboard(project)
   const bounds = getShapeBounds(shape)
   const intensity = options.intensity ?? 1
 
   switch (presetId) {
     case 'bounce': {
-      const floor = project.artboard.height - bounds.height - 40
+      const floor = artboard.height - bounds.height - 40
       return [
         kf(startTime, 'y', shape.y, 'easeOut'),
         kf(midTime, 'y', floor, 'bounce'),
@@ -98,7 +100,7 @@ export function generatePresetKeyframes(
       ]
     case 'slideInRight':
       return [
-        kf(startTime, 'x', project.artboard.width + 20, 'easeOut'),
+        kf(startTime, 'x', artboard.width + 20, 'easeOut'),
         kf(endTime, 'x', shape.x, 'easeOut'),
       ]
     case 'slideInTop':
@@ -108,7 +110,7 @@ export function generatePresetKeyframes(
       ]
     case 'slideInBottom':
       return [
-        kf(startTime, 'y', project.artboard.height + 20, 'easeOut'),
+        kf(startTime, 'y', artboard.height + 20, 'easeOut'),
         kf(endTime, 'y', shape.y, 'easeOut'),
       ]
     case 'pulse':

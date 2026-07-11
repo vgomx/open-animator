@@ -45,13 +45,14 @@ describe('html import', () => {
   })
 
   it('parses duration from exported animated svg css', () => {
+    const artboard = createArtboard({ width: 400, height: 300 })
     const project = {
       ...createDefaultProject(),
-      artboard: createArtboard({ width: 400, height: 300 }),
+      artboards: [artboard],
       duration: 2,
       loopOut: 2,
       layers: [
-        createLayerFromShape(createRectShape(40, 40, 120, 80), 0, 'Box'),
+        createLayerFromShape(createRectShape(40, 40, 120, 80), 0, artboard.id, 'Box'),
       ],
     }
 
@@ -79,13 +80,14 @@ describe('html import', () => {
   })
 
   it('imports animated html exported by the app', () => {
+    const artboard = createArtboard({ width: 400, height: 300 })
     const project = {
       ...createDefaultProject(),
-      artboard: createArtboard({ width: 400, height: 300 }),
+      artboards: [artboard],
       duration: 2,
       loopOut: 2,
       layers: [
-        createLayerFromShape(createRectShape(40, 40, 120, 80), 0, 'Box'),
+        createLayerFromShape(createRectShape(40, 40, 120, 80), 0, artboard.id, 'Box'),
       ],
     }
 
@@ -130,15 +132,16 @@ describe('html import', () => {
   })
 
   it('imports animated svg wrapped in html using inline styles', () => {
+    const artboard = createArtboard({ width: 300, height: 200 })
     const svg = exportAnimatedSvg(
       {
         ...createDefaultProject(),
-        artboard: createArtboard({ width: 300, height: 200 }),
+        artboards: [artboard],
         duration: 1.5,
         loopOut: 1.5,
         layers: [
           {
-            ...createLayerFromShape(createRectShape(0, 0, 80, 60), 0, 'Square'),
+            ...createLayerFromShape(createRectShape(0, 0, 80, 60), 0, artboard.id, 'Square'),
             keyframes: [
               {
                 id: 'a',

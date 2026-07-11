@@ -9,7 +9,12 @@ import type {
   ShapeType,
   TextShape,
 } from '@/editor/types'
-import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
+import {
+  createArtboard,
+  DEFAULT_CANVAS,
+  DEFAULT_PROJECT_FPS,
+  PROJECT_VERSION,
+} from '@/editor/types'
 import {
   BRAND,
   SHAPE_FILL_PRIMARY,
@@ -24,10 +29,12 @@ export function createId(): string {
 }
 
 export function createDefaultProject(): Project {
+  const artboard = createArtboard({ width: 800, height: 600 })
   return {
     version: PROJECT_VERSION,
     canvas: { ...DEFAULT_CANVAS },
-    artboard: { ...DEFAULT_ARTBOARD },
+    artboards: [artboard],
+    fps: DEFAULT_PROJECT_FPS,
     duration: 3,
     loopIn: 0,
     loopOut: 3,
@@ -113,9 +120,15 @@ function baseShape(type: ShapeType): Shape {
   return shape
 }
 
-export function createLayerFromShape(shape: Shape, index: number, name?: string): Layer {
+export function createLayerFromShape(
+  shape: Shape,
+  index: number,
+  artboardId: string,
+  name?: string,
+): Layer {
   return {
     id: createId(),
+    artboardId,
     name: name ?? getLayerName(shape.type, index),
     visible: true,
     locked: false,
@@ -200,11 +213,12 @@ export function createPathShape(points: PathPoint[], closed = false): PathShape 
   }
 }
 
-export function createLayer(type: ShapeType, index: number): Layer {
+export function createLayer(type: ShapeType, index: number, artboardId: string): Layer {
   const shape = baseShape(type)
 
   return {
     id: createId(),
+    artboardId,
     name: getLayerName(type, index),
     visible: true,
     locked: false,
@@ -247,6 +261,7 @@ export function cloneLayer(layer: Layer, offset = 20): Layer {
 
   return {
     id: createId(),
+    artboardId: layer.artboardId,
     name: `${layer.name} copy`,
     visible: layer.visible,
     locked: layer.locked,

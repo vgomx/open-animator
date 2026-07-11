@@ -16,12 +16,20 @@ function expectStaticProperty(property: LottieProperty) {
 
 describe('lottie export', () => {
   it('exports static transform properties in lottie-compatible form', () => {
-    const project = {
-      ...createDefaultProject(),
-      layers: [createLayerFromShape(createRectShape(100, 80, 120, 60), 0, 'Box')],
+    const project = createDefaultProject()
+    const projectWithLayer = {
+      ...project,
+      layers: [
+        createLayerFromShape(
+          createRectShape(100, 80, 120, 60),
+          0,
+          project.artboards[0]!.id,
+          'Box',
+        ),
+      ],
     }
 
-    const exported = exportLottie(project) as {
+    const exported = exportLottie(projectWithLayer) as {
       layers: Array<{ ks: { o: LottieProperty; p: LottieProperty; s: LottieProperty; r: LottieProperty } }>
     }
 
@@ -34,7 +42,13 @@ describe('lottie export', () => {
   })
 
   it('exports animated opacity as an animated lottie track', () => {
-    const layer = createLayerFromShape(createRectShape(40, 40, 80, 80), 0, 'Fade')
+    const project = createDefaultProject()
+    const layer = createLayerFromShape(
+      createRectShape(40, 40, 80, 80),
+      0,
+      project.artboards[0]!.id,
+      'Fade',
+    )
     layer.keyframes = [
       {
         id: 'kf-1',
@@ -53,7 +67,7 @@ describe('lottie export', () => {
     ]
 
     const exported = exportLottie({
-      ...createDefaultProject(),
+      ...project,
       duration: 1,
       layers: [layer],
     }) as {
@@ -67,7 +81,13 @@ describe('lottie export', () => {
   })
 
   it('round-trips a basic animated rect through import', () => {
-    const layer = createLayerFromShape(createRectShape(50, 40, 100, 80), 0, 'Move')
+    const project = createDefaultProject()
+    const layer = createLayerFromShape(
+      createRectShape(50, 40, 100, 80),
+      0,
+      project.artboards[0]!.id,
+      'Move',
+    )
     layer.keyframes = [
       {
         id: 'kf-1',
@@ -86,7 +106,7 @@ describe('lottie export', () => {
     ]
 
     const exported = exportLottie({
-      ...createDefaultProject(),
+      ...project,
       duration: 1,
       layers: [layer],
     })
