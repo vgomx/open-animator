@@ -1,8 +1,8 @@
 import { createId, createDefaultProject, createLayerFromShape } from '@/editor/scene'
 import {
-  HTML_FILE_ACCEPT,
   isHtmlFile,
-  openTextFile,
+  looksLikeHtmlText,
+  openFilePicker,
 } from '@/io/file-picker'
 import { importSvgAsProject, parseShapeElement } from '@/io/svg-import'
 import type { AnimatableProperty, Keyframe, Layer, Project, Shape } from '@/editor/types'
@@ -350,15 +350,32 @@ export function importHtmlAnimation(raw: string): Project | null {
   }
 }
 
-export async function openHtmlFile(): Promise<Project | null> {
-  const raw = await openTextFile(HTML_FILE_ACCEPT, isHtmlFile)
-  if (!raw) {
-    return null
+export type OpenHtmlFileResult =
+  | { status: 'cancelled' }
+  | { status: 'rejected'; fileName: string }
+  | { status: 'ok'; value: Project }
+
+export async function openHtmlFile(): Promise<OpenHtmlFileResult> {
+  const picked = await openFilePicker({
+    validateText: (text, file) => isHtmlFile(file) || looksLikeHtmlText(text),
+  })
+
+  if (picked.status === 'cancelled') {
+    return { status: 'cancelled' }
+  }
+
+  if (picked.status === 'rejected') {
+    return { status: 'rejected', fileName: picked.file.name }
   }
 
   try {
-    return importHtmlAnimation(raw)
+    const value = importHtmlAnimation(picked.text)
+    if (!value) {
+      return { status: 'rejected', fileName: picked.file.name }
+    }
+
+    return { status: 'ok', value }
   } catch {
-    return null
+    return { status: 'rejected', fileName: picked.file.name }
   }
 }
