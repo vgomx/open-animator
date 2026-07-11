@@ -682,16 +682,16 @@ export function Stage() {
         beginPan(event)
       }}
     >
+      <UnifiedPlaybackDriver
+        layers={visibleLayers}
+        svgRef={svgRef}
+        canvasRef={playbackCanvasRef}
+        artboardWidth={width}
+        artboardHeight={height}
+        useCanvasOutput={canvasPlaybackActive}
+        onAfterFrame={webGlViewportActive ? handlePlaybackFrame : undefined}
+      />
       <CanvasContextMenu onPrepare={prepareContextMenu}>
-        <UnifiedPlaybackDriver
-          layers={visibleLayers}
-          svgRef={svgRef}
-          canvasRef={playbackCanvasRef}
-          artboardWidth={width}
-          artboardHeight={height}
-          useCanvasOutput={canvasPlaybackActive}
-          onAfterFrame={webGlViewportActive ? handlePlaybackFrame : undefined}
-        />
         <div ref={canvasAreaRef} className="absolute inset-0 overflow-hidden">
           <div className="flex h-full w-full items-center justify-center">
           <div
