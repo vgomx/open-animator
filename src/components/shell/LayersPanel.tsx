@@ -12,9 +12,12 @@ import {
   Ungroup,
 } from 'lucide-react'
 
+import { ArtboardsSection } from '@/components/shell/ArtboardsSection'
+import { PanelResizeHandle } from '@/components/shell/PanelResizeHandle'
 import { Button } from '@/components/ui/button'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { getArtboardLayers } from '@/editor/artboard-utils'
 import { useEditorStore } from '@/editor/store'
 import type { Layer } from '@/editor/types'
 import { cn } from '@/lib/utils'
@@ -284,7 +287,14 @@ function LayerListRow({
 
 export function LayersPanel() {
   const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
-  const layers = useEditorStore((state) => state.project.layers)
+  const layersPanelWidth = useEditorStore((state) => state.layersPanelWidth)
+  const setLayersPanelWidth = useEditorStore((state) => state.setLayersPanelWidth)
+  const project = useEditorStore((state) => state.project)
+  const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
+  const layers = useMemo(
+    () => getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? ''),
+    [activeArtboardId, project],
+  )
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const collapsedGroupIds = useEditorStore((state) => state.collapsedGroupIds)
   const selectLayer = useEditorStore((state) => state.selectLayer)
@@ -589,7 +599,15 @@ export function LayersPanel() {
   }
 
   return (
-    <aside className="glass-chrome absolute inset-y-0 left-0 z-30 flex w-56 min-h-0 flex-col overflow-hidden border-r border-border text-card-foreground">
+    <aside
+      style={{ width: layersPanelWidth }}
+      className="glass-chrome absolute inset-y-0 left-0 z-30 flex min-h-0 flex-col overflow-hidden border-r border-border text-card-foreground"
+    >
+      <PanelResizeHandle
+        edge="right"
+        getWidth={() => useEditorStore.getState().layersPanelWidth}
+        onWidthChange={setLayersPanelWidth}
+      />
       <div className="glass-panel-header shrink-0 border-b px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
         <div className="flex items-center justify-between gap-2">
           <span>Layers</span>
@@ -636,6 +654,7 @@ export function LayersPanel() {
           </div>
         </div>
       </div>
+      <ArtboardsSection />
       <ScrollArea className="panel-scroll">
         <div
           ref={listRef}
@@ -643,7 +662,7 @@ export function LayersPanel() {
         >
           {rows.length === 0 ? (
             <p className="px-2 py-6 text-center text-sm text-muted-foreground">
-              Add a shape to get started.
+              Add a shape to this artboard to get started.
             </p>
           ) : (
             <>

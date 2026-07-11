@@ -12,6 +12,7 @@ import type { Layer } from '@/editor/types'
 function createLayer(shape: Layer['shape'], id: string): Layer {
   return {
     id,
+    artboardId: 'artboard-test',
     name: id,
     visible: true,
     locked: false,

@@ -15,6 +15,7 @@ import {
   snapThresholdForZoom,
 } from '@/editor/snap'
 import type { Shape } from '@/editor/types'
+import { getActiveArtboard, getArtboardLayers } from '@/editor/artboard-utils'
 import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
@@ -82,12 +83,13 @@ export function SelectionOverlay({ layerId, shape, interactive = true }: Selecti
       const currentShape = store.getAnimatedShape(layer, store.currentTime)
       const point = clientToArtboard(svg, event.clientX, event.clientY)
       const threshold = store.snapEnabled ? snapThresholdForZoom(store.zoom) : 0
+      const activeArtboard = getActiveArtboard(store.project, store.activeArtboardId)
       const targets = store.snapEnabled
         ? collectSnapTargets({
-            artboardWidth: store.project.artboard.width,
-            artboardHeight: store.project.artboard.height,
+            artboardWidth: activeArtboard.width,
+            artboardHeight: activeArtboard.height,
             guides: store.project.guides,
-            layers: store.project.layers,
+            layers: getArtboardLayers(store.project, activeArtboard.id),
             currentTime: store.currentTime,
             excludeLayerId: layerId,
             getAnimatedShape: store.getAnimatedShape,

@@ -1,5 +1,6 @@
 import type { Keyframe, Layer, Project } from '@/editor/types'
-import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
+import { getExportArtboard, getExportLayers, getProjectFps } from '@/editor/artboard-utils'
+import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
 import { createId } from '@/editor/scene'
 
@@ -270,10 +271,12 @@ function hexToLottieColor(hex: string): number[] {
   return [r, g, b, 1]
 }
 
-export function exportLottie(project: Project): object {
-  const frameRate = 30
-  const width = project.artboard.width
-  const height = project.artboard.height
+export function exportLottie(project: Project, artboardId?: string): object {
+  const artboard = getExportArtboard(project, artboardId)
+  const layers = getExportLayers(project, artboardId)
+  const frameRate = getProjectFps(project)
+  const width = artboard.width
+  const height = artboard.height
 
   return {
     v: '5.7.4',
@@ -285,15 +288,15 @@ export function exportLottie(project: Project): object {
     nm: 'Open Animator Export',
     ddd: 0,
     assets: [],
-    layers: [...project.layers]
+    layers: [...layers]
       .filter((layer) => layer.visible)
       .reverse()
       .map((layer, index) => layerToLottieShape(layer, frameRate, index)),
   }
 }
 
-export function downloadLottie(project: Project, filename = 'animation.json'): void {
-  const blob = new Blob([JSON.stringify(exportLottie(project), null, 2)], {
+export function downloadLottie(project: Project, filename = 'animation.json', artboardId?: string): void {
+  const blob = new Blob([JSON.stringify(exportLottie(project, artboardId), null, 2)], {
     type: 'application/json',
   })
   const url = URL.createObjectURL(blob)
@@ -332,6 +335,12 @@ export function importLottie(raw: string): Project | null {
 
     const frameRate = data.fr ?? 30
     const duration = (data.op ?? frameRate) / frameRate
+    const artboard = createArtboard({
+      name: DEFAULT_ARTBOARD.name,
+      width: data.w ?? DEFAULT_ARTBOARD.width,
+      height: data.h ?? DEFAULT_ARTBOARD.height,
+      backgroundColor: DEFAULT_ARTBOARD.backgroundColor,
+    })
     const layers: Layer[] = []
 
     for (const lottieLayer of data.layers ?? []) {
@@ -428,6 +437,7 @@ export function importLottie(raw: string): Project | null {
 
       layers.push({
         id: layerId,
+        artboardId: artboard.id,
         name: lottieLayer.nm ?? `Layer ${layers.length + 1}`,
         visible: true,
         locked: false,
@@ -441,12 +451,8 @@ export function importLottie(raw: string): Project | null {
     return {
       version: PROJECT_VERSION,
       canvas: { ...DEFAULT_CANVAS },
-      artboard: {
-        name: DEFAULT_ARTBOARD.name,
-        width: data.w ?? DEFAULT_ARTBOARD.width,
-        height: data.h ?? DEFAULT_ARTBOARD.height,
-        backgroundColor: DEFAULT_ARTBOARD.backgroundColor,
-      },
+      artboards: [artboard],
+      fps: frameRate,
       duration,
       loopIn: 0,
       loopOut: duration,

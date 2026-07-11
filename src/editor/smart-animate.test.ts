@@ -7,13 +7,15 @@ import {
   smartAnimateBetweenStates,
 } from '@/editor/smart-animate'
 import type { Project } from '@/editor/types'
-import { createArtboard, DEFAULT_CANVAS, PROJECT_VERSION } from '@/editor/types'
+import { createArtboard, DEFAULT_CANVAS, DEFAULT_PROJECT_FPS, PROJECT_VERSION } from '@/editor/types'
 
 function createTestProject(): Project {
+  const artboard = createArtboard({ width: 800, height: 600 })
   return {
     version: PROJECT_VERSION,
     canvas: { ...DEFAULT_CANVAS },
-    artboard: createArtboard({ width: 800, height: 600 }),
+    artboards: [artboard],
+    fps: DEFAULT_PROJECT_FPS,
     duration: 3,
     loopIn: 0,
     loopOut: 3,
@@ -23,6 +25,7 @@ function createTestProject(): Project {
     layers: [
       {
         id: 'layer-1',
+        artboardId: artboard.id,
         name: 'Box',
         visible: true,
         locked: false,

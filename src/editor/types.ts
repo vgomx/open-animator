@@ -1,6 +1,7 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 9 as const
+export const PROJECT_VERSION = 10 as const
+export const DEFAULT_PROJECT_FPS = 30
 
 export type CanvasSettings = {
   backgroundColor: string
@@ -11,13 +12,14 @@ export const DEFAULT_CANVAS: CanvasSettings = {
 }
 
 export type Artboard = {
+  id: string
   name: string
   width: number
   height: number
   backgroundColor: string
 }
 
-export const DEFAULT_ARTBOARD: Artboard = {
+export const DEFAULT_ARTBOARD: Omit<Artboard, 'id'> = {
   name: 'Artboard',
   width: 800,
   height: 600,
@@ -25,9 +27,15 @@ export const DEFAULT_ARTBOARD: Artboard = {
 }
 
 export function createArtboard(
-  partial: Partial<Artboard> & Pick<Artboard, 'width' | 'height'>,
+  partial: Partial<Omit<Artboard, 'id'>> & Pick<Artboard, 'width' | 'height'> & { id?: string },
 ): Artboard {
-  return { ...DEFAULT_ARTBOARD, ...partial }
+  return {
+    id: partial.id ?? crypto.randomUUID(),
+    name: partial.name ?? DEFAULT_ARTBOARD.name,
+    width: partial.width,
+    height: partial.height,
+    backgroundColor: partial.backgroundColor ?? DEFAULT_ARTBOARD.backgroundColor,
+  }
 }
 
 export type GuideAxis = 'x' | 'y'
@@ -151,6 +159,7 @@ export type Keyframe = {
 
 export type Layer = {
   id: string
+  artboardId: string
   name: string
   visible: boolean
   locked: boolean
@@ -199,7 +208,8 @@ export type AnimationState = {
 export type Project = {
   version: typeof PROJECT_VERSION
   canvas: CanvasSettings
-  artboard: Artboard
+  artboards: Artboard[]
+  fps: number
   duration: number
   loopIn: number
   loopOut: number

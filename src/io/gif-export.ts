@@ -1,6 +1,7 @@
 import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
 import { exportSvgAtTime } from '@/io/svg-export'
+import { getExportArtboard } from '@/editor/artboard-utils'
 import type { Project } from '@/editor/types'
 import { GIFEncoder, quantize, applyPalette } from 'gifenc'
 
@@ -12,9 +13,11 @@ async function renderFrame(
   project: Project,
   time: number,
   options: ExportOptions,
+  artboardId?: string,
 ): Promise<ImageData> {
-  const width = scaledDimension(project.artboard.width, options.scale)
-  const height = scaledDimension(project.artboard.height, options.scale)
+  const artboard = getExportArtboard(project, artboardId)
+  const width = scaledDimension(artboard.width, options.scale)
+  const height = scaledDimension(artboard.height, options.scale)
   const canvas = document.createElement('canvas')
   canvas.width = width
   canvas.height = height
@@ -23,7 +26,7 @@ async function renderFrame(
     throw new Error('Canvas is not supported in this browser.')
   }
 
-  const svgMarkup = exportSvgAtTime(project, time, options)
+  const svgMarkup = exportSvgAtTime(project, time, options, artboardId)
   const image = new Image()
   const url = URL.createObjectURL(new Blob([svgMarkup], { type: 'image/svg+xml' }))
 
@@ -47,6 +50,7 @@ async function renderFrame(
 export async function exportGif(
   project: Project,
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): Promise<Uint8Array> {
   const fps = options.fps
   const loopIn = project.loopIn ?? 0
@@ -58,7 +62,7 @@ export async function exportGif(
 
   for (let frame = 0; frame < frameCount; frame += 1) {
     const time = Math.min(loopOut, loopIn + frame / fps)
-    const imageData = await renderFrame(project, time, options)
+    const imageData = await renderFrame(project, time, options, artboardId)
     const palette = quantize(imageData.data, 256)
     const index = applyPalette(imageData.data, palette)
     gif.writeFrame(index, imageData.width, imageData.height, {
@@ -75,8 +79,9 @@ export async function downloadGif(
   project: Project,
   filename = 'animation.gif',
   options: ExportOptions = DEFAULT_EXPORT_OPTIONS,
+  artboardId?: string,
 ): Promise<void> {
-  const bytes = await exportGif(project, options)
+  const bytes = await exportGif(project, options, artboardId)
   const blob = new Blob([Uint8Array.from(bytes)], { type: 'image/gif' })
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')

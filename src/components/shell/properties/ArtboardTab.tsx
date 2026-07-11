@@ -3,6 +3,7 @@ import { PanelSection } from '@/components/shell/properties/PanelSection'
 import { PropertyField, PropertyGrid } from '@/components/shell/properties/PropertyField'
 import { Input } from '@/components/ui/input'
 import type { Artboard } from '@/editor/types'
+import { ARTBOARD_SIZE_PRESETS } from '@/lib/artboard-presets'
 import { Frame, Paintbrush, Ruler } from 'lucide-react'
 
 type ArtboardTabProps = {
@@ -11,6 +12,10 @@ type ArtboardTabProps = {
 }
 
 export function ArtboardTab({ artboard, onUpdate }: ArtboardTabProps) {
+  const matchingPreset = ARTBOARD_SIZE_PRESETS.find(
+    (preset) => preset.width === artboard.width && preset.height === artboard.height,
+  )?.id
+
   return (
     <div className="pb-3">
       <div className="border-b border-border/60 px-3 py-3">
@@ -30,24 +35,48 @@ export function ArtboardTab({ artboard, onUpdate }: ArtboardTabProps) {
       </div>
 
       <PanelSection title="Size" icon={Ruler}>
-        <PropertyGrid>
-          <PropertyField
-            label="W"
-            value={artboard.width}
-            suffix="px"
-            min={1}
-            max={10000}
-            onChange={(value) => onUpdate({ width: Number(value) })}
-          />
-          <PropertyField
-            label="H"
-            value={artboard.height}
-            suffix="px"
-            min={1}
-            max={10000}
-            onChange={(value) => onUpdate({ height: Number(value) })}
-          />
-        </PropertyGrid>
+        <div className="space-y-2">
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+              Preset
+            </span>
+            <select
+              value={matchingPreset ?? 'custom'}
+              className="h-8 w-full rounded-md border border-input bg-transparent px-2 text-xs"
+              onChange={(event) => {
+                const preset = ARTBOARD_SIZE_PRESETS.find((item) => item.id === event.target.value)
+                if (preset) {
+                  onUpdate({ width: preset.width, height: preset.height })
+                }
+              }}
+            >
+              <option value="custom">Custom</option>
+              {ARTBOARD_SIZE_PRESETS.map((preset) => (
+                <option key={preset.id} value={preset.id}>
+                  {preset.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <PropertyGrid>
+            <PropertyField
+              label="W"
+              value={artboard.width}
+              suffix="px"
+              min={1}
+              max={10000}
+              onChange={(value) => onUpdate({ width: Number(value) })}
+            />
+            <PropertyField
+              label="H"
+              value={artboard.height}
+              suffix="px"
+              min={1}
+              max={10000}
+              onChange={(value) => onUpdate({ height: Number(value) })}
+            />
+          </PropertyGrid>
+        </div>
       </PanelSection>
 
       <PanelSection title="Background" icon={Paintbrush}>
@@ -58,7 +87,8 @@ export function ArtboardTab({ artboard, onUpdate }: ArtboardTabProps) {
           onChange={(value) => onUpdate({ backgroundColor: value })}
         />
         <p className="text-[11px] leading-relaxed text-muted-foreground">
-          Choose a solid color for the artboard. Set to none to show the transparent grid.
+          Solid artboard fill, or set to none for a transparent grid. Sample colors from the canvas with
+          the eyedropper.
         </p>
       </PanelSection>
     </div>

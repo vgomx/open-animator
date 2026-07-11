@@ -5,7 +5,7 @@ import { getTickInterval } from '@/editor/snap'
 import type { GuideAxis } from '@/editor/types'
 import { RULER_X_SIZE, RULER_Y_SIZE } from '@/editor/layout-constants'
 import { getCanvasChromeInsets } from '@/editor/viewport-chrome'
-import { useEditorStore } from '@/editor/store'
+import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { cn } from '@/lib/utils'
 
 type CanvasRulersProps = {
@@ -20,7 +20,7 @@ type RulerProps = {
 }
 
 function Ruler({ axis, svgRef, canvasViewportRef }: RulerProps) {
-  const artboard = useEditorStore((state) => state.project.artboard)
+  const artboard = useActiveArtboard()
   const zoom = useEditorStore((state) => state.zoom)
   const panX = useEditorStore((state) => state.panX)
   const panY = useEditorStore((state) => state.panY)
@@ -153,6 +153,8 @@ export function CanvasRulers({ svgRef, canvasViewportRef }: CanvasRulersProps) {
   const showRulers = useEditorStore((state) => state.showRulers)
   const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
   const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
+  const layersPanelWidth = useEditorStore((state) => state.layersPanelWidth)
+  const propertiesPanelWidth = useEditorStore((state) => state.propertiesPanelWidth)
 
   if (!showRulers) {
     return null
@@ -161,6 +163,8 @@ export function CanvasRulers({ svgRef, canvasViewportRef }: CanvasRulersProps) {
   const { left: chromeLeft, top: chromeTop, right: chromeRight } = getCanvasChromeInsets(true, {
     showLayersPanel,
     showPropertiesPanel,
+    layersPanelWidth,
+    propertiesPanelWidth,
   })
 
   return (

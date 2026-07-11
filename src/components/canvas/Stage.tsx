@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
@@ -18,7 +18,8 @@ import { clientToArtboard } from '@/editor/coordinates'
 import { sampleColorFromArtboard } from '@/editor/eyedropper'
 import { getCanvasChromeInsets, getViewportPoint } from '@/editor/viewport-chrome'
 import { getToolDefinition, isDrawTool } from '@/editor/tools'
-import { useEditorStore } from '@/editor/store'
+import { getArtboardLayers, getProjectFps } from '@/editor/artboard-utils'
+import { useActiveArtboard, useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { cn } from '@/lib/utils'
 import { wheelZoomFactor } from '@/editor/viewport'
@@ -66,6 +67,14 @@ export function Stage() {
   )
 
   const project = useEditorStore((state) => state.project)
+  const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
+  const layersPanelWidth = useEditorStore((state) => state.layersPanelWidth)
+  const propertiesPanelWidth = useEditorStore((state) => state.propertiesPanelWidth)
+  const artboard = useActiveArtboard()
+  const visibleLayers = useMemo(
+    () => getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? ''),
+    [activeArtboardId, project],
+  )
   const currentTime = useEditorStore((state) => state.currentTime)
   const playbackState = useEditorStore((state) => state.playbackState)
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
@@ -99,13 +108,18 @@ export function Stage() {
   const setEditingTextLayerId = useEditorStore((state) => state.setEditingTextLayerId)
   const editingTextLayerId = useEditorStore((state) => state.editingTextLayerId)
 
-  const { width, height, backgroundColor } = project.artboard
+  const { width, height, backgroundColor } = artboard
   const artboardUsesGrid = isTransparentColor(backgroundColor)
   const artboardFill = artboardUsesGrid ? undefined : normalizeHex(backgroundColor)
   const canvasUsesGrid = isTransparentColor(project.canvas.backgroundColor)
   const canvasFill = canvasUsesGrid ? undefined : normalizeHex(project.canvas.backgroundColor)
-  const frameStep = 1 / 30
-  const panelChrome = { showLayersPanel, showPropertiesPanel }
+  const frameStep = 1 / getProjectFps(project)
+  const panelChrome = {
+    showLayersPanel,
+    showPropertiesPanel,
+    layersPanelWidth,
+    propertiesPanelWidth,
+  }
   const toolDef = getToolDefinition(activeTool)
   const isPanning = spacePressed || activeTool === 'hand'
   const cursor = eyedropperActive
@@ -140,7 +154,7 @@ export function Stage() {
     }
 
     return frames.flatMap((frame) =>
-      project.layers.map((layer) => {
+      visibleLayers.map((layer) => {
         if (!layer.visible) {
           return null
         }
@@ -309,7 +323,7 @@ export function Stage() {
     const top = Math.min(current.startY, current.currentY)
     const bottom = Math.max(current.startY, current.currentY)
 
-    const hits = project.layers
+    const hits = visibleLayers
       .filter((layer) => layer.visible)
       .filter((layer) => {
         const bounds = getShapeBounds(getAnimatedShape(layer, currentTime))
@@ -377,7 +391,10 @@ export function Stage() {
     if (eyedropperActive) {
       event.preventDefault()
       event.stopPropagation()
-      void sampleColorFromArtboard(svg, point.x, point.y).then((color) => {
+      void sampleColorFromArtboard(svg, point.x, point.y, {
+        artboardColor: artboardFill ?? 'none',
+        workspaceColor: canvasFill ?? 'none',
+      }).then((color) => {
         if (color) {
           completeEyedropper(color)
           return
@@ -560,7 +577,7 @@ export function Stage() {
     const point = clientToArtboard(svg, event.clientX, event.clientY)
     const additive = event.shiftKey || event.metaKey || event.ctrlKey
 
-    for (const layer of [...project.layers].reverse()) {
+    for (const layer of [...visibleLayers].reverse()) {
       if (!layer.visible) {
         continue
       }
@@ -646,7 +663,7 @@ export function Stage() {
               <GuidesLayer width={width} height={height} />
               <SnapLinesLayer width={width} height={height} />
               <g data-eyedropper-ignore>{renderOnionSkin()}</g>
-              {project.layers.map((layer) => {
+              {visibleLayers.map((layer) => {
                 if (!layer.visible) {
                   return null
                 }

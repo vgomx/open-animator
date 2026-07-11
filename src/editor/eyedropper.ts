@@ -13,6 +13,10 @@ export async function sampleColorFromArtboard(
   svg: SVGSVGElement,
   x: number,
   y: number,
+  options?: {
+    artboardColor?: string
+    workspaceColor?: string
+  },
 ): Promise<string | null> {
   const clone = svg.cloneNode(true) as SVGSVGElement
   clone.querySelectorAll('[data-eyedropper-ignore]').forEach((node) => node.remove())
@@ -21,7 +25,14 @@ export async function sampleColorFromArtboard(
   const background = document.createElementNS(xmlns, 'rect')
   background.setAttribute('width', '100%')
   background.setAttribute('height', '100%')
-  background.setAttribute('fill', '#ffffff')
+  background.setAttribute(
+    'fill',
+    options?.workspaceColor && options.workspaceColor !== 'none'
+      ? options.workspaceColor
+      : options?.artboardColor && options.artboardColor !== 'none'
+        ? options.artboardColor
+        : '#ffffff',
+  )
   clone.insertBefore(background, clone.firstChild)
 
   const viewBox = svg.viewBox.baseVal

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  FRAME_STEP,
+  getFrameStep,
   getRulerTicks,
   snapTimelineTime,
   timeToPercent,
@@ -15,6 +15,7 @@ describe('timeline-utils', () => {
   it('snaps to frame boundaries when enabled', () => {
     const snapped = snapTimelineTime(0.51, {
       duration: 3,
+      fps: 30,
       snapEnabled: true,
       frameSnap: true,
       markers: [],
@@ -28,6 +29,7 @@ describe('timeline-utils', () => {
   it('does not snap when shift disables frame snap', () => {
     const snapped = snapTimelineTime(0.51, {
       duration: 3,
+      fps: 30,
       snapEnabled: true,
       frameSnap: false,
       markers: [],
@@ -41,6 +43,7 @@ describe('timeline-utils', () => {
   it('snaps to markers and playhead', () => {
     const snapped = snapTimelineTime(0.98, {
       duration: 3,
+      fps: 30,
       snapEnabled: true,
       frameSnap: true,
       markers: [{ time: 1 }],
@@ -58,6 +61,6 @@ describe('timeline-utils', () => {
   })
 
   it('uses a 30fps frame step', () => {
-    expect(FRAME_STEP).toBeCloseTo(1 / 30, 5)
+    expect(getFrameStep(30)).toBeCloseTo(1 / 30, 5)
   })
 })

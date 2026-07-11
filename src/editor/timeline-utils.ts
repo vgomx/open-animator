@@ -1,10 +1,15 @@
-export const TIMELINE_FPS = 30
-export const FRAME_STEP = 1 / TIMELINE_FPS
-const OBJECT_SNAP_THRESHOLD = 0.04
-const FRAME_SNAP_THRESHOLD = FRAME_STEP / 2
+import { DEFAULT_PROJECT_FPS } from '@/editor/types'
 
-export function formatTimelineTime(seconds: number): string {
-  const frames = Math.round(seconds * TIMELINE_FPS)
+export const TIMELINE_FPS = DEFAULT_PROJECT_FPS
+
+export function getFrameStep(fps: number): number {
+  return 1 / Math.max(1, fps)
+}
+
+const OBJECT_SNAP_THRESHOLD = 0.04
+
+export function formatTimelineTime(seconds: number, fps = DEFAULT_PROJECT_FPS): string {
+  const frames = Math.round(seconds * fps)
   return `${seconds.toFixed(2)}s · f${frames}`
 }
 
@@ -27,6 +32,7 @@ export function clampTimelineTime(time: number, duration: number): number {
 
 type SnapOptions = {
   duration: number
+  fps: number
   snapEnabled: boolean
   frameSnap: boolean
   markers: Array<{ time: number }>
@@ -38,6 +44,8 @@ type SnapOptions = {
 
 export function snapTimelineTime(time: number, options: SnapOptions): number {
   const clamped = clampTimelineTime(time, options.duration)
+  const frameStep = getFrameStep(options.fps)
+  const frameSnapThreshold = frameStep / 2
 
   if (!options.snapEnabled || !options.frameSnap) {
     return clamped
@@ -75,8 +83,8 @@ export function snapTimelineTime(time: number, options: SnapOptions): number {
     return clampTimelineTime(best, options.duration)
   }
 
-  const frameSnapped = Math.round(clamped * TIMELINE_FPS) / TIMELINE_FPS
-  if (Math.abs(frameSnapped - clamped) < FRAME_SNAP_THRESHOLD) {
+  const frameSnapped = Math.round(clamped * options.fps) / options.fps
+  if (Math.abs(frameSnapped - clamped) < frameSnapThreshold) {
     return clampTimelineTime(frameSnapped, options.duration)
   }
 

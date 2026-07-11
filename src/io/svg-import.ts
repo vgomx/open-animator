@@ -574,10 +574,11 @@ export function importSvgAsProject(raw: string): Project | null {
 }
 
 export function svgImportToProject(imported: SvgImportResult): Project {
+  const artboard = createArtboard(imported.artboard)
   return {
     ...createDefaultProject(),
-    artboard: createArtboard(imported.artboard),
-    layers: createImportLayerIds(imported.layers),
+    artboards: [artboard],
+    layers: createImportLayerIds(imported.layers, artboard.id),
   }
 }
 
@@ -606,9 +607,10 @@ export async function openSvgFile(): Promise<SvgImportResult | null> {
   })
 }
 
-export function createImportLayerIds(layers: Layer[]): Layer[] {
+export function createImportLayerIds(layers: Layer[], artboardId: string): Layer[] {
   return layers.map((layer) => ({
     ...layer,
+    artboardId,
     id: createId(),
     shape: {
       ...layer.shape,
