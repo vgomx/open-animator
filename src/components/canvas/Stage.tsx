@@ -132,6 +132,13 @@ export function Stage() {
       webGlOverlayRef.current?.drawFrame()
     }
   }, [webGlViewportActive])
+  const [canvasPreviewReady, setCanvasPreviewReady] = useState(false)
+
+  useEffect(() => {
+    if (!canvasPlaybackActive) {
+      setCanvasPreviewReady(false)
+    }
+  }, [canvasPlaybackActive])
   const addPenDraftPoint = useEditorStore((state) => state.addPenDraftPoint)
   const finishPenPath = useEditorStore((state) => state.finishPenPath)
   const cancelPenDraft = useEditorStore((state) => state.cancelPenDraft)
@@ -690,13 +697,14 @@ export function Stage() {
         artboardHeight={height}
         useCanvasOutput={canvasPlaybackActive}
         onAfterFrame={webGlViewportActive ? handlePlaybackFrame : undefined}
+        onCanvasFrameReady={() => setCanvasPreviewReady(true)}
       />
       <CanvasContextMenu onPrepare={prepareContextMenu}>
         <div ref={canvasAreaRef} className="absolute inset-0 overflow-hidden">
           <div className="flex h-full w-full items-center justify-center">
           <div
             ref={transformRef}
-            className={cn('relative ring-1 ring-border/40', webGlViewportActive && 'invisible')}
+            className="relative ring-1 ring-border/40"
           >
             {canvasPlaybackActive ? (
               <canvas
@@ -704,9 +712,9 @@ export function Stage() {
                 width={width}
                 height={height}
                 className={cn(
-                  'absolute inset-0 block',
+                  'absolute inset-0 z-[1] block',
                   artboardUsesGrid && 'artboard-surface',
-                  webGlViewportActive && 'invisible',
+                  !canvasPreviewReady && 'opacity-0',
                 )}
                 aria-hidden
               />
@@ -720,7 +728,7 @@ export function Stage() {
               className={cn(
                 'block',
                 artboardUsesGrid && 'artboard-surface',
-                canvasPlaybackActive && 'invisible',
+                canvasPlaybackActive && canvasPreviewReady && 'invisible',
               )}
               onPointerDown={handleArtboardPointerDown}
               onPointerMove={handleArtboardPointerMove}

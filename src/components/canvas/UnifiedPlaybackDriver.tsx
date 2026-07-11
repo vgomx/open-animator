@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useRef } from 'react'
 
 import { updatePlaybackLayerTransforms } from '@/components/canvas/playback-utils'
 import {
@@ -17,6 +17,7 @@ type UnifiedPlaybackDriverProps = {
   artboardHeight?: number
   useCanvasOutput?: boolean
   onAfterFrame?: (time: number) => void
+  onCanvasFrameReady?: () => void
 }
 
 export function UnifiedPlaybackDriver({
@@ -27,11 +28,19 @@ export function UnifiedPlaybackDriver({
   artboardHeight = 0,
   useCanvasOutput = false,
   onAfterFrame,
+  onCanvasFrameReady,
 }: UnifiedPlaybackDriverProps) {
   const playbackState = useEditorStore((state) => state.playbackState)
+  const onAfterFrameRef = useRef(onAfterFrame)
+  const onCanvasFrameReadyRef = useRef(onCanvasFrameReady)
+  const canvasReadyRef = useRef(false)
+
+  onAfterFrameRef.current = onAfterFrame
+  onCanvasFrameReadyRef.current = onCanvasFrameReady
 
   useEffect(() => {
     if (playbackState !== 'playing') {
+      canvasReadyRef.current = false
       return
     }
 
@@ -42,22 +51,32 @@ export function UnifiedPlaybackDriver({
 
     const renderFrame = (time: number) => {
       const svg = svgRef.current
-      if (svg) {
-        updatePlaybackLayerTransforms(svg, layers, time)
+      if (!svg) {
+        return
       }
 
-      if (useCanvasOutput) {
-        const canvas = canvasRef?.current
-        if (svg && canvas) {
-          const ctx = canvas.getContext('2d')
-          if (ctx) {
-            ctx.clearRect(0, 0, artboardWidth, artboardHeight)
-            ctx.drawImage(svg as unknown as CanvasImageSource, 0, 0, artboardWidth, artboardHeight)
+      try {
+        updatePlaybackLayerTransforms(svg, layers, time)
+
+        if (useCanvasOutput) {
+          const canvas = canvasRef?.current
+          if (canvas) {
+            const ctx = canvas.getContext('2d')
+            if (ctx) {
+              ctx.clearRect(0, 0, artboardWidth, artboardHeight)
+              ctx.drawImage(svg as unknown as CanvasImageSource, 0, 0, artboardWidth, artboardHeight)
+              if (!canvasReadyRef.current) {
+                canvasReadyRef.current = true
+                onCanvasFrameReadyRef.current?.()
+              }
+            }
           }
         }
-      }
 
-      onAfterFrame?.(time)
+        onAfterFrameRef.current?.(time)
+      } catch (error) {
+        console.error('Playback frame render failed', error)
+      }
     }
 
     const tick = (timestamp: number) => {
@@ -99,11 +118,11 @@ export function UnifiedPlaybackDriver({
       frameId = window.requestAnimationFrame(tick)
     }
 
-    renderFrame(localTime)
     frameId = window.requestAnimationFrame(tick)
 
     return () => {
       window.cancelAnimationFrame(frameId)
+      canvasReadyRef.current = false
       const store = useEditorStore.getState()
       if (store.playbackState === 'playing') {
         store.setCurrentTime(localTime)
@@ -114,7 +133,6 @@ export function UnifiedPlaybackDriver({
     artboardWidth,
     canvasRef,
     layers,
-    onAfterFrame,
     playbackState,
     svgRef,
     useCanvasOutput,
