@@ -28,4 +28,6 @@ export const STORAGE_KEYS = {
   legacyProject: 'svg-animator:project',
   theme: `${APP_SLUG}:theme`,
   preferences: `${APP_SLUG}:preferences`,
+  layerClipboard: `${APP_SLUG}:layer-clipboard`,
+  shortcutsHintSeen: `${APP_SLUG}:shortcuts-hint-seen`,
 } as const

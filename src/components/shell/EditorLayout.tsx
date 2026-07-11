@@ -87,6 +87,19 @@ export function EditorLayout() {
   }, [])
 
   useEffect(() => {
+    if (localStorage.getItem(STORAGE_KEYS.shortcutsHintSeen) === '1') {
+      return
+    }
+
+    localStorage.setItem(STORAGE_KEYS.shortcutsHintSeen, '1')
+    showToast({
+      title: 'Keyboard shortcuts',
+      description: 'Press ? any time to open the shortcut cheat sheet.',
+      variant: 'default',
+    })
+  }, [])
+
+  useEffect(() => {
     const project = useEditorStore.getState().project
     if (project.layers.length < 100) {
       return

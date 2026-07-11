@@ -24,6 +24,7 @@ import {
   type HistoryStacks,
 } from '@/editor/history'
 import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape } from '@/editor/scene'
+import { loadLayerClipboard, saveLayerClipboard } from '@/lib/layer-clipboard-storage'
 import {
   ensureActiveArtboardId,
   getActiveArtboard,
@@ -461,7 +462,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
   guideDraft: null,
   history: { past: [], future: [] },
   keyframeClipboard: [],
-  layerClipboard: [],
+  layerClipboard: loadLayerClipboard(),
   selectedKeyframeIds: [],
   timelineSnapTime: null,
   activeTool: 'select',
@@ -753,6 +754,8 @@ export const useEditorStore = create<EditorStore>((set) => ({
         .filter((layer): layer is Layer => Boolean(layer))
         .map((layer) => cloneLayer(layer, 0))
 
+      saveLayerClipboard(layers)
+
       return {
         layerClipboard: layers,
       }
@@ -760,13 +763,15 @@ export const useEditorStore = create<EditorStore>((set) => ({
 
   pasteSelectedLayers: () =>
     set((state) => {
-      if (state.layerClipboard.length === 0) {
+      const clipboard =
+        state.layerClipboard.length > 0 ? state.layerClipboard : loadLayerClipboard()
+      if (clipboard.length === 0) {
         return state
       }
 
       return withHistory(state, (current) => {
         const artboardId = resolveArtboardId(current)
-        const pasted = current.layerClipboard.map((layer) => {
+        const pasted = clipboard.map((layer) => {
           const copy = cloneLayer(layer, 20)
           return {
             ...copy,
@@ -776,6 +781,7 @@ export const useEditorStore = create<EditorStore>((set) => ({
         })
 
         return {
+          layerClipboard: clipboard,
           project: {
             ...current.project,
             layers: [...current.project.layers, ...pasted],

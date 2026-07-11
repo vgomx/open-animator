@@ -26,6 +26,7 @@ import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, ClipboardPaste, Copy, Flag, Minus, Plus, Sparkles } from 'lucide-react'
+import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 
 const propertyLabels: Record<AnimatableProperty, string> = {
   x: 'X',
@@ -504,19 +505,34 @@ export function Timeline() {
             <Flag />
             Add state
           </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={orderedStates.length < 2}
-            onClick={smartAnimateAll}
-          >
-            <Sparkles />
-            Smart animate
-          </Button>
-          <Button variant="outline" size="sm" onClick={addMarkerAtCurrentTime}>
-            <Bookmark />
-            Add marker
-          </Button>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={orderedStates.length < 2}
+                onClick={smartAnimateAll}
+              >
+                <Sparkles />
+                Smart animate
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-xs">
+              Generate keyframes between timeline states. Scrub, add states, adjust layers, then run
+              Smart animate to interpolate motion.
+            </TooltipContent>
+          </Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button variant="outline" size="sm" onClick={addMarkerAtCurrentTime}>
+                <Bookmark />
+                Add marker
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              Drop a named marker at the playhead. Click to jump; right-click to remove.
+            </TooltipContent>
+          </Tooltip>
           <Button
             variant="outline"
             size="sm"

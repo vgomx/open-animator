@@ -18,6 +18,23 @@ export const DEFAULT_EXPORT_OPTIONS: ExportOptions = {
   sizePreset: 'custom',
 }
 
+export function resolveExportScale(
+  artboard: { width: number; height: number },
+  options: ExportOptions,
+): number {
+  if (!options.sizePreset || options.sizePreset === 'custom') {
+    return options.scale
+  }
+
+  const preset = EXPORT_SIZE_PRESETS.find((entry) => entry.id === options.sizePreset)
+  if (!preset || preset.width <= 0 || preset.height <= 0) {
+    return options.scale
+  }
+
+  const fitScale = Math.min(preset.width / artboard.width, preset.height / artboard.height)
+  return fitScale * options.scale
+}
+
 export const EXPORT_SIZE_PRESETS: Array<{
   id: ExportSizePreset
   label: string
