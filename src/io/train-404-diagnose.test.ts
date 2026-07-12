@@ -32,11 +32,15 @@ const TRAIN_HTML_FIXTURE = `<!DOCTYPE html><html><head><style>
   <svg viewBox="0 0 1200 470" xmlns="http://www.w3.org/2000/svg">
     <g class="vg-train">
       <g class="vg-jitter">
+        <path d="M430 248 L196 248 C160 250 136 296 128 346 C126 360 134 372 152 372 L430 372 Z" fill="#fafafa" stroke="#141416" stroke-width="3"/>
+        <rect x="442" y="248" width="316" height="124" rx="10" fill="#fafafa" stroke="#141416" stroke-width="3"/>
+        <path d="M770 248 L1004 248 C1040 250 1064 296 1072 346 C1074 360 1066 372 1048 372 L770 372 Z" fill="#fafafa" stroke="#141416" stroke-width="3"/>
         <g fill="#fafafa" stroke="#141416" stroke-width="2.2">
           <g class="vg-wheel">
             <circle cx="226" cy="382" r="18"/>
             <circle cx="226" cy="382" r="10.5" fill="none" stroke-width="1.5"/>
             <line x1="226" y1="364" x2="226" y2="400" stroke-width="1.3"/>
+            <line x1="208" y1="382" x2="244" y2="382" stroke-width="1.3"/>
           </g>
         </g>
         <g fill="none" stroke="#141416" stroke-width="2.2">
@@ -132,5 +136,59 @@ describe('train-404-bg.html import', () => {
     expect(Math.abs(wheelAtQuarter.x - 226)).toBeLessThan(1)
     expect(Math.abs(wheelAtQuarter.y - 382)).toBeLessThan(1)
     expect(wheelAtQuarter.rotation).toBeCloseTo(90, 0)
+
+    const carPaths = imported!.layers.filter(
+      (layer) =>
+        layer.shape.type === 'path' &&
+        layer.shape.fill === '#fafafa' &&
+        layer.shape.stroke === '#141416',
+    )
+    const middleCar = imported!.layers.find(
+      (layer) =>
+        layer.shape.type === 'rect' &&
+        Math.abs(layer.shape.x - 442) < 1 &&
+        Math.abs(layer.shape.y - 248) < 1,
+    )
+
+    expect(carPaths.length).toBeGreaterThanOrEqual(2)
+    expect(carPaths.every((layer) => layer.keyframes.some((kf) => kf.property === 'y'))).toBe(
+      true,
+    )
+    expect(middleCar?.keyframes.some((kf) => kf.property === 'y')).toBe(true)
+
+    const yRanges = [...carPaths, middleCar!].map((layer) => {
+      const values = layer.keyframes
+        .filter((kf) => kf.property === 'y')
+        .map((kf) => kf.value as number)
+      return Math.max(...values) - Math.min(...values)
+    })
+
+    expect(yRanges.every((range) => range > 0.2)).toBe(true)
+
+    const jitterDelta = (layer: typeof middleCar) => {
+      const atZero = getAnimatedShape(layer!, 0).y
+      const atStep = getAnimatedShape(layer!, 0.085).y
+      return atStep - atZero
+    }
+
+    const middleJitter = jitterDelta(middleCar)
+    expect(carPaths.every((layer) => Math.abs(jitterDelta(layer) - middleJitter) < 0.05)).toBe(
+      true,
+    )
+    expect(carPaths.every((layer) => layer.keyframes.some((kf) => kf.property === 'rotation'))).toBe(
+      true,
+    )
+
+    const wheelSpoke = imported!.layers.find(
+      (layer) =>
+        layer.shape.type === 'path' &&
+        layer.shape.stroke === '#141416' &&
+        layer.shape.points.length === 2 &&
+        layer.keyframes.some((kf) => kf.property === 'rotation'),
+    )
+    expect(wheelSpoke).toBeDefined()
+    const spokeBoundsAtQuarter = getShapeBounds(getAnimatedShape(wheelSpoke!, 0.2875))
+    expect(spokeBoundsAtQuarter.x + spokeBoundsAtQuarter.width / 2).toBeCloseTo(226, 0)
+    expect(spokeBoundsAtQuarter.y + spokeBoundsAtQuarter.height / 2).toBeCloseTo(382, 0)
   })
 })

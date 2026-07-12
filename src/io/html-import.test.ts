@@ -11,6 +11,7 @@ import {
   readHtmlImportFromFile,
 } from '@/io/html-import'
 import { createDefaultProject, createLayerFromShape, createRectShape } from '@/editor/scene'
+import { getAnimatedShape } from '@/editor/animation'
 import { createArtboard } from '@/editor/types'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
 
@@ -474,5 +475,95 @@ describe('html import', () => {
     expect(wheel?.keyframes.some((kf) => kf.property === 'rotation' && (kf.value as number) >= 180)).toBe(
       true,
     )
+  })
+
+  it('parses animation-delay from inline styles for staggered streaks', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-streak: 0.9s; }
+      .vg-streak { animation: vgstreak var(--t-streak) ease-in infinite; opacity: 0; }
+      @keyframes vgstreak {
+        0% { transform: translateX(22px); opacity: 0; }
+        30% { opacity: 0.55; }
+        100% { transform: translateX(-30px); opacity: 0; }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+        <line class="vg-streak" x1="64" y1="120" x2="104" y2="120" stroke="#141416" stroke-width="2" style="animation-delay:0s"/>
+        <line class="vg-streak" x1="58" y1="140" x2="102" y2="140" stroke="#141416" stroke-width="2" style="animation-delay:-.3s"/>
+        <line class="vg-streak" x1="68" y1="160" x2="108" y2="160" stroke="#141416" stroke-width="2" style="animation-delay:-.6s"/>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    expect(imported).not.toBeNull()
+
+    const streaks = imported!.layers.filter((layer) => layer.keyframes.length > 0)
+    expect(streaks).toHaveLength(3)
+
+    const opacityAtZero = streaks.map((layer) => getAnimatedShape(layer, 0).opacity)
+    expect(opacityAtZero[0]).toBeLessThan(0.2)
+    expect(opacityAtZero[1]).toBeGreaterThan(opacityAtZero[0] + 0.3)
+
+    const opacityTracks = streaks.map((layer) =>
+      layer.keyframes
+        .filter((kf) => kf.property === 'opacity')
+        .map((kf) => `${kf.time}:${kf.value}`)
+        .join(','),
+    )
+    expect(new Set(opacityTracks).size).toBe(3)
+    expect(streaks[0]!.keyframes.some((kf) => kf.property === 'opacity' && kf.easing === 'easeIn')).toBe(
+      true,
+    )
+  })
+
+  it('applies steps and alternate timing for jitter animations', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-jitter: 0.17s; }
+      .vg-jitter { animation: vgjitter var(--t-jitter) steps(2,jump-none) infinite alternate; }
+      @keyframes vgjitter {
+        from { transform: translateY(0); }
+        to { transform: translateY(0.7px); }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g class="vg-jitter">
+          <rect x="40" y="80" width="120" height="40" fill="#fafafa" stroke="#141416"/>
+        </g>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    expect(imported).not.toBeNull()
+
+    const body = imported!.layers.find((layer) => layer.shape.type === 'rect')
+    const yKeyframes = body!.keyframes.filter((kf) => kf.property === 'y').sort((a, b) => a.time - b.time)
+    const yValues = yKeyframes.map((kf) => kf.value as number)
+    const uniqueY = [...new Set(yValues.map((value) => Math.round(value * 100) / 100))]
+
+    expect(uniqueY.length).toBeLessThanOrEqual(3)
+    expect(Math.max(...yValues) - Math.min(...yValues)).toBeGreaterThan(0.4)
+  })
+
+  it('exports ease-in-out easing for bob animations', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-bob: 3s; }
+      .vg-train { animation: vgbob var(--t-bob) ease-in-out infinite; }
+      @keyframes vgbob {
+        0%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-3px); }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g class="vg-train">
+          <rect x="40" y="80" width="120" height="40" fill="#fafafa" stroke="#141416"/>
+        </g>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    const body = imported!.layers.find((layer) => layer.shape.type === 'rect')
+    const yKeyframes = body!.keyframes.filter((kf) => kf.property === 'y')
+
+    expect(yKeyframes.some((kf) => kf.easing === 'easeInOut')).toBe(true)
   })
 })
