@@ -2,12 +2,6 @@ import { createId } from '@/editor/scene'
 import { getShapeBounds } from '@/editor/bounds'
 import type { AnimatableProperty, EasingType, Keyframe, Layer, Shape } from '@/editor/types'
 import { sampleEasing } from '@/editor/easing'
-import {
-  applyMatrixToPoint,
-  IDENTITY_MATRIX,
-  multiplyMatrix,
-  type AffineMatrix,
-} from '@/io/svg-transform'
 import { yieldToUi } from '@/lib/yield-to-ui'
 
 function roundCoord(value: number): number {
@@ -873,16 +867,30 @@ function collectScopedShapesForAncestor(
   const nestedClassNames = new Set(
     ancestorChain.slice(ancestorIndex + 1).map((entry) => entry.className),
   )
+  const immediateNextClass = ancestorChain[ancestorIndex + 1]?.className
   const shapes: Element[] = []
 
   const walk = (node: Element) => {
     for (const child of [...node.children]) {
       const childClasses = getElementClassNames(child)
-      if (childClasses.some((className) => nestedClassNames.has(className))) {
+      const childTag = child.tagName.toLowerCase()
+      const entersNextAnimatedGroup =
+        immediateNextClass !== undefined &&
+        childClasses.includes(immediateNextClass) &&
+        !SHAPE_TAGS.has(childTag)
+      const skipsDeeperAnimatedSubtree = childClasses.some(
+        (className) => nestedClassNames.has(className) && className !== immediateNextClass,
+      )
+
+      if (skipsDeeperAnimatedSubtree && !entersNextAnimatedGroup) {
         continue
       }
 
-      const childTag = child.tagName.toLowerCase()
+      if (entersNextAnimatedGroup) {
+        walk(child)
+        continue
+      }
+
       if (SHAPE_TAGS.has(childTag)) {
         shapes.push(child)
       } else {
@@ -987,48 +995,6 @@ function parseTransformComponents(transform: string): TransformComponents {
 
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t
-}
-
-function cssStepToMatrix(step: CssKeyframeStep, originX: number, originY: number): AffineMatrix {
-  const components = parseTransformComponents(step.transform ?? '')
-  let matrix = IDENTITY_MATRIX
-
-  if (components.translateX !== 0 || components.translateY !== 0) {
-    matrix = multiplyMatrix(matrix, {
-      a: 1,
-      b: 0,
-      c: 0,
-      d: 1,
-      e: components.translateX,
-      f: components.translateY,
-    })
-  }
-
-  if (components.rotate !== 0) {
-    const angle = (components.rotate * Math.PI) / 180
-    const cos = Math.cos(angle)
-    const sin = Math.sin(angle)
-    const rotate = { a: cos, b: sin, c: -sin, d: cos, e: 0, f: 0 }
-    const toOrigin = { a: 1, b: 0, c: 0, d: 1, e: -originX, f: -originY }
-    const back = { a: 1, b: 0, c: 0, d: 1, e: originX, f: originY }
-    matrix = multiplyMatrix(matrix, multiplyMatrix(back, multiplyMatrix(rotate, toOrigin)))
-  }
-
-  if (components.scaleX !== 1 || components.scaleY !== 1) {
-    const toOrigin = { a: 1, b: 0, c: 0, d: 1, e: -originX, f: -originY }
-    const scale = {
-      a: components.scaleX,
-      b: 0,
-      c: 0,
-      d: components.scaleY,
-      e: 0,
-      f: 0,
-    }
-    const back = { a: 1, b: 0, c: 0, d: 1, e: originX, f: originY }
-    matrix = multiplyMatrix(matrix, multiplyMatrix(back, multiplyMatrix(scale, toOrigin)))
-  }
-
-  return matrix
 }
 
 function formatTransformComponents(components: TransformComponents): string {
@@ -1236,18 +1202,51 @@ function rotatePointAround(
   }
 }
 
-function shouldApplyRotationToLayer(
+function applyAncestorTransformToSample(
+  center: { x: number; y: number },
+  rotation: number,
+  scaleX: number,
+  scaleY: number,
   ancestor: AnimatedAncestor,
   step: CssKeyframeStep,
-): boolean {
-  if (ancestor.className === 'vg-wheel') {
-    return true
+  scopedShapes: Element[],
+  css: string,
+  parseShape: (element: Element) => Shape | null,
+): { center: { x: number; y: number }; rotation: number; scaleX: number; scaleY: number } {
+  const components = parseTransformComponents(step.transform ?? '')
+  const originBounds = getBoundsForElements(scopedShapes, parseShape)
+  const origin = resolveTransformOrigin(
+    parseTransformOriginForClass(css, ancestor.className),
+    originBounds,
+  )
+  const spinOnly =
+    components.rotate !== 0 && components.translateX === 0 && components.translateY === 0
+
+  if (components.rotate !== 0) {
+    if (ancestor.className === 'vg-wheel') {
+      rotation += components.rotate
+    } else if (spinOnly) {
+      center = rotatePointAround(center, origin, components.rotate)
+      rotation += components.rotate
+    } else {
+      rotation += components.rotate
+    }
   }
 
-  const components = parseTransformComponents(step.transform ?? '')
-  return (
-    components.rotate !== 0 && components.translateX === 0 && components.translateY === 0
-  )
+  if (components.translateX !== 0) {
+    center = { ...center, x: center.x + components.translateX }
+  }
+
+  if (components.translateY !== 0) {
+    center = { ...center, y: center.y + components.translateY }
+  }
+
+  return {
+    center,
+    rotation,
+    scaleX: scaleX * components.scaleX,
+    scaleY: scaleY * components.scaleY,
+  }
 }
 
 function ancestorAnimatesProperty(
@@ -1322,49 +1321,37 @@ function buildShapeAnimationKeyframes(
 
   for (const time of sampleTimes) {
     let center = getShapeCenter(baseShape)
-    let matrix = IDENTITY_MATRIX
     let rotation = baseShape.rotation
     let scaleX = baseShape.scaleX
     let scaleY = baseShape.scaleY
 
     for (const [ancestorIndex, ancestor] of ancestors.entries()) {
-      const { element, track, className, binding } = ancestor
+      const { track, binding } = ancestor
       const step = sampleTrackAtTime(track, time, binding)
-      const components = parseTransformComponents(step.transform ?? '')
-      const scopedShapes = collectScopedShapesForAncestor(element, ancestors, ancestorIndex)
-      const originBounds = getBoundsForElements(scopedShapes, parseShape)
-      const origin = resolveTransformOrigin(
-        parseTransformOriginForClass(css, className),
-        originBounds,
+      const scopedShapes = collectScopedShapesForAncestor(
+        ancestor.element,
+        ancestors,
+        ancestorIndex,
       )
-
-      if (shouldApplyRotationToLayer(ancestor, step)) {
-        if (components.rotate !== 0) {
-          center = rotatePointAround(center, origin, components.rotate)
-          rotation += components.rotate
-        }
-
-        if (components.translateX !== 0 || components.translateY !== 0) {
-          center = {
-            x: center.x + components.translateX,
-            y: center.y + components.translateY,
-          }
-        }
-      } else {
-        matrix = multiplyMatrix(matrix, cssStepToMatrix(step, origin.x, origin.y))
-      }
-
-      scaleX *= components.scaleX
-      scaleY *= components.scaleY
+      ;({ center, rotation, scaleX, scaleY } = applyAncestorTransformToSample(
+        center,
+        rotation,
+        scaleX,
+        scaleY,
+        ancestor,
+        step,
+        scopedShapes,
+        css,
+        parseShape,
+      ))
     }
 
-    const transformedCenter = applyMatrixToPoint(matrix, center.x, center.y)
     const position =
       baseShape.type === 'ellipse'
-        ? transformedCenter
+        ? center
         : {
-            x: transformedCenter.x - bounds.width / 2,
-            y: transformedCenter.y - bounds.height / 2,
+            x: center.x - bounds.width / 2,
+            y: center.y - bounds.height / 2,
           }
 
     samples.push({

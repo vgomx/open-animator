@@ -165,6 +165,20 @@ describe('train-404-bg.html import', () => {
 
     expect(yRanges.every((range) => range > 0.2)).toBe(true)
 
+    const jitterDelta = (layer: typeof middleCar) => {
+      const atZero = getAnimatedShape(layer!, 0).y
+      const atStep = getAnimatedShape(layer!, 0.085).y
+      return atStep - atZero
+    }
+
+    const middleJitter = jitterDelta(middleCar)
+    expect(carPaths.every((layer) => Math.abs(jitterDelta(layer) - middleJitter) < 0.05)).toBe(
+      true,
+    )
+    expect(carPaths.every((layer) => layer.keyframes.some((kf) => kf.property === 'rotation'))).toBe(
+      true,
+    )
+
     const wheelSpoke = imported!.layers.find(
       (layer) =>
         layer.shape.type === 'path' &&
