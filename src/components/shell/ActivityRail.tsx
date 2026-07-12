@@ -30,7 +30,7 @@ export function ActivityRail({ onOpenShortcuts }: ActivityRailProps) {
 
   return (
     <>
-      <aside className="activity-rail glass-chrome flex w-14 shrink-0 flex-col items-center border-r border-border text-card-foreground">
+      <aside className="activity-rail editor-shell__rail glass-chrome flex w-14 shrink-0 flex-col items-center border-r border-border text-card-foreground">
         <div className="flex h-12 w-full shrink-0 items-center justify-center px-1">
           <Tooltip>
             <TooltipTrigger asChild>

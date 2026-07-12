@@ -3,16 +3,21 @@ import { useRef } from 'react'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { PanelResizeHandle } from '@/components/shell/PanelResizeHandle'
+import { GroupAnimationTab } from '@/components/shell/properties/GroupAnimationTab'
 import { AnimationTab } from '@/components/shell/properties/AnimationTab'
 import { DocumentTab } from '@/components/shell/properties/DocumentTab'
 import { DesignTab } from '@/components/shell/properties/PropertyTabs'
 import { getAnimatedShape } from '@/editor/animation'
 import { getSelectedAnimatedShapes } from '@/editor/selection-utils'
-import { useEditorStore, useActiveArtboard, useSelectedLayer } from '@/editor/store'
+import { useEditorStore, useActiveArtboard, useSelectedGroup, useSelectedLayer } from '@/editor/store'
+import { cn } from '@/lib/utils'
 import { Frame, Layers2, Sparkles } from 'lucide-react'
 
-export function PropertiesPanel() {
+export function PropertiesPanel({ className }: { className?: string }) {
   const selectedLayer = useSelectedLayer()
+  const selectedGroup = useSelectedGroup()
+  const selectedGroupId = useEditorStore((state) => state.selectedGroupId)
+  const layerGroups = useEditorStore((state) => state.project.layerGroups)
   const artboard = useActiveArtboard()
   const showPropertiesPanel = useEditorStore((state) => state.showPropertiesPanel)
   const propertiesPanelWidth = useEditorStore((state) => state.propertiesPanelWidth)
@@ -65,11 +70,14 @@ export function PropertiesPanel() {
     return null
   }
 
-  if (!selectedLayer) {
+  if (!selectedLayer && !selectedGroup) {
     return (
       <aside
         style={{ width: propertiesPanelWidth }}
-        className="glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground"
+        className={cn(
+          'glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground',
+          className,
+        )}
       >
         <PanelResizeHandle
           edge="left"
@@ -89,7 +97,44 @@ export function PropertiesPanel() {
     )
   }
 
-  const shape = getAnimatedShape(selectedLayer, currentTime)
+  if (selectedGroupId && selectedGroup) {
+    return (
+      <aside
+        style={{ width: propertiesPanelWidth }}
+        className={cn(
+          'glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground',
+          className,
+        )}
+      >
+        <PanelResizeHandle
+          edge="left"
+          getWidth={() => useEditorStore.getState().propertiesPanelWidth}
+          onWidthChange={setPropertiesPanelWidth}
+        />
+        <div className="glass-panel-header shrink-0 border-b px-3 py-2.5">
+          <div className="flex items-center gap-2">
+            <Layers2 className="size-3.5 text-muted-foreground" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              Group
+            </span>
+          </div>
+        </div>
+        <ScrollArea className="panel-scroll">
+          <GroupAnimationTab
+            groupId={selectedGroupId}
+            group={selectedGroup}
+            layerGroups={layerGroups}
+            recordMode={recordMode}
+            currentTime={currentTime}
+            onAddKeyframe={addKeyframeAtCurrentTime}
+            onSetEasing={setKeyframeEasing}
+          />
+        </ScrollArea>
+      </aside>
+    )
+  }
+
+  const shape = getAnimatedShape(selectedLayer!, currentTime)
   const selectedShapes = getSelectedAnimatedShapes(layers, selectedLayerIds, currentTime).map(
     (item) => item.shape,
   )
@@ -100,13 +145,16 @@ export function PropertiesPanel() {
       return
     }
 
-    updateShape(selectedLayer.id, patch)
+    updateShape(selectedLayer!.id, patch)
   }
 
   return (
     <aside
       style={{ width: propertiesPanelWidth }}
-      className="glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground"
+      className={cn(
+        'glass-chrome absolute inset-y-0 right-0 z-30 flex min-h-0 flex-col overflow-hidden border-l border-border text-card-foreground',
+        className,
+      )}
     >
       <PanelResizeHandle
         edge="left"
@@ -145,23 +193,23 @@ export function PropertiesPanel() {
           </TabsContent>
           <TabsContent value="design" className="mt-0">
             <DesignTab
-              selectedLayer={selectedLayer}
+              selectedLayer={selectedLayer!}
               selectedCount={selectedCount}
               shapes={selectedShapes}
-              onRename={(name) => updateLayer(selectedLayer.id, { name })}
+              onRename={(name) => updateLayer(selectedLayer!.id, { name })}
               onUpdateShape={applyShapePatch}
             />
           </TabsContent>
           <TabsContent value="animation" className="mt-0">
             <AnimationTab
-              selectedLayer={selectedLayer}
+              selectedLayer={selectedLayer!}
               selectedCount={selectedCount}
               shape={shape}
               recordMode={recordMode}
               currentTime={currentTime}
               onAddKeyframe={addKeyframeAtCurrentTime}
               onSetEasing={setKeyframeEasing}
-              onUpdateShape={(patch) => updateShape(selectedLayer.id, patch)}
+              onUpdateShape={(patch) => updateShape(selectedLayer!.id, patch)}
             />
           </TabsContent>
         </ScrollArea>

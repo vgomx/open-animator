@@ -20,7 +20,7 @@ export function ToolPalette() {
   const toolsById = new Map(EDITOR_TOOLS.map((tool) => [tool.id, tool]))
 
   return (
-    <div className="pointer-events-none absolute inset-x-0 bottom-4 z-30 flex justify-center px-4">
+    <div className="editor-shell__tool-palette pointer-events-none absolute inset-x-0 bottom-4 flex justify-center px-4">
       <aside
         className="glass-panel pointer-events-auto flex items-center gap-0.5 rounded-xl border border-border/60 p-1 shadow-lg shadow-black/10"
         aria-label="Tools"

@@ -170,17 +170,17 @@ export function CanvasRulers({ svgRef, canvasViewportRef }: CanvasRulersProps) {
   return (
     <>
       <div
-        className="glass-chrome pointer-events-none absolute z-20 border-b border-r border-border/50"
+        className="editor-shell__ruler editor-shell__ruler--corner glass-chrome pointer-events-none absolute z-20 border-b border-r border-border/50"
         style={{ left: chromeLeft - RULER_Y_SIZE, top: chromeTop - RULER_X_SIZE, width: RULER_Y_SIZE, height: RULER_X_SIZE }}
       />
       <div
-        className="absolute z-20 min-h-0 min-w-0 overflow-hidden"
+        className="editor-shell__ruler editor-shell__ruler--x absolute z-20 min-h-0 min-w-0 overflow-hidden"
         style={{ left: chromeLeft, top: 0, right: chromeRight, height: RULER_X_SIZE }}
       >
         <Ruler axis="x" svgRef={svgRef} canvasViewportRef={canvasViewportRef} />
       </div>
       <div
-        className="absolute z-20 min-h-0 overflow-visible"
+        className="editor-shell__ruler editor-shell__ruler--y absolute z-20 min-h-0 overflow-visible"
         style={{ left: chromeLeft - RULER_Y_SIZE, top: chromeTop, width: RULER_Y_SIZE, bottom: 0 }}
       >
         <Ruler axis="y" svgRef={svgRef} canvasViewportRef={canvasViewportRef} />

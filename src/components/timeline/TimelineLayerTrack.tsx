@@ -1,12 +1,12 @@
 import { memo } from 'react'
 
-import type { Keyframe, Layer } from '@/editor/types'
+import type { Keyframe } from '@/editor/types'
 import { timeToPixel } from '@/editor/timeline-utils'
 import { TIMELINE_ROW_HEIGHT } from '@/editor/layout-constants'
 import { cn } from '@/lib/utils'
 
 type TimelineLayerTrackProps = {
-  layer: Layer
+  keyframes: Keyframe[]
   duration: number
   contentWidth: number
   selectedKeyframeIds: string[]
@@ -17,13 +17,13 @@ type TimelineLayerTrackProps = {
 }
 
 export const TimelineLayerTrack = memo(function TimelineLayerTrack({
-  layer,
+  keyframes,
   duration,
   contentWidth,
   selectedKeyframeIds,
   onKeyframePointerDown,
 }: TimelineLayerTrackProps) {
-  const ordered = [...layer.keyframes].sort((left, right) => left.time - right.time)
+  const ordered = [...keyframes].sort((left, right) => left.time - right.time)
 
   return (
     <div

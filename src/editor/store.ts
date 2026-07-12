@@ -2,6 +2,7 @@ import { create } from 'zustand'
 
 import { DEFAULT_CUSTOM_BEZIER } from '@/editor/easing'
 import { getAnimatedShape as resolveAnimatedShape } from '@/editor/animation'
+import { getGroupPropertyValue, GROUP_ANIMATABLE_PROPERTIES } from '@/editor/group-animation'
 import { getShapeBounds } from '@/editor/bounds'
 import { applyPresetToLayers, type PresetId, type PresetOptions } from '@/editor/presets'
 import {
@@ -100,6 +101,7 @@ type EditorStore = {
   activeArtboardId: string | null
   selectedLayerIds: string[]
   selectedLayerId: string | null
+  selectedGroupId: string | null
   currentTime: number
   playbackState: PlaybackState
   loop: boolean
@@ -133,6 +135,7 @@ type EditorStore = {
   editingTextLayerId: string | null
   setSelectedLayerId: (layerId: string | null) => void
   selectLayer: (layerId: string, options?: { additive?: boolean }) => void
+  selectGroup: (groupId: string) => void
   selectLayers: (layerIds: string[]) => void
   clearSelection: () => void
   addShape: (type: ShapeType) => void
@@ -284,6 +287,13 @@ function findKeyframeTime(project: Project, keyframeId: string): number | null {
     }
   }
 
+  for (const group of Object.values(project.layerGroups ?? {})) {
+    const keyframe = group.keyframes?.find((item) => item.id === keyframeId)
+    if (keyframe) {
+      return keyframe.time
+    }
+  }
+
   return null
 }
 
@@ -291,8 +301,28 @@ function applyKeyframeTimeDelta(project: Project, keyframeIds: string[], delta: 
   const ids = new Set(keyframeIds)
   const duration = project.duration
 
+  const layerGroups = project.layerGroups
+    ? Object.fromEntries(
+        Object.entries(project.layerGroups).map(([groupId, group]) => [
+          groupId,
+          {
+            ...group,
+            keyframes: (group.keyframes ?? []).map((keyframe) =>
+              ids.has(keyframe.id)
+                ? {
+                    ...keyframe,
+                    time: Math.max(0, Math.min(keyframe.time + delta, duration)),
+                  }
+                : keyframe,
+            ),
+          },
+        ]),
+      )
+    : project.layerGroups
+
   return {
     ...project,
+    layerGroups,
     layers: project.layers.map((layer) => ({
       ...layer,
       keyframes: layer.keyframes.map((keyframe) =>
@@ -307,18 +337,18 @@ function applyKeyframeTimeDelta(project: Project, keyframeIds: string[], delta: 
   }
 }
 
-function upsertKeyframe(
-  layer: Layer,
+function upsertKeyframeList(
+  keyframes: Keyframe[],
   time: number,
   property: AnimatableProperty,
   value: number | string,
 ): Keyframe[] {
-  const existingIndex = layer.keyframes.findIndex(
+  const existingIndex = keyframes.findIndex(
     (keyframe) =>
       keyframe.property === property && Math.abs(keyframe.time - time) < 0.001,
   )
 
-  const nextKeyframes = [...layer.keyframes]
+  const nextKeyframes = [...keyframes]
   if (existingIndex >= 0) {
     nextKeyframes[existingIndex] = {
       ...nextKeyframes[existingIndex],
@@ -334,6 +364,15 @@ function upsertKeyframe(
   }
 
   return nextKeyframes
+}
+
+function upsertKeyframe(
+  layer: Layer,
+  time: number,
+  property: AnimatableProperty,
+  value: number | string,
+): Keyframe[] {
+  return upsertKeyframeList(layer.keyframes, time, property, value)
 }
 
 function applyAutoKeyframes(
@@ -481,9 +520,10 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
   styleClipboard: null,
   collapsedGroupIds: [],
   editingTextLayerId: null,
+  selectedGroupId: null,
 
   setSelectedLayerId: (layerId) =>
-    set(layerId ? syncSelection([layerId]) : syncSelection([])),
+    set(layerId ? { ...syncSelection([layerId]), selectedGroupId: null } : { ...syncSelection([]), selectedGroupId: null }),
 
   selectLayer: (layerId, options) =>
     set((state) => {
@@ -502,14 +542,22 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
             ? syncSelection(state.selectedLayerIds.filter((id) => id !== layerId))
             : syncSelection([...state.selectedLayerIds, layerId])
 
-      return { ...next, selectedNodeIndices: [], selectedKeyframeIds: [] }
+      return { ...next, selectedGroupId: null, selectedNodeIndices: [], selectedKeyframeIds: [] }
+    }),
+
+  selectGroup: (groupId) =>
+    set({
+      selectedGroupId: groupId,
+      ...syncSelection([]),
+      selectedNodeIndices: [],
+      selectedKeyframeIds: [],
     }),
 
   clearSelection: () =>
-    set({ ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [] }),
+    set({ ...syncSelection([]), selectedGroupId: null, selectedNodeIndices: [], selectedKeyframeIds: [] }),
 
   selectLayers: (layerIds) =>
-    set({ ...syncSelection([...layerIds]), selectedNodeIndices: [], selectedKeyframeIds: [] }),
+    set({ ...syncSelection([...layerIds]), selectedGroupId: null, selectedNodeIndices: [], selectedKeyframeIds: [] }),
 
   setActiveTool: (tool) =>
     set((state) => ({
@@ -1260,7 +1308,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       project,
       activeArtboardId,
       ...(options?.clearLayerSelection
-        ? { ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [] }
+        ? { ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [], selectedGroupId: null }
         : syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : [])),
       currentTime: 0,
       playbackState: 'idle',
@@ -1273,6 +1321,46 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   addKeyframeAtCurrentTime: (property) =>
     set((state) => {
+      if (state.selectedGroupId) {
+        const group = state.project.layerGroups?.[state.selectedGroupId]
+        if (!group) {
+          return state
+        }
+
+        return withHistory(state, (current) => {
+          const selectedGroup = current.project.layerGroups?.[current.selectedGroupId!]
+          if (!selectedGroup) {
+            return {}
+          }
+
+          if (!GROUP_ANIMATABLE_PROPERTIES.includes(property as (typeof GROUP_ANIMATABLE_PROPERTIES)[number])) {
+            return {}
+          }
+
+          const value = getGroupPropertyValue(
+            current.selectedGroupId!,
+            property as (typeof GROUP_ANIMATABLE_PROPERTIES)[number],
+            current.project.layerGroups,
+            current.currentTime,
+          )
+
+          const layerGroups = {
+            ...(current.project.layerGroups ?? {}),
+            [current.selectedGroupId!]: {
+              ...selectedGroup,
+              keyframes: upsertKeyframeList(
+                selectedGroup.keyframes ?? [],
+                current.currentTime,
+                property,
+                value,
+              ),
+            },
+          }
+
+          return { project: { ...current.project, layerGroups } }
+        })
+      }
+
       const layer = state.project.layers.find((item) => item.id === state.selectedLayerId)
       if (!layer) {
         return state
@@ -1307,6 +1395,54 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   setKeyframeEasing: (property, easing, bezier) =>
     set((state) => {
+      if (state.selectedGroupId) {
+        const group = state.project.layerGroups?.[state.selectedGroupId]
+        if (!group) {
+          return state
+        }
+
+        return withHistory(state, (current) => {
+          const selectedGroup = current.project.layerGroups?.[current.selectedGroupId!]
+          if (!selectedGroup) {
+            return {}
+          }
+
+          const keyframes = [...(selectedGroup.keyframes ?? [])]
+          const existingIndex = keyframes.findIndex(
+            (keyframe) =>
+              keyframe.property === property &&
+              Math.abs(keyframe.time - current.currentTime) < 0.001,
+          )
+
+          if (existingIndex < 0) {
+            return {}
+          }
+
+          const nextKeyframe = {
+            ...keyframes[existingIndex]!,
+            easing,
+          }
+
+          if (easing === 'custom') {
+            nextKeyframe.bezier = bezier ?? DEFAULT_CUSTOM_BEZIER
+          } else {
+            delete nextKeyframe.bezier
+          }
+
+          keyframes[existingIndex] = nextKeyframe
+
+          const layerGroups = {
+            ...(current.project.layerGroups ?? {}),
+            [current.selectedGroupId!]: {
+              ...selectedGroup,
+              keyframes,
+            },
+          }
+
+          return { project: { ...current.project, layerGroups } }
+        })
+      }
+
       const layer = state.project.layers.find((item) => item.id === state.selectedLayerId)
       if (!layer) {
         return state
@@ -1400,8 +1536,23 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       const clampedTime = Math.max(0, Math.min(time, state.project.duration))
 
       const applyMove = (current: EditorStore): Partial<EditorStore> => {
+        const layerGroups = current.project.layerGroups
+          ? Object.fromEntries(
+              Object.entries(current.project.layerGroups).map(([groupId, group]) => [
+                groupId,
+                {
+                  ...group,
+                  keyframes: (group.keyframes ?? []).map((keyframe) =>
+                    keyframe.id === keyframeId ? { ...keyframe, time: clampedTime } : keyframe,
+                  ),
+                },
+              ]),
+            )
+          : current.project.layerGroups
+
         const project = {
           ...current.project,
+          layerGroups,
           layers: current.project.layers.map((layer) => ({
             ...layer,
             keyframes: layer.keyframes.map((keyframe) =>
@@ -1472,16 +1623,31 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
       const selected = new Set(state.selectedKeyframeIds)
 
-      return withHistory(state, (current) => ({
-        project: {
-          ...current.project,
-          layers: current.project.layers.map((layer) => ({
-            ...layer,
-            keyframes: layer.keyframes.filter((keyframe) => !selected.has(keyframe.id)),
-          })),
-        },
-        selectedKeyframeIds: [],
-      }))
+      return withHistory(state, (current) => {
+        const layerGroups = current.project.layerGroups
+          ? Object.fromEntries(
+              Object.entries(current.project.layerGroups).map(([groupId, group]) => [
+                groupId,
+                {
+                  ...group,
+                  keyframes: (group.keyframes ?? []).filter((keyframe) => !selected.has(keyframe.id)),
+                },
+              ]),
+            )
+          : current.project.layerGroups
+
+        return {
+          project: {
+            ...current.project,
+            layerGroups,
+            layers: current.project.layers.map((layer) => ({
+              ...layer,
+              keyframes: layer.keyframes.filter((keyframe) => !selected.has(keyframe.id)),
+            })),
+          },
+          selectedKeyframeIds: [],
+        }
+      })
     }),
 
   setTimelineSnapTime: (time) => set({ timelineSnapTime: time }),
@@ -1931,14 +2097,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       }
 
       const groupId = createId()
+      const groupCount = Object.keys(state.project.layerGroups ?? {}).length
 
       return withHistory(state, (current) => ({
         project: {
           ...current.project,
+          layerGroups: {
+            ...(current.project.layerGroups ?? {}),
+            [groupId]: {
+              name: `Group ${groupCount + 1}`,
+              parentGroupId: null,
+              keyframes: [],
+            },
+          },
           layers: current.project.layers.map((layer) =>
             current.selectedLayerIds.includes(layer.id) ? { ...layer, groupId } : layer,
           ),
         },
+        selectedGroupId: groupId,
+        ...syncSelection([]),
+        selectedKeyframeIds: [],
       }))
     }),
 
@@ -2050,10 +2228,20 @@ export function useSelectedLayerIds(): string[] {
 
 export function useSelectedLayer(): Layer | null {
   return useEditorStore((state) => {
-    if (!state.selectedLayerId) {
+    if (state.selectedGroupId || !state.selectedLayerId) {
       return null
     }
 
     return state.project.layers.find((layer) => layer.id === state.selectedLayerId) ?? null
+  })
+}
+
+export function useSelectedGroup() {
+  return useEditorStore((state) => {
+    if (!state.selectedGroupId) {
+      return null
+    }
+
+    return state.project.layerGroups?.[state.selectedGroupId] ?? null
   })
 }

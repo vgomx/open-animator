@@ -690,7 +690,7 @@ export function Stage() {
       ref={containerRef}
       data-stage-viewport
       className={cn(
-        'absolute inset-0 overflow-hidden overscroll-none',
+        'editor-shell__canvas absolute inset-0 overflow-hidden overscroll-none',
         canvasUsesGrid && 'canvas-backdrop',
       )}
       style={{
