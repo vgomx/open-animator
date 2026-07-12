@@ -616,9 +616,13 @@ function collectLayers(
       node.getAttribute('id') ||
       node.getAttribute('data-name') ||
       `Group ${Object.keys(context.groups).length + 1}`
+    const classAttribute = node.getAttribute('class')
+    const classNames = classAttribute?.split(/\s+/).filter(Boolean) ?? []
     context.groups[activeGroupId] = {
       name,
       parentGroupId: inheritedGroupId,
+      nodePath: getNodePath(node),
+      classNames: classNames.length > 0 ? classNames : undefined,
     }
   }
 

@@ -9,6 +9,12 @@ import type {
   NumericAnimatableProperty,
   Shape,
 } from '@/editor/types'
+import {
+  applyGroupTransformsToShape,
+  layerHasGroupAnimation,
+  type AnimatedShapeContext,
+} from '@/editor/group-animation'
+export type { AnimatedShapeContext } from '@/editor/group-animation'
 import { sampleEasing } from '@/editor/easing'
 import { layerHasAnimation } from '@/editor/layer-animation'
 import type { AffineMatrix } from '@/io/svg-transform'
@@ -139,7 +145,7 @@ export function samplePropertyAtTime(
   return sampleNumericTrackAtTime(track, time, fallback)
 }
 
-function sampleNumericTrackAtTime(track: Keyframe[], time: number, fallback: number): number {
+export function sampleNumericTrackAtTime(track: Keyframe[], time: number, fallback: number): number {
   return sampleSegmentValue(track, time, fallback, (current, next, eased) =>
     lerp(current.value as number, next.value as number, eased),
   )
@@ -310,14 +316,19 @@ function layerNeedsMatrixSampling(layer: Layer): boolean {
   )
 }
 
-export function getAnimatedShape(layer: Layer, time: number): Shape {
-  if (!layerHasAnimation(layer) && !layerNeedsMatrixSampling(layer)) {
+export function getAnimatedShape(
+  layer: Layer,
+  time: number,
+  context?: AnimatedShapeContext,
+): Shape {
+  const hasGroupAnimation = layerHasGroupAnimation(layer, context?.layerGroups)
+  if (!layerHasAnimation(layer) && !layerNeedsMatrixSampling(layer) && !hasGroupAnimation) {
     return layer.shape
   }
 
   const cached = animatedShapeCache.get(layer)
   if (cached && cached.time === time) {
-    return cached.shape
+    return applyGroupTransformsToShape(cached.shape, layer, time, context)
   }
 
   const { shape } = layer
@@ -390,6 +401,8 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
     }
   }
 
+  const resultWithGroups = applyGroupTransformsToShape(result, layer, time, context)
+
   animatedShapeCache.set(layer, { time, shape: result })
-  return result
+  return resultWithGroups
 }

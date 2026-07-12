@@ -1,7 +1,8 @@
-import { createId } from '@/editor/scene'
+import { createId, createRectShape } from '@/editor/scene'
 import { getShapeBounds } from '@/editor/bounds'
-import type { AnimatableProperty, EasingType, Keyframe, Layer, Shape } from '@/editor/types'
+import type { AnimatableProperty, EasingType, Keyframe, Layer, LayerGroupMeta, Shape } from '@/editor/types'
 import { sampleEasing } from '@/editor/easing'
+import { getNodePath } from '@/io/svg-matrix-batch'
 import { yieldToUi } from '@/lib/yield-to-ui'
 
 function roundCoord(value: number): number {
@@ -946,17 +947,58 @@ function parseTransformOriginForClass(css: string, className: string): string | 
   return match?.[1]?.trim()
 }
 
+function parseTransformBoxForClass(css: string, className: string): string | undefined {
+  const escaped = escapeRegExp(className)
+  const match = css.match(new RegExp(`\\.${escaped}\\s*\\{[^}]*transform-box:\\s*([^;\\}]+)`))
+  return match?.[1]?.trim().toLowerCase()
+}
+
+function resolveAxisOrigin(
+  token: string,
+  axis: 'x' | 'y',
+  bounds: { x: number; y: number; width: number; height: number },
+): number {
+  const normalized = token.trim().toLowerCase()
+
+  if (normalized.endsWith('%')) {
+    const percent = Number.parseFloat(normalized) / 100
+    return axis === 'x'
+      ? bounds.x + bounds.width * percent
+      : bounds.y + bounds.height * percent
+  }
+
+  if (normalized === 'left') {
+    return bounds.x
+  }
+
+  if (normalized === 'right') {
+    return bounds.x + bounds.width
+  }
+
+  if (normalized === 'top') {
+    return bounds.y
+  }
+
+  if (normalized === 'bottom') {
+    return bounds.y + bounds.height
+  }
+
+  return axis === 'x' ? bounds.x + bounds.width / 2 : bounds.y + bounds.height / 2
+}
+
 function resolveTransformOrigin(
   originValue: string | undefined,
   bounds: { x: number; y: number; width: number; height: number },
 ): { x: number; y: number } {
   const normalized = (originValue ?? 'center').trim().toLowerCase()
+  const tokens = normalized.split(/\s+/).filter(Boolean)
+  const xToken = tokens[0] ?? 'center'
+  const yToken = tokens[1] ?? tokens[0] ?? 'center'
 
-  if (normalized.includes('bottom')) {
-    return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height }
+  return {
+    x: resolveAxisOrigin(xToken, 'x', bounds),
+    y: resolveAxisOrigin(yToken, 'y', bounds),
   }
-
-  return { x: bounds.x + bounds.width / 2, y: bounds.y + bounds.height / 2 }
 }
 
 type TransformComponents = {
@@ -1214,7 +1256,14 @@ function applyAncestorTransformToSample(
   parseShape: (element: Element) => Shape | null,
 ): { center: { x: number; y: number }; rotation: number; scaleX: number; scaleY: number } {
   const components = parseTransformComponents(step.transform ?? '')
-  const originBounds = getBoundsForElements(scopedShapes, parseShape)
+  const transformBox = parseTransformBoxForClass(css, ancestor.className)
+  const originBounds =
+    (transformBox === 'fill-box' || transformBox === 'stroke-box') && scopedShapes.length === 1
+      ? (() => {
+          const shape = parseShape(scopedShapes[0]!)
+          return shape ? getShapeBounds(shape) : getBoundsForElements(scopedShapes, parseShape)
+        })()
+      : getBoundsForElements(scopedShapes, parseShape)
   const origin = resolveTransformOrigin(
     parseTransformOriginForClass(css, ancestor.className),
     originBounds,
@@ -1310,12 +1359,17 @@ function buildShapeAnimationKeyframes(
   css: string,
   projectDuration: number,
   parseShape: (element: Element) => Shape | null,
+  skipGroupClasses?: Set<string>,
 ): Keyframe[] {
-  if (ancestors.length === 0) {
+  const filteredAncestors = skipGroupClasses
+    ? ancestors.filter((ancestor) => !skipGroupClasses.has(ancestor.className))
+    : ancestors
+
+  if (filteredAncestors.length === 0) {
     return []
   }
 
-  const sampleTimes = collectSparseSampleTimes(ancestors, projectDuration)
+  const sampleTimes = collectSparseSampleTimes(filteredAncestors, projectDuration)
   const bounds = getShapeBounds(baseShape)
   const samples: ShapeAnimationSample[] = []
 
@@ -1325,12 +1379,12 @@ function buildShapeAnimationKeyframes(
     let scaleX = baseShape.scaleX
     let scaleY = baseShape.scaleY
 
-    for (const [ancestorIndex, ancestor] of ancestors.entries()) {
+    for (const [ancestorIndex, ancestor] of filteredAncestors.entries()) {
       const { track, binding } = ancestor
       const step = sampleTrackAtTime(track, time, binding)
       const scopedShapes = collectScopedShapesForAncestor(
         ancestor.element,
-        ancestors,
+        filteredAncestors,
         ancestorIndex,
       )
       ;({ center, rotation, scaleX, scaleY } = applyAncestorTransformToSample(
@@ -1386,7 +1440,7 @@ function buildShapeAnimationKeyframes(
       if (typeof value === 'number' || typeof value === 'string') {
         const easing =
           index < samples.length - 1
-            ? resolveSegmentEasing(ancestors, property)
+            ? resolveSegmentEasing(filteredAncestors, property)
             : 'linear'
         addKeyframe(keyframes, sample.time, property, value, easing)
       }
@@ -1419,6 +1473,138 @@ function buildShapeAnimationKeyframes(
   return keyframes
 }
 
+function nodePathsEqual(left: number[] | undefined, right: number[]): boolean {
+  if (!left || left.length !== right.length) {
+    return false
+  }
+
+  return left.every((value, index) => value === right[index])
+}
+
+function findGroupIdByNodePath(
+  layerGroups: Record<string, LayerGroupMeta>,
+  nodePath: number[],
+): string | null {
+  for (const [groupId, meta] of Object.entries(layerGroups)) {
+    if (nodePathsEqual(meta.nodePath, nodePath)) {
+      return groupId
+    }
+  }
+
+  return null
+}
+
+function deltaTranslateKeyframes(keyframes: Keyframe[]): Keyframe[] {
+  const baseline = new Map<AnimatableProperty, number>()
+
+  for (const keyframe of keyframes) {
+    if (
+      keyframe.time === 0 &&
+      typeof keyframe.value === 'number' &&
+      (keyframe.property === 'x' || keyframe.property === 'y')
+    ) {
+      baseline.set(keyframe.property, keyframe.value)
+    }
+  }
+
+  return keyframes.map((keyframe) => {
+    if (
+      (keyframe.property === 'x' || keyframe.property === 'y') &&
+      typeof keyframe.value === 'number'
+    ) {
+      return {
+        ...keyframe,
+        value: keyframe.value - (baseline.get(keyframe.property) ?? 0),
+      }
+    }
+
+    return keyframe
+  })
+}
+
+function buildGroupTransformKeyframes(
+  ancestor: AnimatedAncestor,
+  css: string,
+  projectDuration: number,
+  parseShape: (element: Element) => Shape | null,
+): Keyframe[] {
+  const baseShape = createRectShape(0, 0, 100, 40)
+  const keyframes = buildShapeAnimationKeyframes(
+    baseShape,
+    [ancestor],
+    css,
+    projectDuration,
+    parseShape,
+  )
+
+  return deltaTranslateKeyframes(keyframes)
+}
+
+function collectAnimatedGroupElements(svg: Element, css: string): Element[] {
+  const classToAnimation = parseClassToAnimationMap(css)
+  const groups: Element[] = []
+
+  const walk = (node: Element) => {
+    if (node.tagName.toLowerCase() === 'g') {
+      const classes = getElementClassNames(node)
+      if (classes.some((className) => classToAnimation.has(className))) {
+        groups.push(node)
+      }
+    }
+
+    for (const child of [...node.children]) {
+      walk(child)
+    }
+  }
+
+  walk(svg)
+  return groups
+}
+
+export function attachGroupAnimationsFromCss(
+  svg: Element,
+  css: string,
+  layerGroups: Record<string, LayerGroupMeta> | undefined,
+  projectDuration: number,
+  parseShape: (element: Element) => Shape | null,
+): { layerGroups: Record<string, LayerGroupMeta>; promotedGroupClasses: Set<string> } {
+  const nextGroups = { ...(layerGroups ?? {}) }
+  const promotedGroupClasses = new Set<string>()
+  const resolvedDuration = projectDuration > 0 ? projectDuration : 3
+
+  for (const groupElement of collectAnimatedGroupElements(svg, css)) {
+    const ancestors = getAnimatedAncestorChain(groupElement, css)
+    const ownAncestor = ancestors[ancestors.length - 1]
+    if (!ownAncestor) {
+      continue
+    }
+
+    const groupId = findGroupIdByNodePath(nextGroups, getNodePath(groupElement))
+    if (!groupId) {
+      continue
+    }
+
+    const keyframes = buildGroupTransformKeyframes(
+      ownAncestor,
+      css,
+      resolvedDuration,
+      parseShape,
+    )
+
+    if (keyframes.length === 0) {
+      continue
+    }
+
+    promotedGroupClasses.add(ownAncestor.className)
+    nextGroups[groupId] = {
+      ...nextGroups[groupId]!,
+      keyframes,
+    }
+  }
+
+  return { layerGroups: nextGroups, promotedGroupClasses }
+}
+
 function collectAnimatedShapeElements(svg: Element, css: string): Element[] {
   const shapes: Element[] = []
 
@@ -1443,6 +1629,7 @@ export type BuildCssLayersOptions = {
     keyframes: Keyframe[],
   ) => Layer
   onProgress?: (current: number, total: number) => void
+  skipGroupClasses?: Set<string>
 }
 
 function buildLayersFromCssTracksCore(
@@ -1476,6 +1663,7 @@ function buildLayersFromCssTracksCore(
       css,
       resolvedDuration,
       options.parseShape,
+      options.skipGroupClasses,
     )
     if (keyframes.length === 0) {
       continue
@@ -1546,6 +1734,7 @@ export async function buildLayersFromCssTracksAsync(
       css,
       resolvedDuration,
       options.parseShape,
+      options.skipGroupClasses,
     )
     if (keyframes.length === 0) {
       continue

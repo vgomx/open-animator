@@ -1,6 +1,6 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 12 as const
+export const PROJECT_VERSION = 13 as const
 export const DEFAULT_PROJECT_FPS = 30
 
 export type CanvasSettings = {
@@ -199,6 +199,11 @@ export type Layer = {
 export type LayerGroupMeta = {
   name: string
   parentGroupId: string | null
+  /** DOM child-index path from the root <svg> for import matching. */
+  nodePath?: number[]
+  /** Class names declared on the source <g> element. */
+  classNames?: string[]
+  keyframes?: Keyframe[]
 }
 
 export type Marker = {

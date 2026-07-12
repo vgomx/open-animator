@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 
 import { DEFAULT_CUSTOM_BEZIER } from '@/editor/easing'
-import { getAnimatedShape } from '@/editor/animation'
+import { getAnimatedShape as resolveAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
 import { applyPresetToLayers, type PresetId, type PresetOptions } from '@/editor/presets'
 import {
@@ -390,7 +390,9 @@ function getSelectedAlignItems(state: EditorStore) {
     )
     .map((layer) => ({
       id: layer.id,
-      shape: getAnimatedShape(layer, state.currentTime),
+      shape: resolveAnimatedShape(layer, state.currentTime, {
+        layerGroups: state.project.layerGroups,
+      }),
     }))
 }
 
@@ -443,7 +445,7 @@ function restoreSnapshot(snapshot: ReturnType<typeof createSnapshot>): Partial<E
   }
 }
 
-export const useEditorStore = create<EditorStore>((set) => ({
+export const useEditorStore = create<EditorStore>((set, get) => ({
   project: initialProject,
   activeArtboardId: initialProject.artboards[0]?.id ?? null,
   selectedLayerIds: [],
@@ -1965,7 +1967,9 @@ export const useEditorStore = create<EditorStore>((set) => ({
       const boundsList = state.selectedLayerIds
         .map((id) => state.project.layers.find((layer) => layer.id === id))
         .filter((layer): layer is Layer => Boolean(layer))
-        .map((layer) => getShapeBounds(getAnimatedShape(layer, state.currentTime)))
+        .map((layer) => getShapeBounds(resolveAnimatedShape(layer, state.currentTime, {
+          layerGroups: state.project.layerGroups,
+        })))
 
       if (boundsList.length === 0) {
         return state
@@ -2030,7 +2034,10 @@ export const useEditorStore = create<EditorStore>((set) => ({
       history: pushSnapshot(state.history, createSnapshot(state.project, state.selectedLayerIds)),
     })),
 
-  getAnimatedShape,
+  getAnimatedShape: (layer, time) => {
+    const { project } = get()
+    return resolveAnimatedShape(layer, time, { layerGroups: project.layerGroups })
+  },
 }))
 
 export function useActiveArtboard(): Artboard {

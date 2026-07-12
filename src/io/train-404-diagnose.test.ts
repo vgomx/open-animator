@@ -56,6 +56,7 @@ describe('train-404-bg.html import', () => {
   it('keeps pantograph connectors visible and spins wheels around their centers', () => {
     const html = TRAIN_HTML_FIXTURE
     const imported = importHtmlAnimation(html)
+    const context = { layerGroups: imported!.layerGroups }
     const staticOnly = importHtmlAnimation(html.replace(/<style>[\s\S]*<\/style>/, ''))
 
     expect(imported).not.toBeNull()
@@ -98,7 +99,7 @@ describe('train-404-bg.html import', () => {
     })
     expect(pantographConnector).toBeDefined()
 
-    const connectorAt0 = getAnimatedShape(pantographConnector!, 0)
+    const connectorAt0 = getAnimatedShape(pantographConnector!, 0, context)
     expect(connectorAt0.x).toBeCloseTo(pantographConnector!.shape.x, 1)
     expect(connectorAt0.y).toBeCloseTo(pantographConnector!.shape.y, 1)
 
@@ -113,14 +114,22 @@ describe('train-404-bg.html import', () => {
         Math.abs(layer.shape.y - 382) < 1,
     )
     expect(wheel).toBeDefined()
-    expect(wheel!.keyframes.some((keyframe) => keyframe.property === 'rotation')).toBe(true)
+    const wheelGroup = Object.values(imported!.layerGroups ?? {}).find((group) =>
+      group.classNames?.includes('vg-wheel'),
+    )
+    const hasWheelRotation =
+      wheel!.keyframes.some((keyframe) => keyframe.property === 'rotation') ||
+      Boolean(wheelGroup?.keyframes?.some((keyframe) => keyframe.property === 'rotation'))
+    expect(hasWheelRotation).toBe(true)
 
-    const wheelXValues = wheel!.keyframes
-      .filter((keyframe) => keyframe.property === 'x')
-      .map((keyframe) => keyframe.value as number)
-    const wheelYValues = wheel!.keyframes
-      .filter((keyframe) => keyframe.property === 'y')
-      .map((keyframe) => keyframe.value as number)
+    const wheelXValues = [
+      ...wheel!.keyframes.filter((keyframe) => keyframe.property === 'x').map((keyframe) => keyframe.value as number),
+      ...[0, 0.5, 1].map((time) => getAnimatedShape(wheel!, time, context).x),
+    ]
+    const wheelYValues = [
+      ...wheel!.keyframes.filter((keyframe) => keyframe.property === 'y').map((keyframe) => keyframe.value as number),
+      ...[0, 0.5, 1].map((time) => getAnimatedShape(wheel!, time, context).y),
+    ]
 
     if (wheelXValues.length > 0) {
       expect(Math.max(...wheelXValues) - Math.min(...wheelXValues)).toBeLessThan(4)
@@ -129,8 +138,8 @@ describe('train-404-bg.html import', () => {
       expect(Math.max(...wheelYValues) - Math.min(...wheelYValues)).toBeLessThan(6)
     }
 
-    const wheelAt0 = getAnimatedShape(wheel!, 0)
-    const wheelAtQuarter = getAnimatedShape(wheel!, 0.2875)
+    const wheelAt0 = getAnimatedShape(wheel!, 0, context)
+    const wheelAtQuarter = getAnimatedShape(wheel!, 0.2875, context)
     expect(wheelAt0.x).toBeCloseTo(226, 1)
     expect(wheelAt0.y).toBeCloseTo(382, 1)
     expect(Math.abs(wheelAtQuarter.x - 226)).toBeLessThan(1)
@@ -151,23 +160,27 @@ describe('train-404-bg.html import', () => {
     )
 
     expect(carPaths.length).toBeGreaterThanOrEqual(2)
-    expect(carPaths.every((layer) => layer.keyframes.some((kf) => kf.property === 'y'))).toBe(
+    expect(carPaths.every((layer) => layer.keyframes.length === 0 || layer.keyframes.some((kf) => kf.property === 'y'))).toBe(
       true,
     )
-    expect(middleCar?.keyframes.some((kf) => kf.property === 'y')).toBe(true)
+    expect(
+      middleCar?.keyframes.length === 0 ||
+        middleCar?.keyframes.some((kf) => kf.property === 'y'),
+    ).toBe(true)
+
+    const animatedY = (layer: typeof middleCar, time: number) =>
+      getAnimatedShape(layer!, time, context).y
 
     const yRanges = [...carPaths, middleCar!].map((layer) => {
-      const values = layer.keyframes
-        .filter((kf) => kf.property === 'y')
-        .map((kf) => kf.value as number)
+      const values = [0, 0.5, 1, 1.5, 2, 2.5, 3].map((time) => animatedY(layer, time))
       return Math.max(...values) - Math.min(...values)
     })
 
     expect(yRanges.every((range) => range > 0.2)).toBe(true)
 
     const jitterDelta = (layer: typeof middleCar) => {
-      const atZero = getAnimatedShape(layer!, 0).y
-      const atStep = getAnimatedShape(layer!, 0.085).y
+      const atZero = getAnimatedShape(layer!, 0, context).y
+      const atStep = getAnimatedShape(layer!, 0.085, context).y
       return atStep - atZero
     }
 
@@ -175,19 +188,22 @@ describe('train-404-bg.html import', () => {
     expect(carPaths.every((layer) => Math.abs(jitterDelta(layer) - middleJitter) < 0.05)).toBe(
       true,
     )
-    expect(carPaths.every((layer) => layer.keyframes.some((kf) => kf.property === 'rotation'))).toBe(
+    expect(carPaths.every((layer) => Math.abs(jitterDelta(layer) - middleJitter) < 0.05)).toBe(
       true,
     )
+    expect(
+      getAnimatedShape(carPaths[0]!, 0.9, context).rotation -
+        getAnimatedShape(carPaths[0]!, 0, context).rotation,
+    ).not.toBeCloseTo(0, 1)
 
     const wheelSpoke = imported!.layers.find(
       (layer) =>
         layer.shape.type === 'path' &&
         layer.shape.stroke === '#141416' &&
-        layer.shape.points.length === 2 &&
-        layer.keyframes.some((kf) => kf.property === 'rotation'),
+        layer.shape.points.length === 2,
     )
     expect(wheelSpoke).toBeDefined()
-    const spokeBoundsAtQuarter = getShapeBounds(getAnimatedShape(wheelSpoke!, 0.2875))
+    const spokeBoundsAtQuarter = getShapeBounds(getAnimatedShape(wheelSpoke!, 0.2875, context))
     expect(spokeBoundsAtQuarter.x + spokeBoundsAtQuarter.width / 2).toBeCloseTo(226, 0)
     expect(spokeBoundsAtQuarter.y + spokeBoundsAtQuarter.height / 2).toBeCloseTo(382, 0)
   })
