@@ -44,7 +44,7 @@ import { createDefaultProject } from '@/editor/scene'
 import { useEditorStore } from '@/editor/store'
 import type { ExportOptions } from '@/io/export-options'
 import { downloadProject, LARGE_PROJECT_PERSIST_LAYER_THRESHOLD, openProjectFile } from '@/io/project'
-import { downloadLottie, exportLottie, readLottieFromFile } from '@/io/lottie'
+import { downloadLottie, exportLottie, readLottieFromFile, computeLottieImportProgress, formatLottieImportProgress } from '@/io/lottie'
 import {
   computeSvgImportProgress,
   createImportLayerIds,
@@ -92,7 +92,8 @@ export function Toolbar() {
   const [isExporting, setIsExporting] = useState(false)
   const [isImportingSvg, setIsImportingSvg] = useState(false)
   const [isImportingHtml, setIsImportingHtml] = useState(false)
-  const isImporting = isImportingSvg || isImportingHtml
+  const [isImportingLottie, setIsImportingLottie] = useState(false)
+  const isImporting = isImportingSvg || isImportingHtml || isImportingLottie
   const project = useEditorStore((state) => state.project)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -353,23 +354,53 @@ export function Toolbar() {
       return
     }
 
-    const imported = await readLottieFromFile(file)
-    if (!imported) {
+    setIsImportingLottie(true)
+    const toastId = showToast({
+      title: 'Importing Lottie',
+      description: formatLottieImportProgress({ stage: 'parsing' }),
+      variant: 'loading',
+      progress: computeLottieImportProgress({ stage: 'parsing' }),
+    })
+    await waitForPaint()
+
+    try {
+      const imported = await readLottieFromFile(file, {
+        onProgress: (progress) => {
+          updateToast(toastId, {
+            description: formatLottieImportProgress(progress),
+            progress: computeLottieImportProgress(progress),
+          })
+        },
+      })
+
+      dismissToast(toastId)
+
+      if (!imported) {
+        showToast({
+          title: 'Lottie import failed',
+          description: `"${file.name}" is not a valid Lottie JSON file.`,
+          variant: 'error',
+        })
+        return
+      }
+
+      setProject(imported)
+      requestAnimationFrame(fitCanvasToScreen)
       showToast({
+        title: 'Lottie opened',
+        description: `Loaded ${imported.layers.length} layer${imported.layers.length === 1 ? '' : 's'} as a new project.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      updateToast(toastId, {
         title: 'Lottie import failed',
-        description: `"${file.name}" is not a valid Lottie JSON file.`,
+        description:
+          error instanceof Error ? error.message : 'Something went wrong while importing.',
         variant: 'error',
       })
-      return
+    } finally {
+      setIsImportingLottie(false)
     }
-
-    setProject(imported)
-    requestAnimationFrame(fitCanvasToScreen)
-    showToast({
-      title: 'Lottie opened',
-      description: 'Loaded animation as a new project.',
-      variant: 'success',
-    })
   }
 
   const handleExport = async (options: ExportOptions) => {

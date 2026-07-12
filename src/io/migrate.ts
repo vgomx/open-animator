@@ -322,7 +322,7 @@ function migrateV10toV11(project: Project): Project {
 function migrateV11toV12(project: Project): Project {
   return {
     ...project,
-    version: PROJECT_VERSION,
+    version: 12 as unknown as Project['version'],
     layers: project.layers.map((layer) => ({
       ...layer,
       shape: normalizeShapeScale(layer.shape),
@@ -340,6 +340,14 @@ function migrateV11toV12(project: Project): Project {
         }
       }),
     })),
+  }
+}
+
+function migrateV12toV13(project: Project): Project {
+  return {
+    ...project,
+    version: PROJECT_VERSION,
+    layerGroups: project.layerGroups,
   }
 }
 
@@ -387,7 +395,11 @@ export function migrateProject(parsed: LegacyProject): Project {
   }
 
   if (project.version === 11) {
-    return migrateV11toV12(project as Project)
+    project = migrateV11toV12(project as Project) as LegacyProject
+  }
+
+  if (project.version === 12) {
+    return migrateV12toV13(project as Project)
   }
 
   if (project.version === PROJECT_VERSION) {

@@ -1,4 +1,5 @@
 import type { Shape } from '@/editor/types'
+import { getShapeBounds } from '@/editor/bounds'
 
 export function buildShapeTransform(shape: Shape): string {
   const scaleX = shape.scaleX
@@ -19,7 +20,13 @@ export function buildShapeTransform(shape: Shape): string {
     return `translate(${shape.x} ${shape.y}) rotate(${shape.rotation}) translate(0 ${shape.ry}) scale(${scaleX} ${scaleY}) translate(0 ${-shape.ry})`
   }
 
-  // Imported/baked path points already live in world space. Keyframed deltas are
-  // decomposed as translate(x,y) → rotate → scale around the origin.
-  return `translate(${shape.x} ${shape.y}) rotate(${shape.rotation}) scale(${scaleX} ${scaleY})`
+  // Rotate paths around their visual center so imported wheel spokes stay aligned.
+  if (shape.type === 'path') {
+    const bounds = getShapeBounds(shape)
+    const pivotX = bounds.width / 2
+    const pivotY = bounds.height / 2
+    return `translate(${shape.x + pivotX} ${shape.y + pivotY}) rotate(${shape.rotation}) scale(${scaleX} ${scaleY}) translate(${-pivotX} ${-pivotY})`
+  }
+
+  return ''
 }

@@ -5,6 +5,39 @@ import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } fro
 import { getAnimatedShape } from '@/editor/animation'
 import { createId, createPathShape } from '@/editor/scene'
 import { openFilePicker } from '@/io/file-picker'
+import { waitForPaint } from '@/lib/yield-to-ui'
+
+export type LottieImportStage = 'parsing' | 'building'
+
+export type LottieImportProgress = {
+  stage: LottieImportStage
+  current?: number
+  total?: number
+}
+
+export function computeLottieImportProgress(progress: LottieImportProgress): number {
+  if (progress.stage === 'parsing') {
+    return 12
+  }
+
+  if (progress.total && progress.total > 0 && progress.current !== undefined) {
+    return 12 + Math.round((progress.current / progress.total) * 83)
+  }
+
+  return 35
+}
+
+export function formatLottieImportProgress(progress: LottieImportProgress): string {
+  if (progress.stage === 'parsing') {
+    return 'Reading Lottie JSON…'
+  }
+
+  if (progress.total && progress.total > 0 && progress.current !== undefined) {
+    return `Building layers (${progress.current}/${progress.total})…`
+  }
+
+  return 'Building Lottie layers…'
+}
 
 function pathPointToLottieHandles(point: PathPoint): {
   inHandle: [number, number]
@@ -476,9 +509,14 @@ export function downloadLottie(project: Project, filename = 'animation.json', ar
   URL.revokeObjectURL(url)
 }
 
+type LottieImportOptions = {
+  onProgress?: (progress: LottieImportProgress) => void
+}
+
 // Import for rect/ellipse/path shape layers with basic transform keyframes.
-export function importLottie(raw: string): Project | null {
+export function importLottie(raw: string, options?: LottieImportOptions): Project | null {
   try {
+    options?.onProgress?.({ stage: 'parsing' })
     const data = JSON.parse(raw) as {
       w?: number
       h?: number
@@ -508,8 +546,11 @@ export function importLottie(raw: string): Project | null {
       backgroundColor: DEFAULT_ARTBOARD.backgroundColor,
     })
     const layers: Layer[] = []
+    const lottieLayers = data.layers ?? []
+    const total = lottieLayers.length
 
-    for (const lottieLayer of data.layers ?? []) {
+    for (const [layerIndex, lottieLayer] of lottieLayers.entries()) {
+      options?.onProgress?.({ stage: 'building', current: layerIndex + 1, total })
       const items = findLottieShapeItems(lottieLayer.shapes)
       if (!items) {
         continue
@@ -708,9 +749,23 @@ function lottieColorToHex(color: number[]): string {
   return `#${toHex(r)}${toHex(g)}${toHex(b)}`
 }
 
-export async function readLottieFromFile(file: File): Promise<Project | null> {
+export async function importLottieAsync(
+  raw: string,
+  options?: LottieImportOptions,
+): Promise<Project | null> {
+  options?.onProgress?.({ stage: 'parsing' })
+  await waitForPaint()
+  return importLottie(raw, options)
+}
+
+export async function readLottieFromFile(
+  file: File,
+  options?: LottieImportOptions,
+): Promise<Project | null> {
   try {
-    return importLottie(await file.text())
+    options?.onProgress?.({ stage: 'parsing' })
+    await waitForPaint()
+    return importLottie(await file.text(), options)
   } catch {
     return null
   }

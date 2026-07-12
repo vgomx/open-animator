@@ -11,8 +11,22 @@ import {
   readHtmlImportFromFile,
 } from '@/io/html-import'
 import { createDefaultProject, createLayerFromShape, createRectShape } from '@/editor/scene'
+import { getAnimatedShape } from '@/editor/animation'
+import type { Project } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
 import { DEFAULT_EXPORT_OPTIONS } from '@/io/export-options'
+
+function animationContext(project: Project) {
+  return { layerGroups: project.layerGroups }
+}
+
+function hasMotion(project: Project): boolean {
+  if (project.layerGroups && Object.values(project.layerGroups).some((group) => (group.keyframes?.length ?? 0) > 0)) {
+    return true
+  }
+
+  return project.layers.some((layer) => layer.keyframes.length > 0)
+}
 
 describe('html import', () => {
   it('parses css keyframe tracks and durations', () => {
@@ -299,7 +313,7 @@ describe('html import', () => {
     expect(imported).not.toBeNull()
     expect(imported!.layers.length).toBeGreaterThan(0)
     expect(imported?.duration).toBe(26)
-    expect(imported?.layers.some((layer) => layer.keyframes.length > 0)).toBe(true)
+    expect(hasMotion(imported!)).toBe(true)
   })
 
   it('imports static scenery and preserves inherited group stroke colors', () => {
@@ -321,16 +335,20 @@ describe('html import', () => {
     </body></html>`
 
     const imported = importHtmlAnimation(html)
+    const context = animationContext(imported!)
 
     expect(imported).not.toBeNull()
     expect(imported!.layers.length).toBeGreaterThanOrEqual(3)
 
-    const animatedLines = imported!.layers.filter(
-      (layer) => layer.keyframes.length > 0 && layer.shape.type === 'path',
+    const sceneryLines = imported!.layers.filter(
+      (layer) => layer.shape.type === 'path' && layer.shape.stroke === '#717177',
     )
-    expect(animatedLines.length).toBe(2)
-    expect(animatedLines.every((layer) => layer.shape.fill === 'none')).toBe(true)
-    expect(animatedLines.every((layer) => layer.shape.stroke === '#717177')).toBe(true)
+    expect(sceneryLines.length).toBe(2)
+    expect(
+      sceneryLines.every(
+        (layer) => getAnimatedShape(layer, 0, context).x !== getAnimatedShape(layer, 2, context).x,
+      ),
+    ).toBe(true)
 
     const track = imported!.layers.find(
       (layer) => layer.keyframes.length === 0 && layer.shape.stroke === '#141416',
@@ -370,6 +388,7 @@ describe('html import', () => {
     </body></html>`
 
     const imported = importHtmlAnimation(html)
+    const context = animationContext(imported!)
 
     expect(imported).not.toBeNull()
 
@@ -377,37 +396,30 @@ describe('html import', () => {
       (layer) => layer.shape.type === 'rect' && layer.shape.fill === '#fafafa',
     )
     const wheels = imported!.layers.filter(
-      (layer) => layer.shape.type === 'ellipse' && layer.keyframes.length > 0,
+      (layer) => layer.shape.type === 'ellipse',
     )
 
-    expect(body?.keyframes.some((keyframe) => keyframe.property === 'y')).toBe(true)
+    expect(getAnimatedShape(body!, 0, context).y).not.toBeCloseTo(getAnimatedShape(body!, 1.5, context).y, 0)
     expect(wheels).toHaveLength(2)
-    expect(wheels.every((layer) => layer.keyframes.some((keyframe) => keyframe.property === 'rotation'))).toBe(
-      true,
-    )
+    expect(
+      getAnimatedShape(wheels[0]!, 0.5, context).rotation -
+        getAnimatedShape(wheels[0]!, 0, context).rotation,
+    ).toBeGreaterThan(90)
 
     const maxWheelRotation = Math.max(
-      ...wheels.flatMap((layer) =>
-        layer.keyframes
-          .filter((keyframe) => keyframe.property === 'rotation')
-          .map((keyframe) => keyframe.value as number),
-      ),
+      ...wheels.map((layer) => getAnimatedShape(layer, 1, context).rotation),
     )
     expect(maxWheelRotation).toBeGreaterThan(90)
 
     const maxBodyY = Math.max(
-      ...body!.keyframes
-        .filter((keyframe) => keyframe.property === 'y')
-        .map((keyframe) => keyframe.value as number),
+      ...[0, 0.5, 1, 1.5, 2, 2.5, 3].map((time) => getAnimatedShape(body!, time, context).y),
     )
     const minBodyY = Math.min(
-      ...body!.keyframes
-        .filter((keyframe) => keyframe.property === 'y')
-        .map((keyframe) => keyframe.value as number),
+      ...[0, 0.5, 1, 1.5, 2, 2.5, 3].map((time) => getAnimatedShape(body!, time, context).y),
     )
     expect(maxBodyY - minBodyY).toBeGreaterThan(0.5)
     expect(body!.keyframes.some((keyframe) => keyframe.property === 'fill')).toBe(false)
-    expect(body!.keyframes.length).toBeLessThan(80)
+    expect((body!.keyframes.length || Object.values(imported!.layerGroups ?? {}).flatMap((group) => group.keyframes ?? []).length)).toBeLessThan(80)
   })
 
   it('falls back to static svg import when css tracks cannot build layers', () => {
@@ -469,10 +481,103 @@ describe('html import', () => {
     expect(connector).toBeDefined()
 
     const wheel = imported!.layers.find(
-      (layer) => layer.shape.type === 'ellipse' && layer.keyframes.some((kf) => kf.property === 'rotation'),
+      (layer) => layer.shape.type === 'ellipse',
     )
-    expect(wheel?.keyframes.some((kf) => kf.property === 'rotation' && (kf.value as number) >= 180)).toBe(
+    expect(
+      getAnimatedShape(wheel!, 0.5, animationContext(imported!)).rotation >= 180,
+    ).toBe(true)
+  })
+
+  it('parses animation-delay from inline styles for staggered streaks', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-streak: 0.9s; }
+      .vg-streak { animation: vgstreak var(--t-streak) ease-in infinite; opacity: 0; }
+      @keyframes vgstreak {
+        0% { transform: translateX(22px); opacity: 0; }
+        30% { opacity: 0.55; }
+        100% { transform: translateX(-30px); opacity: 0; }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+        <line class="vg-streak" x1="64" y1="120" x2="104" y2="120" stroke="#141416" stroke-width="2" style="animation-delay:0s"/>
+        <line class="vg-streak" x1="58" y1="140" x2="102" y2="140" stroke="#141416" stroke-width="2" style="animation-delay:-.3s"/>
+        <line class="vg-streak" x1="68" y1="160" x2="108" y2="160" stroke="#141416" stroke-width="2" style="animation-delay:-.6s"/>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    expect(imported).not.toBeNull()
+
+    const streaks = imported!.layers.filter((layer) => layer.keyframes.length > 0)
+    expect(streaks).toHaveLength(3)
+
+    const opacityAtZero = streaks.map((layer) => getAnimatedShape(layer, 0).opacity)
+    expect(opacityAtZero[0]).toBeLessThan(0.2)
+    expect(opacityAtZero[1]).toBeGreaterThan(opacityAtZero[0] + 0.3)
+
+    const opacityTracks = streaks.map((layer) =>
+      layer.keyframes
+        .filter((kf) => kf.property === 'opacity')
+        .map((kf) => `${kf.time}:${kf.value}`)
+        .join(','),
+    )
+    expect(new Set(opacityTracks).size).toBe(3)
+    expect(streaks[0]!.keyframes.some((kf) => kf.property === 'opacity' && kf.easing === 'easeIn')).toBe(
       true,
     )
+  })
+
+  it('applies steps and alternate timing for jitter animations', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-jitter: 0.17s; }
+      .vg-jitter { animation: vgjitter var(--t-jitter) steps(2,jump-none) infinite alternate; }
+      @keyframes vgjitter {
+        from { transform: translateY(0); }
+        to { transform: translateY(0.7px); }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g class="vg-jitter">
+          <rect x="40" y="80" width="120" height="40" fill="#fafafa" stroke="#141416"/>
+        </g>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    const context = animationContext(imported!)
+    expect(imported).not.toBeNull()
+
+    const body = imported!.layers.find((layer) => layer.shape.type === 'rect')
+    const ySamples = [0, 0.085, 0.17, 0.255].map((time) => getAnimatedShape(body!, time, context).y)
+    const uniqueY = [...new Set(ySamples.map((value) => Math.round(value * 100) / 100))]
+
+    expect(uniqueY.length).toBeLessThanOrEqual(3)
+    expect(Math.max(...ySamples) - Math.min(...ySamples)).toBeGreaterThan(0.4)
+  })
+
+  it('exports ease-in-out easing for bob animations', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-bob: 3s; }
+      .vg-train { animation: vgbob var(--t-bob) ease-in-out infinite; }
+      @keyframes vgbob {
+        0%, 100% { transform: translateY(0); }
+        30% { transform: translateY(-3px); }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <g class="vg-train">
+          <rect x="40" y="80" width="120" height="40" fill="#fafafa" stroke="#141416"/>
+        </g>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    const bobGroup = Object.values(imported!.layerGroups ?? {}).find((group) =>
+      group.classNames?.includes('vg-train'),
+    )
+
+    expect(
+      bobGroup?.keyframes?.some((kf) => kf.property === 'y' && kf.easing === 'easeInOut'),
+    ).toBe(true)
   })
 })

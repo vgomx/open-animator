@@ -4,6 +4,7 @@ import {
   buildLayersFromCssTracksAsync,
   mergeAnimatedKeyframesIntoStaticLayers,
   parseCssKeyframeTracks,
+  attachGroupAnimationsFromCss,
 } from '@/io/css-keyframes'
 import {
   isHtmlFile,
@@ -136,6 +137,13 @@ export async function importHtmlAnimationAsync(
   }
 
   const baseProject = svgImportToProject(staticImported)
+  const { layerGroups, promotedGroupClasses } = attachGroupAnimationsFromCss(
+    svg,
+    css,
+    baseProject.layerGroups,
+    Math.max(...[...tracks.values()].map((track) => track.duration), 0),
+    parseShapeElement,
+  )
 
   options?.onProgress?.({ stage: 'animating' })
   await yieldToUi()
@@ -153,11 +161,15 @@ export async function importHtmlAnimationAsync(
       onProgress: (current, total) => {
         options?.onProgress?.({ stage: 'animating', current, total })
       },
+      skipGroupClasses: promotedGroupClasses,
     },
   )
 
   if (animatedLayers.length === 0) {
-    return baseProject
+    return {
+      ...baseProject,
+      layerGroups,
+    }
   }
 
   options?.onProgress?.({ stage: 'merging' })
@@ -168,6 +180,7 @@ export async function importHtmlAnimationAsync(
 
   return {
     ...baseProject,
+    layerGroups,
     duration: resolvedDuration,
     loopOut: resolvedDuration,
     layers: mergeAnimatedKeyframesIntoStaticLayers(baseProject.layers, animatedLayers),
@@ -196,6 +209,13 @@ export function importHtmlAnimation(raw: string): Project | null {
   }
 
   const baseProject = svgImportToProject(staticImported)
+  const { layerGroups, promotedGroupClasses } = attachGroupAnimationsFromCss(
+    svg,
+    css,
+    baseProject.layerGroups,
+    Math.max(...[...tracks.values()].map((track) => track.duration), 0),
+    parseShapeElement,
+  )
   const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
     svg,
     css,
@@ -206,11 +226,15 @@ export function importHtmlAnimation(raw: string): Project | null {
         ...createLayerFromShape(shape, index, artboardId, name),
         keyframes,
       }),
+      skipGroupClasses: promotedGroupClasses,
     },
   )
 
   if (animatedLayers.length === 0) {
-    return baseProject
+    return {
+      ...baseProject,
+      layerGroups,
+    }
   }
 
   const resolvedDuration =
@@ -218,6 +242,7 @@ export function importHtmlAnimation(raw: string): Project | null {
 
   return {
     ...baseProject,
+    layerGroups,
     duration: resolvedDuration,
     loopOut: resolvedDuration,
     layers: mergeAnimatedKeyframesIntoStaticLayers(baseProject.layers, animatedLayers),
