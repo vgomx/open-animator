@@ -17,10 +17,18 @@ function ToastCard({ toast }: { toast: Toast }) {
       {toast.variant === 'loading' ? (
         <Loader2 className="mt-0.5 size-4 shrink-0 animate-spin text-muted-foreground" />
       ) : null}
-      <div className="min-w-0 flex-1 space-y-1">
+      <div className="min-w-0 flex-1 space-y-2">
         <p className="text-sm font-medium leading-none">{toast.title}</p>
         {toast.description ? (
           <p className="text-sm text-muted-foreground">{toast.description}</p>
+        ) : null}
+        {toast.variant === 'loading' ? (
+          <div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+            <div
+              className="h-full rounded-full bg-primary transition-[width] duration-200 ease-out"
+              style={{ width: `${Math.max(4, Math.min(100, toast.progress ?? 8))}%` }}
+            />
+          </div>
         ) : null}
       </div>
       <Button

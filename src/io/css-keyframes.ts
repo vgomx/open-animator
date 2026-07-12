@@ -1,13 +1,13 @@
 import { createId } from '@/editor/scene'
 import { getShapeBounds } from '@/editor/bounds'
 import type { AnimatableProperty, Keyframe, Layer, Shape } from '@/editor/types'
-import { createLayerFromShape } from '@/editor/scene'
 import {
   applyMatrixToPoint,
   IDENTITY_MATRIX,
   multiplyMatrix,
   type AffineMatrix,
 } from '@/io/svg-transform'
+import { yieldToUi } from '@/lib/yield-to-ui'
 
 function roundCoord(value: number): number {
   return Math.round(value * 10) / 10
@@ -24,8 +24,12 @@ export function shapeMatchKey(shape: Shape): string {
     String(roundCoord(shape.opacity)),
   ]
 
-  if (shape.type === 'rect' || shape.type === 'ellipse') {
+  if (shape.type === 'rect') {
     parts.push(String(roundCoord(shape.width)), String(roundCoord(shape.height)))
+  }
+
+  if (shape.type === 'ellipse') {
+    parts.push(String(roundCoord(shape.rx)), String(roundCoord(shape.ry)))
   }
 
   if (shape.type === 'path' && shape.points.length > 0) {
@@ -245,7 +249,7 @@ function parseDurationSeconds(value: string): number | null {
 
 export function parseAnimationClassMap(
   css: string,
-  variables: Map<string, string>,
+  _variables: Map<string, string>,
 ): Map<string, string> {
   const map = new Map<string, string>()
   const classPattern = /\.([a-zA-Z_][\w-]*)\s*\{([^}]*)\}/g
@@ -389,28 +393,6 @@ export function applyCssTransformToShape(shape: Shape, transformCss: string): Sh
     scaleX,
     scaleY,
   }
-}
-
-function shapeAtStep(baseShape: Shape, step: CssKeyframeStep): Shape {
-  let next: Shape = { ...baseShape }
-
-  if (step.transform) {
-    next = applyCssTransformToShape(next, step.transform)
-  }
-
-  if (step.opacity !== undefined && Number.isFinite(step.opacity)) {
-    next = { ...next, opacity: step.opacity }
-  }
-
-  if (step.fill) {
-    next = { ...next, fill: step.fill }
-  }
-
-  if (step.stroke) {
-    next = { ...next, stroke: step.stroke }
-  }
-
-  return next
 }
 
 function addKeyframe(
@@ -905,7 +887,6 @@ function buildShapeAnimationKeyframes(
   const classToAnimation = parseClassToAnimationMap(css)
   const tracks = ancestors.map((entry) => entry.track)
   const sampleTimes = collectSparseSampleTimes(tracks, projectDuration)
-  const center = getShapeCenter(baseShape)
   const bounds = getShapeBounds(baseShape)
   const samples: ShapeAnimationSample[] = []
 
@@ -1041,7 +1022,7 @@ export type BuildCssLayersOptions = {
   onProgress?: (current: number, total: number) => void
 }
 
-export function buildLayersFromCssTracks(
+function buildLayersFromCssTracksCore(
   svg: Element,
   css: string,
   artboardId: string,
@@ -1094,6 +1075,78 @@ export function buildLayersFromCssTracks(
     )
     index += 1
   }
+
+  return { layers, duration: resolvedDuration }
+}
+
+export function buildLayersFromCssTracks(
+  svg: Element,
+  css: string,
+  artboardId: string,
+  options: BuildCssLayersOptions,
+): { layers: Layer[]; duration: number } {
+  return buildLayersFromCssTracksCore(svg, css, artboardId, options)
+}
+
+export async function buildLayersFromCssTracksAsync(
+  svg: Element,
+  css: string,
+  artboardId: string,
+  options: BuildCssLayersOptions,
+): Promise<{ layers: Layer[]; duration: number }> {
+  const tracks = parseCssKeyframeTracks(css)
+  const projectDuration = Math.max(...[...tracks.values()].map((track) => track.duration), 0)
+  const resolvedDuration = projectDuration > 0 ? projectDuration : 3
+  const shapeElements = collectAnimatedShapeElements(svg, css)
+  const layers: Layer[] = []
+  let index = 0
+
+  for (const shapeElement of shapeElements) {
+    if (index % 8 === 0) {
+      options.onProgress?.(index + 1, shapeElements.length)
+      await yieldToUi()
+    }
+
+    const ancestors = getAnimatedAncestorChain(shapeElement, css)
+    if (ancestors.length === 0) {
+      continue
+    }
+
+    const parsedShape = options.parseShape(shapeElement)
+    if (!parsedShape) {
+      continue
+    }
+
+    const keyframes = buildShapeAnimationKeyframes(
+      parsedShape,
+      ancestors,
+      css,
+      resolvedDuration,
+      options.parseShape,
+    )
+    if (keyframes.length === 0) {
+      continue
+    }
+
+    const layerName =
+      shapeElement.getAttribute('id') ||
+      shapeElement.parentElement?.getAttribute('id') ||
+      getElementClassNames(shapeElement.parentElement ?? shapeElement)[0] ||
+      `Layer ${index + 1}`
+
+    layers.push(
+      options.createLayer(
+        { ...parsedShape, id: createId() },
+        index,
+        artboardId,
+        layerName,
+        keyframes,
+      ),
+    )
+    index += 1
+  }
+
+  options.onProgress?.(shapeElements.length, shapeElements.length)
 
   return { layers, duration: resolvedDuration }
 }

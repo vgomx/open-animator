@@ -55,6 +55,7 @@ import {
   sampleMatrixKeyframesInWorker,
 } from '@/io/svg-matrix-batch'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
+import { waitForPaint, yieldToUi } from '@/lib/yield-to-ui'
 
 export { parseSvgColor } from '@/io/svg-colors'
 
@@ -751,6 +752,7 @@ async function finalizeMatrixSamples(
       current: Math.min(offset + chunk.length, total),
       total,
     })
+    await yieldToUi()
   }
 
   onProgress?.({ stage: 'applying', current: total, total })
@@ -977,6 +979,22 @@ export type SvgImportOptions = {
   onProgress?: (progress: SvgImportProgress) => void
 }
 
+export function computeSvgImportProgress(progress: SvgImportProgress): number {
+  if (progress.stage === 'parsing') {
+    return 12
+  }
+
+  if (progress.stage === 'matrix-sampling') {
+    if (progress.total && progress.total > 0 && progress.current !== undefined) {
+      return 12 + Math.round((progress.current / progress.total) * 78)
+    }
+
+    return 25
+  }
+
+  return 95
+}
+
 export function formatSvgImportProgress(progress: SvgImportProgress): string {
   if (progress.stage === 'parsing') {
     return 'Parsing SVG structure…'
@@ -997,6 +1015,7 @@ export async function importSvgAsync(
   options?: SvgImportOptions,
 ): Promise<SvgImportResult | null> {
   options?.onProgress?.({ stage: 'parsing' })
+  await waitForPaint()
   const deferMatrixSampling = true
   const parsed = parseSvgDocument(raw, deferMatrixSampling)
   if (!parsed) {

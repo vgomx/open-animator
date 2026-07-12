@@ -1,17 +1,56 @@
 // @vitest-environment jsdom
-import { readFileSync } from 'node:fs'
-
 import { describe, expect, it } from 'vitest'
 
 import { getAnimatedShape } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
 import { importHtmlAnimation } from '@/io/html-import'
 
-const TRAIN_HTML_PATH = '/Users/vitorgomes/Downloads/train-404-bg.html'
+const TRAIN_HTML_FIXTURE = `<!DOCTYPE html><html><head><style>
+  :root { --t-bob: 3s; --t-jitter: 0.17s; --t-spin: 1.15s; }
+  .vg-train {
+    transform-box: fill-box; transform-origin: center bottom;
+    animation: vgbob var(--t-bob) ease-in-out infinite;
+  }
+  .vg-jitter {
+    transform-box: fill-box; transform-origin: center bottom;
+    animation: vgjitter var(--t-jitter) steps(2,jump-none) infinite alternate;
+  }
+  .vg-wheel {
+    transform-box: fill-box; transform-origin: center;
+    animation: vgspin var(--t-spin) linear infinite;
+  }
+  @keyframes vgbob {
+    0%, 100% { transform: translateY(0) rotate(0deg); }
+    30% { transform: translateY(-3px) rotate(-0.22deg); }
+  }
+  @keyframes vgjitter {
+    from { transform: translateY(0); }
+    to { transform: translateY(0.7px); }
+  }
+  @keyframes vgspin { to { transform: rotate(360deg); } }
+</style></head><body>
+  <svg viewBox="0 0 1200 470" xmlns="http://www.w3.org/2000/svg">
+    <g class="vg-train">
+      <g class="vg-jitter">
+        <g fill="#fafafa" stroke="#141416" stroke-width="2.2">
+          <g class="vg-wheel">
+            <circle cx="226" cy="382" r="18"/>
+            <circle cx="226" cy="382" r="10.5" fill="none" stroke-width="1.5"/>
+            <line x1="226" y1="364" x2="226" y2="400" stroke-width="1.3"/>
+          </g>
+        </g>
+        <g fill="none" stroke="#141416" stroke-width="2.2">
+          <rect x="846" y="238" width="26" height="8" rx="2" fill="#fafafa"/>
+          <line x1="838" y1="202" x2="896" y2="168"/>
+        </g>
+      </g>
+    </g>
+  </svg>
+</body></html>`
 
 describe('train-404-bg.html import', () => {
   it('keeps pantograph connectors visible and spins wheels around their centers', () => {
-    const html = readFileSync(TRAIN_HTML_PATH, 'utf8')
+    const html = TRAIN_HTML_FIXTURE
     const imported = importHtmlAnimation(html)
     const staticOnly = importHtmlAnimation(html.replace(/<style>[\s\S]*<\/style>/, ''))
 

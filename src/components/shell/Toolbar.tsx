@@ -46,6 +46,7 @@ import type { ExportOptions } from '@/io/export-options'
 import { downloadProject, LARGE_PROJECT_PERSIST_LAYER_THRESHOLD, openProjectFile } from '@/io/project'
 import { downloadLottie, exportLottie, readLottieFromFile } from '@/io/lottie'
 import {
+  computeSvgImportProgress,
   createImportLayerIds,
   formatSvgImportProgress,
   getSvgImportSummary,
@@ -62,8 +63,9 @@ import { downloadGif } from '@/io/gif-export'
 import { downloadCssKeyframes } from '@/io/css-export'
 import { downloadReactComponent } from '@/io/react-export'
 import { downloadAnimatedHtml } from '@/io/embed-export'
-import { readHtmlImportFromFile, formatHtmlImportProgress } from '@/io/html-import'
+import { computeHtmlImportProgress, readHtmlImportFromFile, formatHtmlImportProgress } from '@/io/html-import'
 import { dismissToast, showToast, updateToast } from '@/lib/toast'
+import { waitForPaint } from '@/lib/yield-to-ui'
 
 const LottieDialog = lazy(() =>
   import('@/components/lottie/LottieDialog').then((module) => ({
@@ -252,15 +254,18 @@ export function Toolbar() {
     setIsImportingSvg(true)
     const toastId = showToast({
       title: 'Importing SVG',
-      description: 'Parsing SVG structure…',
+      description: formatSvgImportProgress({ stage: 'parsing' }),
       variant: 'loading',
+      progress: computeSvgImportProgress({ stage: 'parsing' }),
     })
+    await waitForPaint()
 
     try {
       const result = await readSvgImportFromFile(file, {
         onProgress: (progress) => {
           updateToast(toastId, {
             description: formatSvgImportProgress(progress),
+            progress: computeSvgImportProgress(progress),
           })
         },
       })
@@ -288,13 +293,16 @@ export function Toolbar() {
       title: 'Importing HTML',
       description: formatHtmlImportProgress({ stage: 'parsing' }),
       variant: 'loading',
+      progress: computeHtmlImportProgress({ stage: 'parsing' }),
     })
+    await waitForPaint()
 
     try {
       const result = await readHtmlImportFromFile(file, {
         onProgress: (progress) => {
           updateToast(toastId, {
             description: formatHtmlImportProgress(progress),
+            progress: computeHtmlImportProgress(progress),
           })
         },
       })

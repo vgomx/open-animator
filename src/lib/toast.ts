@@ -5,6 +5,8 @@ export type Toast = {
   title: string
   description?: string
   variant: ToastVariant
+  /** 0–100 for loading toasts */
+  progress?: number
 }
 
 type ToastListener = (toasts: Toast[]) => void
@@ -30,6 +32,7 @@ export function showToast(toast: {
   title: string
   description?: string
   variant?: ToastVariant
+  progress?: number
 }): string {
   const id = toast.id ?? crypto.randomUUID()
   toasts = [
@@ -39,6 +42,7 @@ export function showToast(toast: {
       title: toast.title,
       description: toast.description,
       variant: toast.variant ?? 'default',
+      progress: toast.progress,
     },
   ]
   notify()

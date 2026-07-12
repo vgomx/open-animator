@@ -1,7 +1,7 @@
 import { createLayerFromShape } from '@/editor/scene'
 import {
-  applyCssTransformToShape,
   buildLayersFromCssTracks,
+  buildLayersFromCssTracksAsync,
   mergeAnimatedKeyframesIntoStaticLayers,
   parseCssKeyframeTracks,
 } from '@/io/css-keyframes'
@@ -18,6 +18,7 @@ import {
   svgImportToProject,
 } from '@/io/svg-import'
 import type { Project } from '@/editor/types'
+import { waitForPaint, yieldToUi } from '@/lib/yield-to-ui'
 
 export {
   applyCssTransformToShape,
@@ -52,10 +53,28 @@ function collectCssText(document: Document, svg: SVGSVGElement): string {
   return chunks.join('\n')
 }
 
-function yieldToUi(): Promise<void> {
-  return new Promise((resolve) => {
-    setTimeout(resolve, 0)
-  })
+export function computeHtmlImportProgress(progress: HtmlImportProgress): number {
+  if (progress.stage === 'parsing') {
+    return 8
+  }
+
+  if (progress.stage === 'expanding') {
+    return 18
+  }
+
+  if (progress.stage === 'importing') {
+    return 35
+  }
+
+  if (progress.stage === 'animating') {
+    if (progress.total && progress.total > 0 && progress.current !== undefined) {
+      return 35 + Math.round((progress.current / progress.total) * 55)
+    }
+
+    return 45
+  }
+
+  return 95
 }
 
 export function formatHtmlImportProgress(progress: HtmlImportProgress): string {
@@ -87,7 +106,7 @@ export async function importHtmlAnimationAsync(
   options?: HtmlImportOptions,
 ): Promise<Project | null> {
   options?.onProgress?.({ stage: 'parsing' })
-  await yieldToUi()
+  await waitForPaint()
 
   const document = new DOMParser().parseFromString(raw, 'text/html')
   const svg = document.querySelector('svg')
@@ -109,7 +128,7 @@ export async function importHtmlAnimationAsync(
   }
 
   options?.onProgress?.({ stage: 'importing' })
-  await yieldToUi()
+  await waitForPaint()
 
   const staticImported = importSvg(svg.outerHTML)
   if (!staticImported) {
@@ -121,7 +140,7 @@ export async function importHtmlAnimationAsync(
   options?.onProgress?.({ stage: 'animating' })
   await yieldToUi()
 
-  const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
+  const { layers: animatedLayers, duration: cssDuration } = await buildLayersFromCssTracksAsync(
     svg,
     css,
     baseProject.artboards[0]!.id,
