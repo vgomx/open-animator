@@ -1,6 +1,24 @@
 import { sampleNumericTrackAtTime } from '@/editor/animation'
 import { getShapeBounds } from '@/editor/bounds'
-import type { Keyframe, Layer, LayerGroupMeta, Shape } from '@/editor/types'
+import type { AnimatableProperty, Keyframe, Layer, LayerGroupMeta, Shape } from '@/editor/types'
+
+export const GROUP_ANIMATABLE_PROPERTIES = [
+  'x',
+  'y',
+  'rotation',
+  'scaleX',
+  'scaleY',
+  'opacity',
+] as const satisfies readonly AnimatableProperty[]
+
+export type GroupAnimatedValues = {
+  x: number
+  y: number
+  rotation: number
+  scaleX: number
+  scaleY: number
+  opacity: number
+}
 
 export type AnimatedShapeContext = {
   layerGroups?: Record<string, LayerGroupMeta>
@@ -135,4 +153,47 @@ export function layerHasGroupAnimation(
   return getGroupAncestorChain(layer.groupId, layerGroups).some(
     (groupId) => (layerGroups[groupId]?.keyframes?.length ?? 0) > 0,
   )
+}
+
+export function groupHasAnimation(
+  groupId: string,
+  layerGroups?: Record<string, LayerGroupMeta>,
+): boolean {
+  return (layerGroups?.[groupId]?.keyframes?.length ?? 0) > 0
+}
+
+export function getGroupAnimatedValues(
+  groupId: string,
+  layerGroups: Record<string, LayerGroupMeta> | undefined,
+  time: number,
+): GroupAnimatedValues {
+  const keyframes = layerGroups?.[groupId]?.keyframes ?? []
+
+  return {
+    x: sampleGroupNumeric(keyframes, 'x', time, 0),
+    y: sampleGroupNumeric(keyframes, 'y', time, 0),
+    rotation: sampleGroupNumeric(keyframes, 'rotation', time, 0),
+    scaleX: sampleGroupNumeric(keyframes, 'scaleX', time, 1),
+    scaleY: sampleGroupNumeric(keyframes, 'scaleY', time, 1),
+    opacity: sampleGroupNumeric(keyframes, 'opacity', time, 1),
+  }
+}
+
+export function getGroupPropertyValue(
+  groupId: string,
+  property: (typeof GROUP_ANIMATABLE_PROPERTIES)[number],
+  layerGroups: Record<string, LayerGroupMeta> | undefined,
+  time: number,
+): number {
+  const defaults: Record<(typeof GROUP_ANIMATABLE_PROPERTIES)[number], number> = {
+    x: 0,
+    y: 0,
+    rotation: 0,
+    scaleX: 1,
+    scaleY: 1,
+    opacity: 1,
+  }
+
+  const keyframes = layerGroups?.[groupId]?.keyframes ?? []
+  return sampleGroupNumeric(keyframes, property, time, defaults[property])
 }

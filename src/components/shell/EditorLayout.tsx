@@ -13,11 +13,26 @@ import { useEditorStore } from '@/editor/store'
 import { consumeStaleImportClearNotice } from '@/io/project'
 import { STORAGE_KEYS } from '@/lib/app'
 import { showToast } from '@/lib/toast'
+import { cn } from '@/lib/utils'
 
 const LARGE_PROJECT_NOTICE_KEY = `${STORAGE_KEYS.project}:large-notice`
 
 export function EditorLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
+  const [shellRevealed, setShellRevealed] = useState(false)
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      setShellRevealed(true)
+      return
+    }
+
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => setShellRevealed(true))
+    })
+
+    return () => cancelAnimationFrame(frame)
+  }, [])
 
   useEffect(() => {
     if (!consumeStaleImportClearNotice()) {
@@ -85,18 +100,23 @@ export function EditorLayout() {
   }, [])
 
   return (
-    <div className="flex h-svh overflow-hidden bg-background text-foreground">
+    <div
+      className={cn(
+        'editor-shell flex h-svh overflow-hidden bg-background text-foreground',
+        shellRevealed && 'editor-shell--revealed',
+      )}
+    >
       <UiZoomGuard />
       <KeyboardShortcuts onOpenShortcuts={() => setShortcutsOpen(true)} />
       <ActivityRail onOpenShortcuts={() => setShortcutsOpen(true)} />
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <Toolbar />
-        <div className="relative min-h-0 flex-1 overflow-hidden">
+      <div className="editor-shell__main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+        <Toolbar className="editor-shell__toolbar" />
+        <div className="editor-shell__stage relative min-h-0 flex-1 overflow-hidden">
           <Stage />
-          <LayersPanel />
-          <PropertiesPanel />
+          <LayersPanel className="editor-shell__panel editor-shell__panel--left" />
+          <PropertiesPanel className="editor-shell__panel editor-shell__panel--right" />
         </div>
-        <Timeline />
+        <Timeline className="editor-shell__timeline" />
       </div>
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
     </div>

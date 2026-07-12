@@ -66,6 +66,7 @@ import { downloadAnimatedHtml } from '@/io/embed-export'
 import { computeHtmlImportProgress, readHtmlImportFromFile, formatHtmlImportProgress } from '@/io/html-import'
 import { dismissToast, showToast, updateToast } from '@/lib/toast'
 import { waitForPaint } from '@/lib/yield-to-ui'
+import { cn } from '@/lib/utils'
 
 const LottieDialog = lazy(() =>
   import('@/components/lottie/LottieDialog').then((module) => ({
@@ -84,7 +85,7 @@ function resetFileInput(inputId: string) {
   }
 }
 
-export function Toolbar() {
+export function Toolbar({ className }: { className?: string }) {
   const [presetsOpen, setPresetsOpen] = useState(false)
   const [exportKind, setExportKind] = useState<ExportKind | null>(null)
   const [lottiePreviewOpen, setLottiePreviewOpen] = useState(false)
@@ -550,7 +551,12 @@ export function Toolbar() {
           event.target.value = ''
         }}
       />
-      <header className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3">
+      <header
+        className={cn(
+          'flex h-12 shrink-0 items-center gap-2 border-b border-border bg-card px-3',
+          className,
+        )}
+      >
         <div className="flex items-center gap-1">
           <Tooltip>
             <TooltipTrigger asChild>

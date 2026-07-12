@@ -294,7 +294,7 @@ function LayerListRow({
   )
 }
 
-export function LayersPanel() {
+export function LayersPanel({ className }: { className?: string }) {
   const showLayersPanel = useEditorStore((state) => state.showLayersPanel)
   const layersPanelWidth = useEditorStore((state) => state.layersPanelWidth)
   const setLayersPanelWidth = useEditorStore((state) => state.setLayersPanelWidth)
@@ -305,8 +305,10 @@ export function LayersPanel() {
     [activeArtboardId, project],
   )
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
+  const selectedGroupId = useEditorStore((state) => state.selectedGroupId)
   const collapsedGroupIds = useEditorStore((state) => state.collapsedGroupIds)
   const selectLayer = useEditorStore((state) => state.selectLayer)
+  const selectGroup = useEditorStore((state) => state.selectGroup)
   const updateLayer = useEditorStore((state) => state.updateLayer)
   const reorderLayers = useEditorStore((state) => state.reorderLayers)
   const groupSelectedLayers = useEditorStore((state) => state.groupSelectedLayers)
@@ -574,7 +576,9 @@ export function LayersPanel() {
 
     const collapsed = collapsedGroupIds.includes(row.groupId)
     const groupLayers = collectGroupLayers(row)
-    const groupSelected = groupLayers.some((layer) => selectedLayerIds.includes(layer.id))
+    const groupSelected =
+      selectedGroupId === row.groupId ||
+      groupLayers.some((layer) => selectedLayerIds.includes(layer.id))
     const GroupIcon = GROUP_ICON
     const indentClass = depth > 0 ? 'ml-2 border-l border-border/50 pl-1' : ''
 
@@ -598,11 +602,7 @@ export function LayersPanel() {
           <button
             type="button"
             className="min-w-0 flex-1 truncate text-left text-sm text-muted-foreground"
-            onClick={() =>
-              selectLayer(groupLayers[0]!.id, {
-                additive: false,
-              })
-            }
+            onClick={() => selectGroup(row.groupId)}
           >
             <span className="block truncate">
               {getGroupDisplayName(groupLayers, row.groupId, project.layerGroups)}
@@ -654,7 +654,10 @@ export function LayersPanel() {
   return (
     <aside
       style={{ width: layersPanelWidth }}
-      className="glass-chrome absolute inset-y-0 left-0 z-30 flex min-h-0 flex-col overflow-hidden border-r border-border text-card-foreground"
+      className={cn(
+        'glass-chrome absolute inset-y-0 left-0 z-30 flex min-h-0 flex-col overflow-hidden border-r border-border text-card-foreground',
+        className,
+      )}
     >
       <PanelResizeHandle
         edge="right"

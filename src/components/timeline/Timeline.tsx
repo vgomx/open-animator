@@ -1,14 +1,23 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 
-import { TimelineLayerLabel, TimelinePropertyLabel } from '@/components/timeline/TimelineLayerLabel'
+import {
+  TimelineGroupLabel,
+  TimelineLayerLabel,
+  TimelinePropertyLabel,
+} from '@/components/timeline/TimelineLayerLabel'
 import { TimelineLayerTrack } from '@/components/timeline/TimelineLayerTrack'
 import { TimelinePropertyTrack } from '@/components/timeline/TimelinePropertyTrack'
 import { getTimelineHandleTarget, TimelineRuler } from '@/components/timeline/TimelineRuler'
 import { Button } from '@/components/ui/button'
 import { getArtboardLayers } from '@/editor/artboard-utils'
 import { layerHasAnimation } from '@/editor/layer-animation'
-import type { AnimatableProperty, Keyframe, Layer } from '@/editor/types'
-import { ANIMATABLE_PROPERTIES } from '@/editor/types'
+import { getGroupDisplayName } from '@/editor/layer-display'
+import type { Keyframe } from '@/editor/types'
+import {
+  buildTimelineRows,
+  getAnimatedGroupIds,
+  getGroupLayers,
+} from '@/editor/timeline-rows'
 import {
   TIMELINE_LABEL_WIDTH,
   TIMELINE_PX_PER_SECOND,
@@ -29,26 +38,6 @@ import { cn } from '@/lib/utils'
 import { saveProjectToStorage } from '@/io/project'
 import { Bookmark, ClipboardPaste, Copy, Flag, Minus, Plus, Sparkles } from 'lucide-react'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-
-const propertyLabels: Record<AnimatableProperty, string> = {
-  x: 'X',
-  y: 'Y',
-  opacity: 'Opacity',
-  scaleX: 'Scale X',
-  scaleY: 'Scale Y',
-  rotation: 'Rotation',
-  fill: 'Fill',
-  stroke: 'Stroke',
-  width: 'Width',
-  height: 'Height',
-  rx: 'Radius X',
-  ry: 'Radius Y',
-  fontSize: 'Font size',
-}
-
-type TimelineRow =
-  | { kind: 'layer'; layer: Layer }
-  | { kind: 'property'; layer: Layer; property: AnimatableProperty; label: string }
 
 type DragMode = 'playhead' | 'loop-in' | 'loop-out' | 'keyframe' | null
 
@@ -187,7 +176,7 @@ function TimelineClock({
   )
 }
 
-export function Timeline() {
+export function Timeline({ className }: { className?: string }) {
   const project = useEditorStore((state) => state.project)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const duration = project.duration
@@ -197,13 +186,17 @@ export function Timeline() {
   const states = project.states
   const markers = project.markers
   const layers = project.layers
+  const layerGroups = project.layerGroups
+  const collapsedGroupIds = useEditorStore((state) => state.collapsedGroupIds)
   const selectedKeyframeIds = useEditorStore((state) => state.selectedKeyframeIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
+  const selectedGroupId = useEditorStore((state) => state.selectedGroupId)
   const timelineSnapTime = useEditorStore((state) => state.timelineSnapTime)
   const setCurrentTime = useEditorStore((state) => state.setCurrentTime)
   const moveKeyframesAtAnchor = useEditorStore((state) => state.moveKeyframesAtAnchor)
   const beginHistoryTransaction = useEditorStore((state) => state.beginHistoryTransaction)
   const selectLayer = useEditorStore((state) => state.selectLayer)
+  const selectGroup = useEditorStore((state) => state.selectGroup)
   const selectKeyframe = useEditorStore((state) => state.selectKeyframe)
   const clearKeyframeSelection = useEditorStore((state) => state.clearKeyframeSelection)
   const setTimelineSnapTime = useEditorStore((state) => state.setTimelineSnapTime)
@@ -219,8 +212,7 @@ export function Timeline() {
   const snapEnabled = useEditorStore((state) => state.snapEnabled)
 
   const artboardLayers = useMemo(
-    () =>
-      [...getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? '')].reverse(),
+    () => getArtboardLayers(project, activeArtboardId ?? project.artboards[0]?.id ?? ''),
     [activeArtboardId, project],
   )
 
@@ -228,6 +220,7 @@ export function Timeline() {
 
   const [timelineZoom, setTimelineZoom] = useState(1)
   const [expandedLayerIds, setExpandedLayerIds] = useState<string[]>([])
+  const [expandedGroupIds, setExpandedGroupIds] = useState<string[]>([])
   const didAutoExpandAnimatedRef = useRef(false)
   const labelsScrollRef = useRef<HTMLDivElement>(null)
   const tracksScrollRef = useRef<HTMLDivElement>(null)
@@ -248,33 +241,17 @@ export function Timeline() {
     timelineZoom,
   )
 
-  const rows = useMemo(() => {
-    const result: TimelineRow[] = []
-
-    for (const layer of artboardLayers) {
-      result.push({ kind: 'layer', layer })
-
-      if (!expandedLayerIds.includes(layer.id)) {
-        continue
-      }
-
-      for (const property of ANIMATABLE_PROPERTIES) {
-        const keyframes = layer.keyframes.filter((keyframe) => keyframe.property === property)
-        if (keyframes.length === 0) {
-          continue
-        }
-
-        result.push({
-          kind: 'property',
-          layer,
-          property,
-          label: propertyLabels[property],
-        })
-      }
-    }
-
-    return result
-  }, [artboardLayers, expandedLayerIds])
+  const rows = useMemo(
+    () =>
+      buildTimelineRows({
+        displayLayers: artboardLayers,
+        layerGroups,
+        collapsedGroupIds,
+        expandedLayerIds,
+        expandedGroupIds,
+      }),
+    [artboardLayers, collapsedGroupIds, expandedGroupIds, expandedLayerIds, layerGroups],
+  )
 
   const shouldVirtualizeRows = rows.length > TIMELINE_VIRTUALIZE_THRESHOLD
 
@@ -322,8 +299,9 @@ export function Timeline() {
     const animatedLayerIds = artboardLayers
       .filter(layerHasAnimation)
       .map((layer) => layer.id)
+    const animatedGroupIds = getAnimatedGroupIds(artboardLayers, layerGroups)
 
-    if (animatedLayerIds.length === 0) {
+    if (animatedLayerIds.length === 0 && animatedGroupIds.length === 0) {
       return
     }
 
@@ -338,8 +316,11 @@ export function Timeline() {
     setExpandedLayerIds((current) => [
       ...new Set([...current, ...animatedLayerIds.slice(0, autoExpandLimit)]),
     ])
+    setExpandedGroupIds((current) => [
+      ...new Set([...current, ...animatedGroupIds.slice(0, autoExpandLimit)]),
+    ])
     didAutoExpandAnimatedRef.current = true
-  }, [artboardLayers])
+  }, [artboardLayers, layerGroups])
 
   useEffect(() => {
     if (!selectedLayerId) {
@@ -350,6 +331,16 @@ export function Timeline() {
       current.includes(selectedLayerId) ? current : [...current, selectedLayerId],
     )
   }, [selectedLayerId])
+
+  useEffect(() => {
+    if (!selectedGroupId) {
+      return
+    }
+
+    setExpandedGroupIds((current) =>
+      current.includes(selectedGroupId) ? current : [...current, selectedGroupId],
+    )
+  }, [selectedGroupId])
 
   useEffect(() => {
     const node = tracksViewportRef.current
@@ -392,7 +383,7 @@ export function Timeline() {
         frameSnap,
         markers: orderedMarkers,
         states: orderedStates,
-        keyframeTimes: collectKeyframeTimes(layers, excludeKeyframeIds),
+        keyframeTimes: collectKeyframeTimes(layers, excludeKeyframeIds, layerGroups),
         playheadTime,
       })
 
@@ -409,6 +400,7 @@ export function Timeline() {
       duration,
       fps,
       layers,
+      layerGroups,
       orderedMarkers,
       orderedStates,
       setTimelineSnapTime,
@@ -515,13 +507,17 @@ export function Timeline() {
   const onKeyframePointerDown = (
     event: React.PointerEvent<HTMLButtonElement>,
     keyframe: Keyframe,
-    layerId: string,
+    target: { kind: 'layer'; layerId: string } | { kind: 'group'; groupId: string },
   ) => {
     event.stopPropagation()
     beginHistoryTransaction()
 
-    if (selectedLayerId !== layerId) {
-      selectLayer(layerId)
+    if (target.kind === 'group') {
+      if (selectedGroupId !== target.groupId) {
+        selectGroup(target.groupId)
+      }
+    } else if (selectedLayerId !== target.layerId) {
+      selectLayer(target.layerId)
     }
 
     let nextSelection = selectedKeyframeIds
@@ -550,6 +546,12 @@ export function Timeline() {
     )
   }
 
+  const toggleGroupExpanded = (groupId: string) => {
+    setExpandedGroupIds((current) =>
+      current.includes(groupId) ? current.filter((id) => id !== groupId) : [...current, groupId],
+    )
+  }
+
   const stepZoom = (direction: -1 | 1) => {
     const index = ZOOM_STEPS.findIndex((step) => step >= timelineZoom - 0.001)
     const currentIndex = index === -1 ? ZOOM_STEPS.length - 1 : index
@@ -561,7 +563,12 @@ export function Timeline() {
     (orderedMarkers.length > 0 ? 20 : 0) + (orderedStates.length > 0 ? 24 : 0)
 
   return (
-    <footer className="flex h-60 shrink-0 flex-col overflow-hidden border-t border-border bg-card">
+    <footer
+      className={cn(
+        'flex h-60 shrink-0 flex-col overflow-hidden border-t border-border bg-card',
+        className,
+      )}
+    >
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2 border-b border-border px-3 py-2">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
@@ -678,23 +685,56 @@ export function Timeline() {
                   {visibleRowWindow.topSpacer > 0 ? (
                     <div style={{ height: visibleRowWindow.topSpacer }} aria-hidden />
                   ) : null}
-                  {visibleRows.map((row) =>
-                    row.kind === 'layer' ? (
-                      <TimelineLayerLabel
-                        key={`label-${row.layer.id}`}
-                        layer={row.layer}
-                        isSelected={selectedLayerId === row.layer.id}
-                        isExpanded={expandedLayerIds.includes(row.layer.id)}
-                        onSelect={(layerId, additive) => selectLayer(layerId, { additive })}
-                        onToggleExpand={() => toggleLayerExpanded(row.layer.id)}
-                      />
-                    ) : (
+                  {visibleRows.map((row) => {
+                    if (row.kind === 'group') {
+                      const groupLayers = getGroupLayers(row.groupId, artboardLayers, layerGroups)
+                      const groupKeyframes = layerGroups?.[row.groupId]?.keyframes ?? []
+                      return (
+                        <TimelineGroupLabel
+                          key={`label-group-${row.groupId}`}
+                          label={getGroupDisplayName(groupLayers, row.groupId, layerGroups)}
+                          depth={row.depth}
+                          isSelected={selectedGroupId === row.groupId}
+                          isExpanded={expandedGroupIds.includes(row.groupId)}
+                          hasKeyframes={groupKeyframes.length > 0}
+                          onSelect={() => selectGroup(row.groupId)}
+                          onToggleExpand={() => toggleGroupExpanded(row.groupId)}
+                        />
+                      )
+                    }
+
+                    if (row.kind === 'groupProperty') {
+                      return (
+                        <TimelinePropertyLabel
+                          key={`label-group-${row.groupId}-${row.property}`}
+                          label={row.label}
+                          depth={row.depth}
+                        />
+                      )
+                    }
+
+                    if (row.kind === 'layer') {
+                      return (
+                        <TimelineLayerLabel
+                          key={`label-${row.layer.id}`}
+                          layer={row.layer}
+                          depth={row.depth}
+                          isSelected={selectedLayerId === row.layer.id}
+                          isExpanded={expandedLayerIds.includes(row.layer.id)}
+                          onSelect={(layerId, additive) => selectLayer(layerId, { additive })}
+                          onToggleExpand={() => toggleLayerExpanded(row.layer.id)}
+                        />
+                      )
+                    }
+
+                    return (
                       <TimelinePropertyLabel
                         key={`label-${row.layer.id}-${row.property}`}
                         label={row.label}
+                        depth={row.depth}
                       />
-                    ),
-                  )}
+                    )
+                  })}
                   {visibleRowWindow.bottomSpacer > 0 ? (
                     <div style={{ height: visibleRowWindow.bottomSpacer }} aria-hidden />
                   ) : null}
@@ -839,19 +879,68 @@ export function Timeline() {
                       {visibleRowWindow.topSpacer > 0 ? (
                         <div style={{ height: visibleRowWindow.topSpacer }} aria-hidden />
                       ) : null}
-                      {visibleRows.map((row) =>
-                        row.kind === 'layer' ? (
-                          <TimelineLayerTrack
-                            key={`track-${row.layer.id}`}
-                            layer={row.layer}
-                            duration={duration}
-                            contentWidth={contentWidth}
-                            selectedKeyframeIds={selectedKeyframeIds}
-                            onKeyframePointerDown={(event, keyframe) =>
-                              onKeyframePointerDown(event, keyframe, row.layer.id)
-                            }
-                          />
-                        ) : (
+                      {visibleRows.map((row) => {
+                        if (row.kind === 'group') {
+                          const groupKeyframes = layerGroups?.[row.groupId]?.keyframes ?? []
+                          return (
+                            <TimelineLayerTrack
+                              key={`track-group-${row.groupId}`}
+                              keyframes={groupKeyframes}
+                              duration={duration}
+                              contentWidth={contentWidth}
+                              selectedKeyframeIds={selectedKeyframeIds}
+                              onKeyframePointerDown={(event, keyframe) =>
+                                onKeyframePointerDown(event, keyframe, {
+                                  kind: 'group',
+                                  groupId: row.groupId,
+                                })
+                              }
+                            />
+                          )
+                        }
+
+                        if (row.kind === 'groupProperty') {
+                          const groupKeyframes =
+                            layerGroups?.[row.groupId]?.keyframes?.filter(
+                              (keyframe) => keyframe.property === row.property,
+                            ) ?? []
+                          return (
+                            <TimelinePropertyTrack
+                              key={`track-group-${row.groupId}-${row.property}`}
+                              property={row.property}
+                              keyframes={groupKeyframes}
+                              duration={duration}
+                              contentWidth={contentWidth}
+                              selectedKeyframeIds={selectedKeyframeIds}
+                              onKeyframePointerDown={(event, keyframe) =>
+                                onKeyframePointerDown(event, keyframe, {
+                                  kind: 'group',
+                                  groupId: row.groupId,
+                                })
+                              }
+                            />
+                          )
+                        }
+
+                        if (row.kind === 'layer') {
+                          return (
+                            <TimelineLayerTrack
+                              key={`track-${row.layer.id}`}
+                              keyframes={row.layer.keyframes}
+                              duration={duration}
+                              contentWidth={contentWidth}
+                              selectedKeyframeIds={selectedKeyframeIds}
+                              onKeyframePointerDown={(event, keyframe) =>
+                                onKeyframePointerDown(event, keyframe, {
+                                  kind: 'layer',
+                                  layerId: row.layer.id,
+                                })
+                              }
+                            />
+                          )
+                        }
+
+                        return (
                           <TimelinePropertyTrack
                             key={`track-${row.layer.id}-${row.property}`}
                             property={row.property}
@@ -862,11 +951,14 @@ export function Timeline() {
                             contentWidth={contentWidth}
                             selectedKeyframeIds={selectedKeyframeIds}
                             onKeyframePointerDown={(event, keyframe) =>
-                              onKeyframePointerDown(event, keyframe, row.layer.id)
+                              onKeyframePointerDown(event, keyframe, {
+                                kind: 'layer',
+                                layerId: row.layer.id,
+                              })
                             }
                           />
-                        ),
-                      )}
+                        )
+                      })}
                       {visibleRowWindow.bottomSpacer > 0 ? (
                         <div style={{ height: visibleRowWindow.bottomSpacer }} aria-hidden />
                       ) : null}

@@ -293,3 +293,405 @@
   --panel-float-mix: 92%;
   --panel-muted-foreground: #a8a49c;
 }
+
+@keyframes app-loader-draw {
+  0% {
+    stroke-dashoffset: 1;
+    opacity: 0.35;
+  }
+
+  40% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  72% {
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  100% {
+    stroke-dashoffset: 1;
+    opacity: 0.35;
+  }
+}
+
+@keyframes app-loader-guide-reveal {
+  0%,
+  18% {
+    opacity: 0;
+  }
+
+  34%,
+  72% {
+    opacity: 0.4;
+  }
+
+  100% {
+    opacity: 0;
+  }
+}
+
+@keyframes app-loader-anchor-pulse {
+  0%,
+  100% {
+    transform: scale(1);
+    opacity: 0.82;
+  }
+
+  40%,
+  60% {
+    transform: scale(1.08);
+    opacity: 1;
+  }
+}
+
+@keyframes app-loader-handle-slide-left {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: translateY(16px);
+    opacity: 0.95;
+  }
+}
+
+@keyframes app-loader-handle-slide-right {
+  0%,
+  100% {
+    transform: translateY(0);
+    opacity: 0.45;
+  }
+
+  50% {
+    transform: translateY(-16px);
+    opacity: 0.95;
+  }
+}
+
+@keyframes app-loader-breathe {
+  0%,
+  100% {
+    transform: scale(0.96);
+  }
+
+  50% {
+    transform: scale(1);
+  }
+}
+
+@layer components {
+  .app-loader {
+    transition: opacity 380ms cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .app-loader--exiting {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .app-loader__symbol {
+    position: relative;
+    display: grid;
+    place-items: center;
+    animation: app-loader-breathe 2.4s ease-in-out infinite;
+  }
+
+  .app-loader__symbol::before {
+    content: '';
+    position: absolute;
+    inset: -28px;
+    border-radius: 9999px;
+    background: radial-gradient(
+      circle,
+      color-mix(in oklab, var(--brand-accent) 18%, transparent) 0%,
+      transparent 70%
+    );
+    opacity: 0.7;
+    pointer-events: none;
+  }
+
+  .app-loader__curve {
+    stroke-dasharray: 1;
+    stroke-dashoffset: 1;
+    animation: app-loader-draw 2.4s ease-in-out infinite;
+  }
+
+  .app-loader__guide {
+    opacity: 0;
+    animation: app-loader-guide-reveal 2.4s ease-in-out infinite;
+  }
+
+  .app-loader__guide--right {
+    animation-delay: 120ms;
+  }
+
+  .app-loader__anchor {
+    transform-box: fill-box;
+    transform-origin: center;
+    animation: app-loader-anchor-pulse 2.4s ease-in-out infinite;
+  }
+
+  .app-loader__anchor--end {
+    animation-delay: 180ms;
+  }
+
+  .app-loader__handle {
+    transform-box: fill-box;
+    transform-origin: center;
+    opacity: 0.6;
+  }
+
+  .app-loader__handle--left {
+    animation: app-loader-handle-slide-left 2.4s ease-in-out infinite;
+  }
+
+  .app-loader__handle--right {
+    animation: app-loader-handle-slide-right 2.4s ease-in-out infinite;
+    animation-delay: 180ms;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .app-loader__symbol,
+    .app-loader__curve,
+    .app-loader__guide,
+    .app-loader__anchor,
+    .app-loader__handle {
+      animation: none;
+    }
+
+    .app-loader__curve {
+      stroke-dashoffset: 0;
+      opacity: 1;
+    }
+
+    .app-loader__guide {
+      opacity: 0.4;
+    }
+
+    .app-loader__handle {
+      opacity: 0.6;
+    }
+  }
+
+  .editor-shell {
+    overflow: hidden;
+    /* Shell reveal: brand rail → toolbar → panels + timeline → rulers → toolbox */
+    --shell-ease: cubic-bezier(0.22, 1, 0.36, 1);
+    --shell-rail-delay: 60ms;
+    --shell-toolbar-delay: 300ms;
+    --shell-panel-left-delay: 560ms;
+    --shell-panel-right-delay: 560ms;
+    --shell-timeline-delay: 560ms;
+    --shell-ruler-delay: 1040ms;
+    --shell-tool-palette-delay: 1500ms;
+  }
+
+  .editor-shell__rail {
+    transition:
+      width 360ms var(--shell-ease),
+      border-color 360ms var(--shell-ease);
+    transition-delay: var(--shell-rail-delay);
+  }
+
+  .editor-shell__toolbar {
+    transition:
+      height 340ms var(--shell-ease),
+      border-color 340ms var(--shell-ease);
+    transition-delay: var(--shell-toolbar-delay);
+  }
+
+  .editor-shell__panel {
+    transition: width 380ms var(--shell-ease);
+    pointer-events: none;
+  }
+
+  .editor-shell__panel--left {
+    transition-delay: var(--shell-panel-left-delay);
+  }
+
+  .editor-shell__panel--right {
+    transition-delay: var(--shell-panel-right-delay);
+  }
+
+  .editor-shell__timeline {
+    transition:
+      height 400ms var(--shell-ease),
+      border-color 400ms var(--shell-ease);
+    transition-delay: var(--shell-timeline-delay);
+  }
+
+  .editor-shell__ruler {
+    pointer-events: none;
+    transition:
+      transform 280ms var(--shell-ease),
+      clip-path 280ms var(--shell-ease);
+  }
+
+  .editor-shell__ruler--corner {
+    transform: scale(0);
+    transform-origin: bottom right;
+    clip-path: inset(100% 0 0 100%);
+    transition-delay: var(--shell-ruler-delay);
+  }
+
+  .editor-shell__ruler--x {
+    transform: translateY(-100%);
+    clip-path: inset(100% 0 0 0);
+    transition-delay: var(--shell-ruler-delay);
+  }
+
+  .editor-shell__ruler--y {
+    transform: translateX(-100%);
+    clip-path: inset(0 100% 0 0);
+    transition-delay: var(--shell-ruler-delay);
+  }
+
+  .editor-shell--revealed .editor-shell__ruler--corner {
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+
+  .editor-shell--revealed .editor-shell__ruler--x {
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+
+  .editor-shell--revealed .editor-shell__ruler--y {
+    transform: none;
+    clip-path: inset(0 0 0 0);
+  }
+
+  .editor-shell__tool-palette {
+    transition: transform 520ms cubic-bezier(0.34, 1.45, 0.64, 1);
+    transition-delay: var(--shell-tool-palette-delay);
+  }
+
+  .editor-shell__rail,
+  .editor-shell__toolbar,
+  .editor-shell__panel,
+  .editor-shell__ruler,
+  .editor-shell__timeline,
+  .editor-shell__tool-palette {
+    will-change: transform, width, height;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__rail {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    border-right-width: 0 !important;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__toolbar {
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    border-bottom-width: 0 !important;
+    padding-block: 0 !important;
+  }
+
+  .editor-shell__stage {
+    position: relative;
+    min-height: 0;
+    flex: 1 1 auto;
+  }
+
+  .editor-shell__canvas {
+    position: relative;
+    z-index: 20;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__panel {
+    width: 0 !important;
+    min-width: 0 !important;
+    overflow: hidden;
+    border-width: 0 !important;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__timeline {
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    border-top-width: 0 !important;
+    padding-block: 0 !important;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__ruler {
+    pointer-events: none;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__tool-palette {
+    z-index: 10;
+    transform: translateY(calc(100% + 2rem));
+    pointer-events: none;
+  }
+
+  .editor-shell--revealed .editor-shell__panel {
+    pointer-events: auto;
+  }
+
+  .editor-shell--revealed .editor-shell__tool-palette {
+    z-index: 30;
+    transform: none;
+    pointer-events: auto;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .editor-shell__rail,
+    .editor-shell__toolbar,
+    .editor-shell__panel,
+    .editor-shell__timeline,
+    .editor-shell__ruler,
+    .editor-shell__tool-palette {
+      transition: none !important;
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__rail {
+      width: 3.5rem !important;
+      min-width: 3.5rem !important;
+      border-right-width: 1px !important;
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__toolbar {
+      height: 3rem !important;
+      min-height: 3rem !important;
+      border-bottom-width: 1px !important;
+      padding-block: revert-layer !important;
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__panel {
+      width: revert-layer !important;
+      min-width: 0 !important;
+      border-width: revert-layer !important;
+      pointer-events: auto;
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__timeline {
+      height: 15rem !important;
+      min-height: 15rem !important;
+      border-top-width: 1px !important;
+      padding-block: revert-layer !important;
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__ruler {
+      pointer-events: none;
+    }
+
+    .editor-shell--revealed .editor-shell__ruler--corner,
+    .editor-shell--revealed .editor-shell__ruler--x,
+    .editor-shell--revealed .editor-shell__ruler--y {
+      transform: none;
+      clip-path: inset(0 0 0 0);
+    }
+
+    .editor-shell:not(.editor-shell--revealed) .editor-shell__tool-palette {
+      z-index: 30;
+      transform: none;
+      pointer-events: auto;
+    }
+  }
+}

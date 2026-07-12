@@ -187,6 +187,7 @@ export function collectKeyframeTimes(
     matrixKeyframes?: Array<{ time: number }>
   }>,
   excludeIds: string[] = [],
+  layerGroups?: Record<string, { keyframes?: Array<{ id: string; time: number }> }>,
 ): number[] {
   const excluded = new Set(excludeIds)
   const times = new Set<number>()
@@ -200,6 +201,14 @@ export function collectKeyframeTimes(
 
     for (const keyframe of layer.matrixKeyframes ?? []) {
       times.add(keyframe.time)
+    }
+  }
+
+  for (const group of Object.values(layerGroups ?? {})) {
+    for (const keyframe of group.keyframes ?? []) {
+      if (!excluded.has(keyframe.id)) {
+        times.add(keyframe.time)
+      }
     }
   }
 
