@@ -57,7 +57,8 @@ export function DesignTab({
   const xField = sharedNumber(shapes, 'x')
   const yField = sharedNumber(shapes, 'y')
   const rotationField = sharedNumber(shapes, 'rotation')
-  const scaleField = sharedNumber(shapes, 'scale')
+  const scaleXField = sharedNumber(shapes, 'scaleX')
+  const scaleYField = sharedNumber(shapes, 'scaleY')
   const opacityField = sharedNumber(shapes, 'opacity', 1)
   const fillField = sharedString(shapes, 'fill')
   const strokeField = sharedString(shapes, 'stroke', 'none')
@@ -151,6 +152,28 @@ export function DesignTab({
             />
           ) : null}
         </PropertyGrid>
+        <PropertyGrid>
+          <PropertyField
+            label="Scale X"
+            value={scaleXField.value}
+            mixed={scaleXField.mixed}
+            decimals={2}
+            step={0.01}
+            shiftStep={0.1}
+            min={0.01}
+            onChange={(value) => onUpdateShape({ scaleX: Number(value) })}
+          />
+          <PropertyField
+            label="Scale Y"
+            value={scaleYField.value}
+            mixed={scaleYField.mixed}
+            decimals={2}
+            step={0.01}
+            shiftStep={0.1}
+            min={0.01}
+            onChange={(value) => onUpdateShape({ scaleY: Number(value) })}
+          />
+        </PropertyGrid>
         <PropertyGrid columns={3}>
           <PropertyField
             label="Rotation"
@@ -161,16 +184,6 @@ export function DesignTab({
             step={1}
             shiftStep={15}
             onChange={(value) => onUpdateShape({ rotation: Number(value) })}
-          />
-          <PropertyField
-            label="Scale"
-            value={scaleField.value}
-            mixed={scaleField.mixed}
-            decimals={2}
-            step={0.01}
-            shiftStep={0.1}
-            min={0.01}
-            onChange={(value) => onUpdateShape({ scale: Number(value) })}
           />
           <PropertyField
             label="Opacity"

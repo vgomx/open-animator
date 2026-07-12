@@ -296,7 +296,7 @@ function buildTransformKeyframes(layer: Layer, frameRate: number) {
     })
     scale.push({
       t: frame,
-      s: [shape.scale * 100, shape.scale * 100, 100],
+      s: [shape.scaleX * 100, shape.scaleY * 100, 100],
       ...easingHandles,
     })
   }
@@ -306,8 +306,8 @@ function buildTransformKeyframes(layer: Layer, frameRate: number) {
     rotation: toLottieTransformProperty(rotation, layer.shape.rotation),
     opacity: toLottieTransformProperty(opacity, layer.shape.opacity * 100),
     scale: toLottieTransformProperty(scale, [
-      layer.shape.scale * 100,
-      layer.shape.scale * 100,
+      layer.shape.scaleX * 100,
+      layer.shape.scaleY * 100,
       100,
     ]),
   }
@@ -528,7 +528,9 @@ export function importLottie(raw: string): Project | null {
       const stroke = lottieColorToHex((strokeNode?.c as { k?: number[] } | undefined)?.k ?? [0, 0, 0, 1])
       const strokeWidth = (strokeNode?.w as { k?: number } | undefined)?.k ?? 0
       const opacity = (readStaticVector(lottieLayer.ks?.o?.k, [100])[0] ?? 100) / 100
-      const scale = (readStaticVector(lottieLayer.ks?.s?.k, [100, 100, 100])[0] ?? 100) / 100
+      const scaleVector = readStaticVector(lottieLayer.ks?.s?.k, [100, 100, 100])
+      const scaleX = (scaleVector[0] ?? 100) / 100
+      const scaleY = (scaleVector[1] ?? scaleVector[0] ?? 100) / 100
       const rotation = readStaticVector(lottieLayer.ks?.r?.k, [0])[0] ?? 0
 
       const layerId = createId()
@@ -558,7 +560,8 @@ export function importLottie(raw: string): Project | null {
           stroke,
           strokeWidth,
           opacity,
-          scale,
+          scaleX,
+          scaleY,
         }
       } else if (shapeType === 'el') {
         const rectWidth = (shapeNode.s as { k?: number[] } | undefined)?.k?.[0] ?? 100
@@ -575,7 +578,8 @@ export function importLottie(raw: string): Project | null {
           stroke,
           strokeWidth,
           opacity,
-          scale,
+          scaleX,
+          scaleY,
         }
       } else {
         const rectWidth = (shapeNode.s as { k?: number[] } | undefined)?.k?.[0] ?? 100
@@ -592,7 +596,8 @@ export function importLottie(raw: string): Project | null {
           stroke,
           strokeWidth,
           opacity,
-          scale,
+          scaleX,
+          scaleY,
         }
       }
 
@@ -636,11 +641,20 @@ export function importLottie(raw: string): Project | null {
         })
       }
       for (const frame of scaleTrack) {
+        const scaleX = frame.s[0] / 100
+        const scaleY = (frame.s[1] ?? frame.s[0]) / 100
         keyframes.push({
           id: createId(),
           time: frame.t / frameRate,
-          property: 'scale',
-          value: frame.s[0] / 100,
+          property: 'scaleX',
+          value: scaleX,
+          easing: 'linear',
+        })
+        keyframes.push({
+          id: createId(),
+          time: frame.t / frameRate,
+          property: 'scaleY',
+          value: scaleY,
           easing: 'linear',
         })
       }

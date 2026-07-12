@@ -1,6 +1,6 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 11 as const
+export const PROJECT_VERSION = 12 as const
 export const DEFAULT_PROJECT_FPS = 30
 
 export type CanvasSettings = {
@@ -55,7 +55,8 @@ export type NumericAnimatableProperty =
   | 'x'
   | 'y'
   | 'opacity'
-  | 'scale'
+  | 'scaleX'
+  | 'scaleY'
   | 'rotation'
   | 'width'
   | 'height'
@@ -141,7 +142,8 @@ export type BaseShape = {
   stroke: string
   strokeWidth: number
   opacity: number
-  scale: number
+  scaleX: number
+  scaleY: number
 }
 
 export type RectShape = BaseShape & {
@@ -215,7 +217,8 @@ export type LayerStateSnapshot = {
   y: number
   rotation: number
   opacity: number
-  scale: number
+  scaleX: number
+  scaleY: number
   fill: string
   stroke: string
   strokeWidth: number
@@ -290,7 +293,8 @@ export const NUMERIC_ANIMATABLE_PROPERTIES: NumericAnimatableProperty[] = [
   'x',
   'y',
   'opacity',
-  'scale',
+  'scaleX',
+  'scaleY',
   'rotation',
   'width',
   'height',

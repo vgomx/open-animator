@@ -1,24 +1,41 @@
-import { createId, createDefaultProject, createLayerFromShape } from '@/editor/scene'
+import { createLayerFromShape } from '@/editor/scene'
+import {
+  applyCssTransformToShape,
+  buildLayersFromCssTracks,
+  mergeAnimatedKeyframesIntoStaticLayers,
+  parseCssKeyframeTracks,
+} from '@/io/css-keyframes'
 import {
   isHtmlFile,
   looksLikeHtmlText,
   openFilePicker,
 } from '@/io/file-picker'
-import { importSvgAsProject, parseShapeElement } from '@/io/svg-import'
-import type { AnimatableProperty, Keyframe, Layer, Project, Shape } from '@/editor/types'
-import { createArtboard } from '@/editor/types'
+import {
+  expandSvgUses,
+  importSvg,
+  importSvgAsProject,
+  parseShapeElement,
+  svgImportToProject,
+} from '@/io/svg-import'
+import type { Project } from '@/editor/types'
 
-export type CssKeyframeStep = {
-  percent: number
-  transform?: string
-  opacity?: number
-  fill?: string
-  stroke?: string
+export {
+  applyCssTransformToShape,
+  parseCssKeyframeTracks,
+  type CssAnimationTrack,
+  type CssKeyframeStep,
+} from '@/io/css-keyframes'
+
+export type HtmlImportStage = 'parsing' | 'expanding' | 'importing' | 'animating' | 'merging'
+
+export type HtmlImportProgress = {
+  stage: HtmlImportStage
+  current?: number
+  total?: number
 }
 
-export type CssAnimationTrack = {
-  duration: number
-  steps: CssKeyframeStep[]
+export type HtmlImportOptions = {
+  onProgress?: (progress: HtmlImportProgress) => void
 }
 
 function collectCssText(document: Document, svg: SVGSVGElement): string {
@@ -35,269 +52,107 @@ function collectCssText(document: Document, svg: SVGSVGElement): string {
   return chunks.join('\n')
 }
 
-function readArtboard(svg: SVGSVGElement): { width: number; height: number } {
-  const viewBox = svg.getAttribute('viewBox')
-  if (viewBox) {
-    const parts = viewBox.split(/[\s,]+/).map((value) => Number.parseFloat(value))
-    if (parts.length === 4 && parts.every((value) => Number.isFinite(value))) {
-      return {
-        width: Math.max(1, parts[2]!),
-        height: Math.max(1, parts[3]!),
-      }
-    }
-  }
-
-  const width = Number.parseFloat(svg.getAttribute('width') ?? '')
-  const height = Number.parseFloat(svg.getAttribute('height') ?? '')
-
-  return {
-    width: Number.isFinite(width) && width > 0 ? width : 800,
-    height: Number.isFinite(height) && height > 0 ? height : 600,
-  }
+function yieldToUi(): Promise<void> {
+  return new Promise((resolve) => {
+    setTimeout(resolve, 0)
+  })
 }
 
-function extractKeyframesBlocks(css: string): Array<{ name: string; body: string }> {
-  const blocks: Array<{ name: string; body: string }> = []
-  const startPattern = /@keyframes\s+([a-zA-Z0-9_-]+)\s*\{/g
-  let match: RegExpExecArray | null
-
-  while ((match = startPattern.exec(css)) !== null) {
-    const name = match[1]!
-    let depth = 1
-    let index = startPattern.lastIndex
-    let body = ''
-
-    while (index < css.length && depth > 0) {
-      const char = css[index]!
-      if (char === '{') {
-        depth += 1
-      } else if (char === '}') {
-        depth -= 1
-      }
-
-      if (depth > 0) {
-        body += char
-      }
-
-      index += 1
-    }
-
-    blocks.push({ name, body })
+export function formatHtmlImportProgress(progress: HtmlImportProgress): string {
+  if (progress.stage === 'parsing') {
+    return 'Reading HTML…'
   }
 
-  return blocks
+  if (progress.stage === 'expanding') {
+    return 'Expanding SVG references…'
+  }
+
+  if (progress.stage === 'importing') {
+    return 'Importing artwork…'
+  }
+
+  if (progress.stage === 'animating') {
+    if (progress.total && progress.total > 0 && progress.current !== undefined) {
+      return `Building animations (${progress.current}/${progress.total})…`
+    }
+
+    return 'Building CSS animations…'
+  }
+
+  return 'Merging animated layers…'
 }
 
-export function parseCssKeyframeTracks(css: string): Map<string, CssAnimationTrack> {
-  const tracks = new Map<string, CssAnimationTrack>()
+export async function importHtmlAnimationAsync(
+  raw: string,
+  options?: HtmlImportOptions,
+): Promise<Project | null> {
+  options?.onProgress?.({ stage: 'parsing' })
+  await yieldToUi()
 
-  for (const block of extractKeyframesBlocks(css)) {
-    const steps: CssKeyframeStep[] = []
-    const stepPattern = /([0-9.]+)%\s*\{([^}]+)\}/g
-    let stepMatch: RegExpExecArray | null
-
-    while ((stepMatch = stepPattern.exec(block.body)) !== null) {
-      const percent = Number.parseFloat(stepMatch[1]!)
-      const declarations = stepMatch[2]!
-      const step: CssKeyframeStep = { percent }
-
-      const transform = declarations.match(/transform:\s*([^;]+)/)?.[1]?.trim()
-      if (transform) {
-        step.transform = transform
-      }
-
-      const opacity = declarations.match(/opacity:\s*([^;]+)/)?.[1]?.trim()
-      if (opacity) {
-        step.opacity = Number.parseFloat(opacity)
-      }
-
-      const fill = declarations.match(/fill:\s*([^;]+)/)?.[1]?.trim()
-      if (fill) {
-        step.fill = fill
-      }
-
-      const stroke = declarations.match(/stroke:\s*([^;]+)/)?.[1]?.trim()
-      if (stroke) {
-        step.stroke = stroke
-      }
-
-      if (Number.isFinite(step.percent)) {
-        steps.push(step)
-      }
-    }
-
-    if (steps.length > 0) {
-      steps.sort((a, b) => a.percent - b.percent)
-      tracks.set(block.name, {
-        duration: 3,
-        steps,
-      })
-    }
+  const document = new DOMParser().parseFromString(raw, 'text/html')
+  const svg = document.querySelector('svg')
+  if (!svg) {
+    return null
   }
 
-  for (const [className, track] of tracks) {
-    const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    const durationMatch = css.match(new RegExp(`animation:\\s*${escaped}\\s+([0-9.]+)s`))
-    const duration = durationMatch ? Number.parseFloat(durationMatch[1]!) : Number.NaN
-    if (Number.isFinite(duration) && duration > 0) {
-      track.duration = duration
-    }
+  options?.onProgress?.({ stage: 'expanding' })
+  await yieldToUi()
+  expandSvgUses(svg)
+
+  const css = collectCssText(document, svg)
+  const tracks = parseCssKeyframeTracks(css)
+
+  if (tracks.size === 0) {
+    options?.onProgress?.({ stage: 'importing' })
+    await yieldToUi()
+    return importSvgAsProject(svg.outerHTML, { staticOnly: true })
   }
 
-  return tracks
-}
+  options?.onProgress?.({ stage: 'importing' })
+  await yieldToUi()
 
-export function applyCssTransformToShape(shape: Shape, transformCss: string): Shape {
-  const rotationMatch = transformCss.match(/rotate\(([-0-9.]+)deg\)/)
-  const scaleMatch = transformCss.match(/scale\(([-0-9.]+)\)/)
-  const rotation = rotationMatch ? Number.parseFloat(rotationMatch[1]!) : shape.rotation
-  const scale = scaleMatch ? Number.parseFloat(scaleMatch[1]!) : shape.scale
-  const translates = [
-    ...transformCss.matchAll(/translate\(([-0-9.]+)px,\s*([-0-9.]+)px\)/g),
-  ]
-
-  if (shape.type === 'rect' && translates.length >= 2) {
-    const centerX = Number.parseFloat(translates[0]![1]!)
-    const centerY = Number.parseFloat(translates[0]![2]!)
-    return {
-      ...shape,
-      x: centerX - shape.width / 2,
-      y: centerY - shape.height / 2,
-      rotation,
-      scale,
-    }
+  const staticImported = importSvg(svg.outerHTML)
+  if (!staticImported) {
+    return null
   }
 
-  if (translates.length >= 1) {
-    return {
-      ...shape,
-      x: Number.parseFloat(translates[0]![1]!),
-      y: Number.parseFloat(translates[0]![2]!),
-      rotation,
-      scale,
-    }
-  }
+  const baseProject = svgImportToProject(staticImported)
 
-  return {
-    ...shape,
-    rotation,
-    scale,
-  }
-}
+  options?.onProgress?.({ stage: 'animating' })
+  await yieldToUi()
 
-function resolveShapeElement(element: Element): Element | null {
-  const tag = element.tagName.toLowerCase()
-  if (tag === 'g') {
-    return element.querySelector('rect, circle, ellipse, path, text, line, polyline, polygon')
-  }
-
-  return element
-}
-
-function shapeAtStep(baseShape: Shape, step: CssKeyframeStep): Shape {
-  let next: Shape = { ...baseShape }
-
-  if (step.transform) {
-    next = applyCssTransformToShape(next, step.transform)
-  }
-
-  if (step.opacity !== undefined && Number.isFinite(step.opacity)) {
-    next = { ...next, opacity: step.opacity }
-  }
-
-  if (step.fill) {
-    next = { ...next, fill: step.fill }
-  }
-
-  if (step.stroke) {
-    next = { ...next, stroke: step.stroke }
-  }
-
-  return next
-}
-
-function addKeyframe(
-  keyframes: Keyframe[],
-  time: number,
-  property: AnimatableProperty,
-  value: number | string,
-) {
-  const existing = keyframes.find(
-    (keyframe) => keyframe.time === time && keyframe.property === property,
+  const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
+    svg,
+    css,
+    baseProject.artboards[0]!.id,
+    {
+      parseShape: parseShapeElement,
+      createLayer: (shape, index, artboardId, name, keyframes) => ({
+        ...createLayerFromShape(shape, index, artboardId, name),
+        keyframes,
+      }),
+      onProgress: (current, total) => {
+        options?.onProgress?.({ stage: 'animating', current, total })
+      },
+    },
   )
-  if (existing) {
-    existing.value = value
-    return
+
+  if (animatedLayers.length === 0) {
+    return baseProject
   }
 
-  keyframes.push({
-    id: createId(),
-    time,
-    property,
-    value,
-    easing: 'linear',
-  })
-}
+  options?.onProgress?.({ stage: 'merging' })
+  await yieldToUi()
 
-function buildLayerFromTrack(
-  element: Element,
-  className: string,
-  track: CssAnimationTrack,
-  index: number,
-  artboardId: string,
-): Layer | null {
-  const shapeElement = resolveShapeElement(element)
-  if (!shapeElement) {
-    return null
-  }
-
-  const parsedShape = parseShapeElement(shapeElement)
-  if (!parsedShape) {
-    return null
-  }
-
-  const keyframes: Keyframe[] = []
-  const sampledShapes = track.steps.map((step) => shapeAtStep(parsedShape, step))
-
-  track.steps.forEach((step, stepIndex) => {
-    const time = (step.percent / 100) * track.duration
-    const shape = sampledShapes[stepIndex]!
-    addKeyframe(keyframes, time, 'x', shape.x)
-    addKeyframe(keyframes, time, 'y', shape.y)
-    addKeyframe(keyframes, time, 'rotation', shape.rotation)
-    addKeyframe(keyframes, time, 'scale', shape.scale)
-    addKeyframe(keyframes, time, 'opacity', shape.opacity)
-    addKeyframe(keyframes, time, 'fill', shape.fill)
-    addKeyframe(keyframes, time, 'stroke', shape.stroke)
-  })
-
-  const firstStep = track.steps[0] ?? { percent: 0 }
-  const initialShape = shapeAtStep(parsedShape, firstStep)
+  const resolvedDuration =
+    cssDuration > 0 ? cssDuration : baseProject.duration > 0 ? baseProject.duration : 3
 
   return {
-    ...createLayerFromShape(
-      { ...initialShape, id: createId() },
-      index,
-      artboardId,
-      element.getAttribute('id') || className || `Layer ${index + 1}`,
-    ),
-    keyframes,
+    ...baseProject,
+    duration: resolvedDuration,
+    loopOut: resolvedDuration,
+    layers: mergeAnimatedKeyframesIntoStaticLayers(baseProject.layers, animatedLayers),
   }
-}
-
-function findAnimatedElement(svg: SVGSVGElement, className: string): Element | null {
-  const escaped = className.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const pattern = new RegExp(`(?:^|\\s)${escaped}(?:\\s|$)`)
-  const candidates = svg.querySelectorAll('[class]')
-
-  for (const candidate of candidates) {
-    const classes = candidate.getAttribute('class') ?? ''
-    if (pattern.test(classes)) {
-      return candidate
-    }
-  }
-
-  return null
 }
 
 export function importHtmlAnimation(raw: string): Project | null {
@@ -307,46 +162,46 @@ export function importHtmlAnimation(raw: string): Project | null {
     return null
   }
 
+  expandSvgUses(svg)
+
   const css = collectCssText(document, svg)
   const tracks = parseCssKeyframeTracks(css)
 
   if (tracks.size === 0) {
-    return importSvgAsProject(svg.outerHTML)
+    return importSvgAsProject(svg.outerHTML, { staticOnly: true })
   }
 
-  const artboard = createArtboard(readArtboard(svg))
-  const layers: Layer[] = []
-  let duration = 0
-  let index = 0
-
-  for (const [className, track] of tracks) {
-    const element = findAnimatedElement(svg, className)
-    if (!element) {
-      continue
-    }
-
-    const layer = buildLayerFromTrack(element, className, track, index, artboard.id)
-    if (!layer) {
-      continue
-    }
-
-    duration = Math.max(duration, track.duration)
-    layers.push(layer)
-    index += 1
-  }
-
-  if (layers.length === 0) {
+  const staticImported = importSvg(svg.outerHTML)
+  if (!staticImported) {
     return null
   }
 
-  const resolvedDuration = duration > 0 ? duration : 3
+  const baseProject = svgImportToProject(staticImported)
+  const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
+    svg,
+    css,
+    baseProject.artboards[0]!.id,
+    {
+      parseShape: parseShapeElement,
+      createLayer: (shape, index, artboardId, name, keyframes) => ({
+        ...createLayerFromShape(shape, index, artboardId, name),
+        keyframes,
+      }),
+    },
+  )
+
+  if (animatedLayers.length === 0) {
+    return baseProject
+  }
+
+  const resolvedDuration =
+    cssDuration > 0 ? cssDuration : baseProject.duration > 0 ? baseProject.duration : 3
 
   return {
-    ...createDefaultProject(),
-    artboards: [artboard],
+    ...baseProject,
     duration: resolvedDuration,
     loopOut: resolvedDuration,
-    layers,
+    layers: mergeAnimatedKeyframesIntoStaticLayers(baseProject.layers, animatedLayers),
   }
 }
 
@@ -364,7 +219,10 @@ export function isJavaScriptBundlerHtml(raw: string): boolean {
   )
 }
 
-export async function readHtmlImportFromFile(file: File): Promise<OpenHtmlFileResult> {
+export async function readHtmlImportFromFile(
+  file: File,
+  options?: HtmlImportOptions,
+): Promise<OpenHtmlFileResult> {
   try {
     const text = await file.text()
     if (!isHtmlFile(file) && !looksLikeHtmlText(text)) {
@@ -375,7 +233,7 @@ export async function readHtmlImportFromFile(file: File): Promise<OpenHtmlFileRe
       return { status: 'rejected', fileName: file.name, reason: 'bundler' }
     }
 
-    const value = importHtmlAnimation(text)
+    const value = await importHtmlAnimationAsync(text, options)
     if (!value) {
       return { status: 'rejected', fileName: file.name, reason: 'invalid' }
     }

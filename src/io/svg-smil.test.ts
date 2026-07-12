@@ -19,7 +19,8 @@ describe('svg smil import', () => {
     const imported = importSvg(svg)
     const layer = imported?.layers[0]
 
-    expect(layer?.keyframes.some((keyframe) => keyframe.property === 'scale')).toBe(true)
+    expect(layer?.keyframes.some((keyframe) => keyframe.property === 'scaleX')).toBe(true)
+    expect(layer?.keyframes.some((keyframe) => keyframe.property === 'scaleY')).toBe(true)
     expect(imported?.duration).toBe(2)
   })
 

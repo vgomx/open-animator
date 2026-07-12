@@ -37,13 +37,14 @@ describe('samplePropertyAtTime', () => {
     expect(samplePropertyAtTime(keyframes, 'opacity', 1, 1)).toBe(0.75)
   })
 
-  it('interpolates rotation keyframes', () => {
+  it('steps to the next value at the end of a hold segment', () => {
     const keyframes: Keyframe[] = [
-      { id: 'a', time: 0, property: 'rotation', value: 0 },
-      { id: 'b', time: 2, property: 'rotation', value: 90 },
+      { id: 'a', time: 0, property: 'scaleX', value: 1, easing: 'hold' },
+      { id: 'b', time: 0.5, property: 'scaleX', value: 1.2 },
     ]
 
-    expect(samplePropertyAtTime(keyframes, 'rotation', 1, 0)).toBe(45)
+    expect(samplePropertyAtTime(keyframes, 'scaleX', 0.25, 1)).toBe(1)
+    expect(samplePropertyAtTime(keyframes, 'scaleX', 0.5, 1)).toBe(1.2)
   })
 })
 

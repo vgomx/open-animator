@@ -17,14 +17,14 @@ export function getShapeBounds(shape: Shape): ShapeBounds {
     return {
       x: shape.x,
       y: shape.y,
-      width: shape.width * shape.scale,
-      height: shape.height * shape.scale,
+      width: shape.width * shape.scaleX,
+      height: shape.height * shape.scaleY,
     }
   }
 
   if (shape.type === 'text') {
-    const width = estimateTextWidth(shape.text, shape.fontSize) * shape.scale
-    const height = shape.fontSize * 1.2 * shape.scale
+    const width = estimateTextWidth(shape.text, shape.fontSize) * (shape.scaleX || 1)
+    const height = shape.fontSize * 1.2 * shape.scaleY
     return {
       x: shape.x,
       y: shape.y - height,
@@ -51,21 +51,24 @@ export function getShapeBounds(shape: Shape): ShapeBounds {
     const minY = Math.min(...ys)
     const maxX = Math.max(...xs)
     const maxY = Math.max(...ys)
+    const offsetX = shape.localCoords ? 0 : shape.x
+    const offsetY = shape.localCoords ? 0 : shape.y
+
     return {
-      x: minX,
-      y: minY,
+      x: minX + offsetX,
+      y: minY + offsetY,
       width: maxX - minX,
       height: maxY - minY,
     }
   }
 
   if (shape.type === 'ellipse') {
-    const width = shape.rx * 2 * shape.scale
-    const height = shape.ry * 2 * shape.scale
+    const width = shape.rx * 2 * shape.scaleX
+    const height = shape.ry * 2 * shape.scaleY
 
     return {
-      x: shape.x - shape.rx * shape.scale,
-      y: shape.y - shape.ry * shape.scale,
+      x: shape.x - shape.rx * shape.scaleX,
+      y: shape.y - shape.ry * shape.scaleY,
       width,
       height,
     }
@@ -86,7 +89,7 @@ export function applyResize(
   const minSize = 16
 
   if (shape.type === 'text') {
-    const scale = shape.scale || 1
+    const scaleY = shape.scaleY || 1
     let left = anchor.x
     let top = anchor.y
     let right = anchor.x + anchor.width
@@ -106,7 +109,7 @@ export function applyResize(
     }
 
     const nextHeight = bottom - top
-    const fontSize = Math.max(12, nextHeight / 1.2 / scale)
+    const fontSize = Math.max(12, nextHeight / 1.2 / scaleY)
 
     return {
       x: left,
@@ -134,13 +137,14 @@ export function applyResize(
       bottom = Math.max(pointerY, top + minSize)
     }
 
-    const scale = shape.scale || 1
+    const scaleX = shape.scaleX || 1
+    const scaleY = shape.scaleY || 1
 
     return {
       x: left,
       y: top,
-      width: (right - left) / scale,
-      height: (bottom - top) / scale,
+      width: (right - left) / scaleX,
+      height: (bottom - top) / scaleY,
     }
   }
 
@@ -163,15 +167,16 @@ export function applyResize(
       bottom = Math.max(pointerY, top + minSize)
     }
 
-    const scale = shape.scale || 1
+    const scaleX = shape.scaleX || 1
+    const scaleY = shape.scaleY || 1
     const centerX = (left + right) / 2
     const centerY = (top + bottom) / 2
 
     return {
       x: centerX,
       y: centerY,
-      rx: (right - left) / 2 / scale,
-      ry: (bottom - top) / 2 / scale,
+      rx: (right - left) / 2 / scaleX,
+      ry: (bottom - top) / 2 / scaleY,
     }
   }
 

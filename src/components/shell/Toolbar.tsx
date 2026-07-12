@@ -62,7 +62,7 @@ import { downloadGif } from '@/io/gif-export'
 import { downloadCssKeyframes } from '@/io/css-export'
 import { downloadReactComponent } from '@/io/react-export'
 import { downloadAnimatedHtml } from '@/io/embed-export'
-import { readHtmlImportFromFile } from '@/io/html-import'
+import { readHtmlImportFromFile, formatHtmlImportProgress } from '@/io/html-import'
 import { dismissToast, showToast, updateToast } from '@/lib/toast'
 
 const LottieDialog = lazy(() =>
@@ -89,6 +89,8 @@ export function Toolbar() {
   const [lottiePreviewData, setLottiePreviewData] = useState<object | null>(null)
   const [isExporting, setIsExporting] = useState(false)
   const [isImportingSvg, setIsImportingSvg] = useState(false)
+  const [isImportingHtml, setIsImportingHtml] = useState(false)
+  const isImporting = isImportingSvg || isImportingHtml
   const project = useEditorStore((state) => state.project)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
   const playbackState = useEditorStore((state) => state.playbackState)
@@ -281,34 +283,61 @@ export function Toolbar() {
       return
     }
 
-    const result = await readHtmlImportFromFile(file)
-    if (result.status !== 'ok') {
-      if (result.status === 'rejected') {
-        if (result.reason === 'bundler') {
-          showToast({
-            title: 'JavaScript bundle not supported',
-            description:
-              'This HTML file animates with JavaScript at runtime (e.g. a map or interactive bundle). Open Animator imports CSS @keyframes or SVG SMIL only. Export animated SVG or Lottie from the source instead.',
-            variant: 'error',
-          })
-        } else {
-          showToast({
-            title: 'Not an HTML file',
-            description: `"${result.fileName}" is not a supported HTML animation. Choose a .html or .htm file.`,
-            variant: 'error',
-          })
-        }
-      }
-      return
-    }
-
-    setProject(result.value)
-    requestAnimationFrame(fitCanvasToScreen)
-    showToast({
-      title: 'HTML animation opened',
-      description: `Loaded ${result.value.layers.length} animated layer${result.value.layers.length === 1 ? '' : 's'} as a new project.`,
-      variant: 'success',
+    setIsImportingHtml(true)
+    const toastId = showToast({
+      title: 'Importing HTML',
+      description: formatHtmlImportProgress({ stage: 'parsing' }),
+      variant: 'loading',
     })
+
+    try {
+      const result = await readHtmlImportFromFile(file, {
+        onProgress: (progress) => {
+          updateToast(toastId, {
+            description: formatHtmlImportProgress(progress),
+          })
+        },
+      })
+
+      dismissToast(toastId)
+
+      if (result.status !== 'ok') {
+        if (result.status === 'rejected') {
+          if (result.reason === 'bundler') {
+            showToast({
+              title: 'JavaScript bundle not supported',
+              description:
+                'This HTML file animates with JavaScript at runtime (e.g. a map or interactive bundle). Open Animator imports CSS @keyframes or SVG SMIL only. Export animated SVG or Lottie from the source instead.',
+              variant: 'error',
+            })
+          } else {
+            showToast({
+              title: 'Not an HTML file',
+              description: `"${result.fileName}" is not a supported HTML animation. Choose a .html or .htm file.`,
+              variant: 'error',
+            })
+          }
+        }
+        return
+      }
+
+      setProject(result.value)
+      requestAnimationFrame(fitCanvasToScreen)
+      showToast({
+        title: 'HTML animation opened',
+        description: `Loaded ${result.value.layers.length} layer${result.value.layers.length === 1 ? '' : 's'} as a new project.`,
+        variant: 'success',
+      })
+    } catch (error) {
+      updateToast(toastId, {
+        title: 'HTML import failed',
+        description:
+          error instanceof Error ? error.message : 'Something went wrong while importing.',
+        variant: 'error',
+      })
+    } finally {
+      setIsImportingHtml(false)
+    }
   }
 
   const handleLottieFileSelection = async (file: File | undefined) => {
@@ -715,7 +744,7 @@ export function Toolbar() {
             <Tooltip>
               <TooltipTrigger asChild>
                 <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="icon-sm" disabled={isImportingSvg}>
+                  <Button variant="ghost" size="icon-sm" disabled={isImporting}>
                     <FileUp />
                   </Button>
                 </DropdownMenuTrigger>

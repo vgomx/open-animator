@@ -1,9 +1,12 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 
+import { createLayerFromShape } from '@/editor/scene'
+import { buildLayersFromCssTracks } from '@/io/css-keyframes'
 import {
   importSvg,
   importSvgAsProject,
+  parseShapeElement,
   parseSvgColor,
   parseSvgPathData,
   svgImportToProject,
@@ -218,5 +221,104 @@ describe('svg import', () => {
     expect(layer?.shape.stroke).toBe('#00ff00')
     expect(layer?.shape.strokeWidth).toBe(2)
     expect(layer?.shape.opacity).toBe(0.7)
+  })
+
+  it('expands use elements into concrete shapes', () => {
+    const svg = `
+      <svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <g id="tile">
+            <rect x="0" y="0" width="50" height="40" fill="#22d3ee" />
+            <circle cx="80" cy="20" r="12" fill="#6366f1" />
+          </g>
+        </defs>
+        <g>
+          <use href="#tile" x="0" />
+          <use href="#tile" x="200" />
+        </g>
+      </svg>
+    `
+
+    const imported = importSvg(svg)
+
+    expect(imported).not.toBeNull()
+    expect(imported?.layers).toHaveLength(4)
+    expect(imported?.layers.some((layer) => layer.shape.type === 'rect')).toBe(true)
+    expect(imported?.layers.some((layer) => layer.shape.type === 'ellipse')).toBe(true)
+  })
+
+  it('builds css animation layers for standalone svg markup', () => {
+    const markup = `
+      <svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .mover { animation: drift 2s linear infinite; }
+          @keyframes drift {
+            from { transform: translateX(0px); }
+            to { transform: translateX(120px); }
+          }
+        </style>
+        <rect class="mover" x="10" y="20" width="60" height="40" fill="#f97316" />
+      </svg>
+    `
+    const document = new DOMParser().parseFromString(markup, 'image/svg+xml')
+    const svg = document.documentElement
+
+    const { layers } = buildLayersFromCssTracks(svg, svg.querySelector('style')!.textContent!, 'artboard', {
+      parseShape: parseShapeElement,
+      createLayer: (shape, index, artboardId, name, keyframes) => ({
+        ...createLayerFromShape(shape, index, artboardId, name),
+        keyframes,
+      }),
+    })
+
+    expect(layers).toHaveLength(1)
+    expect(layers[0]?.keyframes.some((keyframe) => keyframe.property === 'x')).toBe(true)
+  })
+
+  it('imports svg with css keyframe animations', () => {
+    const svg = `
+      <svg viewBox="0 0 400 200" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .mover { animation: drift 2s linear infinite; }
+          @keyframes drift {
+            from { transform: translateX(0px); }
+            to { transform: translateX(120px); }
+          }
+        </style>
+        <rect class="mover" x="10" y="20" width="60" height="40" fill="#f97316" />
+      </svg>
+    `
+
+    const project = importSvgAsProject(svg)
+
+    expect(project).not.toBeNull()
+    expect(project?.layers.length).toBeGreaterThan(0)
+    expect(project?.duration).toBeGreaterThanOrEqual(2)
+    expect(project?.layers.some((layer) => layer.keyframes.some((keyframe) => keyframe.property === 'x'))).toBe(
+      true,
+    )
+  })
+
+  it('imports svg with inherited group styles via parseShapeElement', () => {
+    const svg = `
+      <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+        <style>
+          .spin { animation: spin 1s linear infinite; }
+          @keyframes spin { to { transform: rotate(360deg); } }
+        </style>
+        <g fill="#fafafa" stroke="#141416" stroke-width="2">
+          <circle class="spin" cx="100" cy="100" r="20"/>
+        </g>
+      </svg>
+    `
+
+    const staticProject = importSvgAsProject(svg.replace(/<style>[\s\S]*<\/style>/, ''), {
+      staticOnly: true,
+    })
+    const animatedProject = importSvgAsProject(svg)
+
+    expect(staticProject?.layers[0]?.shape.fill).toBe('#fafafa')
+    expect(staticProject?.layers[0]?.shape.stroke).toBe('#141416')
+    expect(animatedProject?.layers.some((layer) => layer.keyframes.length > 0)).toBe(true)
   })
 })

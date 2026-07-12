@@ -117,6 +117,10 @@ function sampleSegmentValue(
       }
 
       const progress = (time - current.time) / span
+      if (current.easing === 'hold') {
+        return time < next.time ? (current.value as number) : (next.value as number)
+      }
+
       const eased = applyEasing(progress, current.easing, current.bezier)
       return interpolate(current, next, eased)
     }
@@ -340,7 +344,8 @@ export function getAnimatedShape(layer: Layer, time: number): Shape {
     y: sampleNumeric('y', shape.y),
     rotation: sampleNumeric('rotation', shape.rotation),
     opacity: sampleNumeric('opacity', shape.opacity),
-    scale: sampleNumeric('scale', shape.scale),
+    scaleX: sampleNumeric('scaleX', shape.scaleX),
+    scaleY: sampleNumeric('scaleY', shape.scaleY),
     fill: sampleColor('fill', shape.fill),
     stroke: sampleColor('stroke', shape.stroke),
   }

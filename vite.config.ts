@@ -56,12 +56,11 @@ export default defineConfig({
         ],
       },
       workbox: {
-        globPatterns: [],
+        globPatterns: ['**/*.{ico,png,svg,webmanifest}'],
         navigateFallback: null,
-        runtimeCaching: [],
       },
       devOptions: {
-        enabled: true,
+        enabled: false,
         type: 'module',
       },
     }),

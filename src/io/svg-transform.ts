@@ -97,7 +97,8 @@ export function decomposeMatrix(matrix: AffineMatrix): {
   x: number
   y: number
   rotation: number
-  scale: number
+  scaleX: number
+  scaleY: number
 } {
   const x = matrix.e
   const y = matrix.f
@@ -109,7 +110,8 @@ export function decomposeMatrix(matrix: AffineMatrix): {
     x,
     y,
     rotation,
-    scale: (scaleX + scaleY) / 2,
+    scaleX,
+    scaleY,
   }
 }
 

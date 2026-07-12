@@ -70,8 +70,10 @@ function smokeKeyframes(baseY: number): Keyframe[] {
     { id: createId(), time: DURATION, property: 'y', value: baseY - 120, easing: 'easeOut' },
     { id: createId(), time: 0, property: 'opacity', value: 0.75, easing: 'linear' },
     { id: createId(), time: DURATION, property: 'opacity', value: 0, easing: 'linear' },
-    { id: createId(), time: 0, property: 'scale', value: 0.6, easing: 'easeOut' },
-    { id: createId(), time: DURATION, property: 'scale', value: 1.4, easing: 'easeOut' },
+    { id: createId(), time: 0, property: 'scaleX', value: 0.6, easing: 'easeOut' },
+    { id: createId(), time: DURATION, property: 'scaleX', value: 1.4, easing: 'easeOut' },
+    { id: createId(), time: 0, property: 'scaleY', value: 0.6, easing: 'easeOut' },
+    { id: createId(), time: DURATION, property: 'scaleY', value: 1.4, easing: 'easeOut' },
   ]
 }
 
@@ -95,7 +97,8 @@ function rectLayer(spec: RectSpec): LayerDraft {
       stroke: spec.stroke ?? 'none',
       strokeWidth: spec.stroke ? 2 : 0,
       opacity: 1,
-      scale: 1,
+      scaleX: 1,
+      scaleY: 1,
     },
     keyframes: spec.keyframes ?? [],
   }
@@ -119,7 +122,8 @@ function ellipseLayer(spec: EllipseSpec): LayerDraft {
       stroke: spec.stroke ?? 'none',
       strokeWidth: spec.stroke ? 2 : 0,
       opacity: spec.opacity ?? 1,
-      scale: 1,
+      scaleX: 1,
+      scaleY: 1,
     },
     keyframes: spec.keyframes ?? [],
   }

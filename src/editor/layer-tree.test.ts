@@ -25,7 +25,7 @@ function makeLayer(id: string, groupId: string | null = null): Layer {
       width: 10,
       height: 10,
       rotation: 0,
-      scale: 1,
+      scaleX: 1, scaleY: 1,
       opacity: 1,
       fill: '#000000',
       stroke: 'none',

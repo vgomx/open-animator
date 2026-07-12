@@ -1,7 +1,8 @@
-import { createId } from '@/editor/scene'
-import { getShapeBounds } from '@/editor/bounds'
+import type { Keyframe, Layer, Project } from '@/editor/types'
 import { getExportArtboard } from '@/editor/artboard-utils'
-import type { Keyframe, Layer, Project, Shape } from '@/editor/types'
+import { getShapeBounds } from '@/editor/bounds'
+import { createId } from '@/editor/scene'
+import type { Keyframe as Kf } from '@/editor/types'
 
 export type PresetId =
   | 'bounce'
@@ -46,15 +47,27 @@ export const ANIMATION_PRESETS: AnimationPreset[] = [
 
 function kf(
   time: number,
-  property: Keyframe['property'],
+  property: Kf['property'],
   value: number | string,
-  easing: Keyframe['easing'] = 'easeInOut',
+  easing: Kf['easing'] = 'easeInOut',
 ): Keyframe {
   return { id: createId(), time, property, value, easing }
 }
 
-function sampleShape(layer: Layer): Shape {
+function sampleShape(layer: Layer) {
   return layer.shape
+}
+
+function uniformScaleKeyframes(
+  time: number,
+  scaleX: number,
+  scaleY: number,
+  easing: Kf['easing'] = 'easeInOut',
+): Keyframe[] {
+  return [
+    kf(time, 'scaleX', scaleX, easing),
+    kf(time, 'scaleY', scaleY, easing),
+  ]
 }
 
 export function generatePresetKeyframes(
@@ -75,12 +88,16 @@ export function generatePresetKeyframes(
   switch (presetId) {
     case 'bounce': {
       const floor = artboard.height - bounds.height - 40
+      const impactTime = midTime
+      const recoverTime = midTime + duration * 0.08
+      const squashX = shape.scaleX * (1 + 0.14 * intensity)
+      const squashY = shape.scaleY * (1 - 0.28 * intensity)
       return [
         kf(startTime, 'y', shape.y, 'easeOut'),
-        kf(midTime, 'y', floor, 'bounce'),
+        kf(impactTime, 'y', floor, 'easeIn'),
+        ...uniformScaleKeyframes(impactTime, squashX, squashY, 'easeOut'),
+        ...uniformScaleKeyframes(recoverTime, shape.scaleX, shape.scaleY, 'easeInOut'),
         kf(endTime, 'y', floor - 30 * intensity, 'bounce'),
-        kf(endTime, 'scale', shape.scale, 'easeOut'),
-        kf(midTime, 'scale', shape.scale * (1 + 0.08 * intensity), 'easeIn'),
       ]
     }
     case 'fadeIn':
@@ -115,9 +132,14 @@ export function generatePresetKeyframes(
       ]
     case 'pulse':
       return [
-        kf(startTime, 'scale', shape.scale, 'easeInOut'),
-        kf(midTime, 'scale', shape.scale * (1 + 0.15 * intensity), 'easeInOut'),
-        kf(endTime, 'scale', shape.scale, 'easeInOut'),
+        ...uniformScaleKeyframes(startTime, shape.scaleX, shape.scaleY, 'easeInOut'),
+        ...uniformScaleKeyframes(
+          midTime,
+          shape.scaleX * (1 + 0.15 * intensity),
+          shape.scaleY * (1 + 0.15 * intensity),
+          'easeInOut',
+        ),
+        ...uniformScaleKeyframes(endTime, shape.scaleX, shape.scaleY, 'easeInOut'),
       ]
     case 'spin':
       return [
@@ -126,9 +148,14 @@ export function generatePresetKeyframes(
       ]
     case 'pop':
       return [
-        kf(startTime, 'scale', shape.scale * 0.6, 'easeOut'),
-        kf(startTime + duration * 0.35, 'scale', shape.scale * (1 + 0.2 * intensity), 'easeOut'),
-        kf(endTime, 'scale', shape.scale, 'spring'),
+        ...uniformScaleKeyframes(startTime, shape.scaleX * 0.6, shape.scaleY * 0.6, 'easeOut'),
+        ...uniformScaleKeyframes(
+          startTime + duration * 0.35,
+          shape.scaleX * (1 + 0.2 * intensity),
+          shape.scaleY * (1 + 0.2 * intensity),
+          'easeOut',
+        ),
+        ...uniformScaleKeyframes(endTime, shape.scaleX, shape.scaleY, 'spring'),
       ]
     case 'shake': {
       const amount = 8 * intensity

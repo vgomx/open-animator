@@ -6,6 +6,7 @@ import {
   PROJECT_VERSION,
 } from '@/editor/types'
 import { createId } from '@/editor/scene'
+import { migrateScaleKeyframes, normalizeShapeScale } from '@/editor/scale'
 
 type LegacyKeyframe = Omit<Keyframe, 'easing' | 'value'> & {
   easing?: Keyframe['easing']
@@ -312,9 +313,33 @@ function normalizeProject(project: Project): Project {
 function migrateV10toV11(project: Project): Project {
   return {
     ...project,
-    version: PROJECT_VERSION,
+    version: 11 as unknown as Project['version'],
     importedSvg: project.importedSvg,
     layerGroups: project.layerGroups,
+  }
+}
+
+function migrateV11toV12(project: Project): Project {
+  return {
+    ...project,
+    version: PROJECT_VERSION,
+    layers: project.layers.map((layer) => ({
+      ...layer,
+      shape: normalizeShapeScale(layer.shape),
+      keyframes: migrateScaleKeyframes(layer.keyframes),
+    })),
+    states: project.states.map((state) => ({
+      ...state,
+      snapshots: state.snapshots.map((snapshot) => {
+        const legacyScale = (snapshot as { scale?: number }).scale ?? 1
+        const { scale: _legacyScale, ...rest } = snapshot as typeof snapshot & { scale?: number }
+        return {
+          ...rest,
+          scaleX: snapshot.scaleX ?? legacyScale,
+          scaleY: snapshot.scaleY ?? legacyScale,
+        }
+      }),
+    })),
   }
 }
 
@@ -358,7 +383,11 @@ export function migrateProject(parsed: LegacyProject): Project {
   }
 
   if (project.version === 10) {
-    return migrateV10toV11(project as Project)
+    project = migrateV10toV11(project as Project) as LegacyProject
+  }
+
+  if (project.version === 11) {
+    return migrateV11toV12(project as Project)
   }
 
   if (project.version === PROJECT_VERSION) {

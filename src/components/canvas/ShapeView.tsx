@@ -50,7 +50,8 @@ function shapePropsEqual(previous: Shape, next: Shape): boolean {
     previous.y !== next.y ||
     previous.rotation !== next.rotation ||
     previous.opacity !== next.opacity ||
-    previous.scale !== next.scale ||
+    previous.scaleX !== next.scaleX ||
+    previous.scaleY !== next.scaleY ||
     previous.fill !== next.fill ||
     previous.stroke !== next.stroke ||
     previous.strokeWidth !== next.strokeWidth
