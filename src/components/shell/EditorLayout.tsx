@@ -1,17 +1,28 @@
 import { useEffect, useState } from 'react'
 
 import { ActivityRail } from '@/components/shell/ActivityRail'
+import type { ActivityView } from '@/components/shell/activity-view'
+import { FilesView } from '@/components/shell/FilesView'
 import { Stage } from '@/components/canvas/Stage'
 import { KeyboardShortcutsDialog } from '@/components/shell/KeyboardShortcutsDialog'
 import { KeyboardShortcuts } from '@/components/shell/KeyboardShortcuts'
 import { LayersPanel } from '@/components/shell/LayersPanel'
 import { PropertiesPanel } from '@/components/shell/PropertiesPanel'
 import { Toolbar } from '@/components/shell/Toolbar'
+import { DocumentTabBar } from '@/components/shell/DocumentTabBar'
+import { AboutDialog } from '@/components/shell/AboutDialog'
+import { AcknowledgmentsDialog } from '@/components/shell/AcknowledgmentsDialog'
+import { WelcomeDialog, type WelcomeDismissAction } from '@/components/shell/WelcomeDialog'
 import { UiZoomGuard } from '@/components/shell/UiZoomGuard'
 import { Timeline } from '@/components/timeline/Timeline'
 import { useEditorStore } from '@/editor/store'
+import { createDefaultProject } from '@/editor/scene'
+import type { Project } from '@/editor/types'
 import { consumeStaleImportClearNotice } from '@/io/project'
+import { deriveProjectName, getRecentFiles } from '@/io/recent-files'
 import { STORAGE_KEYS } from '@/lib/app'
+import { loadEditorPreferences, saveEditorPreferences } from '@/lib/preferences'
+import { getShellPanelRevealCompleteMs } from '@/lib/shell-reveal'
 import { showToast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -20,6 +31,92 @@ const LARGE_PROJECT_NOTICE_KEY = `${STORAGE_KEYS.project}:large-notice`
 export function EditorLayout() {
   const [shortcutsOpen, setShortcutsOpen] = useState(false)
   const [shellRevealed, setShellRevealed] = useState(false)
+  const [welcomeOpen, setWelcomeOpen] = useState(false)
+  const [aboutOpen, setAboutOpen] = useState(false)
+  const [acknowledgmentsOpen, setAcknowledgmentsOpen] = useState(false)
+  const [activeView, setActiveView] = useState<ActivityView>('editor')
+  const setProject = useEditorStore((state) => state.setProject)
+  const activeRecentFileId = useEditorStore((state) => state.activeRecentFileId)
+  const project = useEditorStore((state) => state.project)
+
+  const resumeDocumentName = (() => {
+    const recent = getRecentFiles().find((entry) => entry.id === activeRecentFileId)
+    return recent?.name ?? deriveProjectName(project)
+  })()
+
+  const handleWelcomeDismiss = (action: WelcomeDismissAction, dontShowAgain: boolean) => {
+    if (dontShowAgain) {
+      saveEditorPreferences({ skipWelcomeModal: true })
+    }
+
+    if (action === 'new') {
+      startNewProject()
+    }
+
+    setWelcomeOpen(false)
+  }
+
+  const openProjectFromFiles = (project: Project, recentFileId: string) => {
+    const viewport = document.querySelector('[data-stage-viewport]')?.getBoundingClientRect()
+    setProject(project, {
+      ...(recentFileId ? { recentFileId } : { isNewRecentFile: true }),
+      fitViewport: viewport ?? undefined,
+      clearLayerSelection: true,
+    })
+    setActiveView('editor')
+  }
+
+  const startNewProject = () => {
+    const viewport = document.querySelector('[data-stage-viewport]')?.getBoundingClientRect()
+    setProject(createDefaultProject(), {
+      isNewRecentFile: true,
+      fitViewport: viewport ?? undefined,
+      clearLayerSelection: true,
+    })
+    setActiveView('editor')
+  }
+
+  useEffect(() => {
+    if (!shellRevealed || activeView !== 'editor' || loadEditorPreferences().skipWelcomeModal) {
+      return
+    }
+
+    const panel = document.querySelector('.editor-shell__panel--left')
+    const revealCompleteMs = getShellPanelRevealCompleteMs()
+
+    const openWelcome = () => {
+      setWelcomeOpen(true)
+    }
+
+    if (!panel || revealCompleteMs === 0) {
+      openWelcome()
+      return
+    }
+
+    let opened = false
+    const openOnce = () => {
+      if (opened) {
+        return
+      }
+
+      opened = true
+      openWelcome()
+    }
+
+    const onTransitionEnd = (event: TransitionEvent) => {
+      if (event.propertyName === 'width') {
+        openOnce()
+      }
+    }
+
+    panel.addEventListener('transitionend', onTransitionEnd)
+    const fallbackTimer = window.setTimeout(openOnce, revealCompleteMs + 80)
+
+    return () => {
+      panel.removeEventListener('transitionend', onTransitionEnd)
+      window.clearTimeout(fallbackTimer)
+    }
+  }, [shellRevealed, activeView])
 
   useEffect(() => {
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
@@ -108,17 +205,46 @@ export function EditorLayout() {
     >
       <UiZoomGuard />
       <KeyboardShortcuts onOpenShortcuts={() => setShortcutsOpen(true)} />
-      <ActivityRail onOpenShortcuts={() => setShortcutsOpen(true)} />
-      <div className="editor-shell__main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
-        <Toolbar className="editor-shell__toolbar" />
-        <div className="editor-shell__stage relative min-h-0 flex-1 overflow-hidden">
-          <Stage />
-          <LayersPanel className="editor-shell__panel editor-shell__panel--left" />
-          <PropertiesPanel className="editor-shell__panel editor-shell__panel--right" />
+      <ActivityRail
+        activeView={activeView}
+        onViewChange={setActiveView}
+        onOpenShortcuts={() => setShortcutsOpen(true)}
+        onOpenAbout={() => setAboutOpen(true)}
+      />
+      {activeView === 'files' ? (
+        <FilesView
+          activeRecentFileId={activeRecentFileId}
+          onOpenProject={openProjectFromFiles}
+          onStartNewProject={startNewProject}
+        />
+      ) : (
+        <div className="editor-shell__main flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden">
+          <Toolbar className="editor-shell__toolbar" />
+          <DocumentTabBar className="editor-shell__tabs" />
+          <div className="editor-shell__stage relative min-h-0 flex-1 overflow-hidden">
+            <Stage />
+            <LayersPanel className="editor-shell__panel editor-shell__panel--left" />
+            <PropertiesPanel className="editor-shell__panel editor-shell__panel--right" />
+          </div>
+          <Timeline className="editor-shell__timeline" />
         </div>
-        <Timeline className="editor-shell__timeline" />
-      </div>
+      )}
       <KeyboardShortcutsDialog open={shortcutsOpen} onOpenChange={setShortcutsOpen} />
+      <WelcomeDialog
+        open={welcomeOpen}
+        resumeDocumentName={resumeDocumentName}
+        onDismiss={handleWelcomeDismiss}
+        onOpenAbout={() => setAboutOpen(true)}
+      />
+      <AboutDialog
+        open={aboutOpen}
+        onOpenChange={setAboutOpen}
+        onOpenAcknowledgments={() => {
+          setAboutOpen(false)
+          setAcknowledgmentsOpen(true)
+        }}
+      />
+      <AcknowledgmentsDialog open={acknowledgmentsOpen} onOpenChange={setAcknowledgmentsOpen} />
     </div>
   )
 }

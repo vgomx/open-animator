@@ -184,6 +184,15 @@ const PROJECT_SAVE_DEBOUNCE_MS = 500
 
 let pendingProjectSave: Project | null = null
 let projectSaveTimer: ReturnType<typeof setTimeout> | null = null
+let afterProjectPersisted: ((project: Project) => void) | null = null
+
+export function setAfterProjectPersisted(handler: ((project: Project) => void) | null): void {
+  afterProjectPersisted = handler
+}
+
+function notifyProjectPersisted(project: Project): void {
+  afterProjectPersisted?.(project)
+}
 
 export function scheduleProjectSave(project: Project): void {
   pendingProjectSave = project
@@ -196,6 +205,7 @@ export function scheduleProjectSave(project: Project): void {
     projectSaveTimer = null
     if (pendingProjectSave) {
       saveProjectToStorage(pendingProjectSave)
+      notifyProjectPersisted(pendingProjectSave)
       pendingProjectSave = null
     }
   }, PROJECT_SAVE_DEBOUNCE_MS)
@@ -209,6 +219,7 @@ export function flushProjectSave(): void {
 
   if (pendingProjectSave) {
     saveProjectToStorage(pendingProjectSave)
+    notifyProjectPersisted(pendingProjectSave)
     pendingProjectSave = null
   }
 }

@@ -1,4 +1,5 @@
 import { sampleNumericTrackAtTime } from '@/editor/animation'
+import { resolveLoopTime } from '@/editor/animation-cycle'
 import { getShapeBounds } from '@/editor/bounds'
 import type { AnimatableProperty, Keyframe, Layer, LayerGroupMeta, Shape } from '@/editor/types'
 
@@ -48,16 +49,30 @@ function sampleGroupNumeric(
   property: Keyframe['property'],
   time: number,
   fallback: number,
+  group?: LayerGroupMeta,
 ): number {
   if (keyframes.length === 0) {
     return fallback
+  }
+
+  let sampleTime = time
+  if (group?.cycleDuration && group.cycleDuration > 0) {
+    const loopTime = resolveLoopTime(time, {
+      duration: group.cycleDuration,
+      delay: group.cycleDelay,
+      direction: group.cycleDirection,
+    })
+    if (loopTime === null) {
+      return fallback
+    }
+    sampleTime = loopTime
   }
 
   const track = keyframes
     .filter((keyframe) => keyframe.property === property)
     .sort((left, right) => left.time - right.time)
 
-  return sampleNumericTrackAtTime(track, time, fallback)
+  return sampleNumericTrackAtTime(track, sampleTime, fallback)
 }
 
 function getShapeCenter(shape: Shape): { x: number; y: number } {
@@ -108,12 +123,12 @@ export function applyGroupTransformsToShape(
       continue
     }
 
-    const translateX = sampleGroupNumeric(keyframes, 'x', time, 0)
-    const translateY = sampleGroupNumeric(keyframes, 'y', time, 0)
-    const groupRotation = sampleGroupNumeric(keyframes, 'rotation', time, 0)
-    const groupScaleX = sampleGroupNumeric(keyframes, 'scaleX', time, 1)
-    const groupScaleY = sampleGroupNumeric(keyframes, 'scaleY', time, 1)
-    const groupOpacity = sampleGroupNumeric(keyframes, 'opacity', time, 1)
+    const translateX = sampleGroupNumeric(keyframes, 'x', time, 0, group)
+    const translateY = sampleGroupNumeric(keyframes, 'y', time, 0, group)
+    const groupRotation = sampleGroupNumeric(keyframes, 'rotation', time, 0, group)
+    const groupScaleX = sampleGroupNumeric(keyframes, 'scaleX', time, 1, group)
+    const groupScaleY = sampleGroupNumeric(keyframes, 'scaleY', time, 1, group)
+    const groupOpacity = sampleGroupNumeric(keyframes, 'opacity', time, 1, group)
 
     if (groupRotation !== 0) {
       rotation += groupRotation
@@ -169,13 +184,14 @@ export function getGroupAnimatedValues(
 ): GroupAnimatedValues {
   const keyframes = layerGroups?.[groupId]?.keyframes ?? []
 
+  const group = layerGroups?.[groupId]
   return {
-    x: sampleGroupNumeric(keyframes, 'x', time, 0),
-    y: sampleGroupNumeric(keyframes, 'y', time, 0),
-    rotation: sampleGroupNumeric(keyframes, 'rotation', time, 0),
-    scaleX: sampleGroupNumeric(keyframes, 'scaleX', time, 1),
-    scaleY: sampleGroupNumeric(keyframes, 'scaleY', time, 1),
-    opacity: sampleGroupNumeric(keyframes, 'opacity', time, 1),
+    x: sampleGroupNumeric(keyframes, 'x', time, 0, group),
+    y: sampleGroupNumeric(keyframes, 'y', time, 0, group),
+    rotation: sampleGroupNumeric(keyframes, 'rotation', time, 0, group),
+    scaleX: sampleGroupNumeric(keyframes, 'scaleX', time, 1, group),
+    scaleY: sampleGroupNumeric(keyframes, 'scaleY', time, 1, group),
+    opacity: sampleGroupNumeric(keyframes, 'opacity', time, 1, group),
   }
 }
 
@@ -195,5 +211,6 @@ export function getGroupPropertyValue(
   }
 
   const keyframes = layerGroups?.[groupId]?.keyframes ?? []
-  return sampleGroupNumeric(keyframes, property, time, defaults[property])
+  const group = layerGroups?.[groupId]
+  return sampleGroupNumeric(keyframes, property, time, defaults[property], group)
 }

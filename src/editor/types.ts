@@ -1,6 +1,6 @@
 import { BRAND, UI_PATH_STROKE } from '@/lib/brand-colors'
 
-export const PROJECT_VERSION = 13 as const
+export const PROJECT_VERSION = 14 as const
 export const DEFAULT_PROJECT_FPS = 30
 
 export type CanvasSettings = {
@@ -194,6 +194,10 @@ export type Layer = {
   svgClipPathId?: string
   /** Inherited SVG filter from a parent group. */
   svgFilterId?: string
+  /** Independent animation loop length in seconds (defaults to project duration). */
+  cycleDuration?: number
+  cycleDelay?: number
+  cycleDirection?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse'
 }
 
 export type LayerGroupMeta = {
@@ -204,6 +208,10 @@ export type LayerGroupMeta = {
   /** Class names declared on the source <g> element. */
   classNames?: string[]
   keyframes?: Keyframe[]
+  /** Independent animation loop length in seconds. */
+  cycleDuration?: number
+  cycleDelay?: number
+  cycleDirection?: 'normal' | 'reverse' | 'alternate' | 'alternate-reverse'
 }
 
 export type Marker = {

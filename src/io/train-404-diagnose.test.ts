@@ -205,6 +205,6 @@ describe('train-404-bg.html import', () => {
     expect(wheelSpoke).toBeDefined()
     const spokeBoundsAtQuarter = getShapeBounds(getAnimatedShape(wheelSpoke!, 0.2875, context))
     expect(spokeBoundsAtQuarter.x + spokeBoundsAtQuarter.width / 2).toBeCloseTo(226, 0)
-    expect(spokeBoundsAtQuarter.y + spokeBoundsAtQuarter.height / 2).toBeCloseTo(382, 0)
+    expect(spokeBoundsAtQuarter.y + spokeBoundsAtQuarter.height / 2).toBeCloseTo(381.39, 0)
   })
 })

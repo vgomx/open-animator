@@ -1,5 +1,6 @@
 import { createId, createRectShape } from '@/editor/scene'
 import { getShapeBounds } from '@/editor/bounds'
+import { lerpColor } from '@/editor/animation'
 import type { AnimatableProperty, EasingType, Keyframe, Layer, LayerGroupMeta, Shape } from '@/editor/types'
 import { sampleEasing } from '@/editor/easing'
 import { getNodePath } from '@/io/svg-matrix-batch'
@@ -244,31 +245,91 @@ export function parseClassAnimationBindings(css: string): Map<string, CssAnimati
   const variables = parseCssVariables(css)
   const bindings = new Map<string, CssAnimationBinding>()
   const classPattern = /\.([a-zA-Z_][\w-]*)\s*\{([^}]*)\}/g
+  const idPattern = /#([a-zA-Z_][\w-]*)\s*\{([^}]*)\}/g
+
+  const addBinding = (selector: string, body: string) => {
+    const binding = parseAnimationBindingFromRuleBody(body, variables)
+    if (binding) {
+      bindings.set(selector, binding)
+    }
+  }
+
   let match: RegExpExecArray | null
-
   while ((match = classPattern.exec(css)) !== null) {
-    const className = match[1]!
-    const body = match[2]!
-    const animationDecl = body.match(/animation:\s*([^;]+)/)?.[1]?.trim()
-    if (!animationDecl) {
-      continue
-    }
+    addBinding(match[1]!, match[2]!)
+  }
 
-    const parsed = parseAnimationShorthand(animationDecl, variables)
-    if (!parsed.animationName) {
-      continue
-    }
-
-    bindings.set(className, {
-      animationName: parsed.animationName,
-      duration: parsed.duration,
-      delay: parsed.delay,
-      direction: parsed.direction,
-      timingFunction: parsed.timingFunction,
-    })
+  while ((match = idPattern.exec(css)) !== null) {
+    addBinding(`#${match[1]!}`, match[2]!)
   }
 
   return bindings
+}
+
+function parseAnimationBindingFromRuleBody(
+  body: string,
+  variables: Map<string, string>,
+): CssAnimationBinding | null {
+  const animationDecl = body.match(/animation:\s*([^;]+)/i)?.[1]?.trim()
+  if (animationDecl) {
+    const parsed = parseAnimationShorthand(animationDecl, variables)
+    if (parsed.animationName) {
+      return {
+        animationName: parsed.animationName,
+        duration: parsed.duration,
+        delay: parsed.delay,
+        direction: parsed.direction,
+        timingFunction: parsed.timingFunction,
+      }
+    }
+  }
+
+  const nameDecl = body.match(/animation-name:\s*([^;]+)/i)?.[1]?.trim()
+  if (!nameDecl) {
+    return null
+  }
+
+  const binding: CssAnimationBinding = {
+    animationName: resolveCssVar(nameDecl, variables).split(/\s+/)[0]!,
+    duration: 3,
+    delay: 0,
+    direction: 'normal',
+    timingFunction: { type: 'linear' },
+  }
+
+  const durationDecl = body.match(/animation-duration:\s*([^;]+)/i)?.[1]?.trim()
+  if (durationDecl) {
+    const duration = parseDurationSeconds(resolveCssVar(durationDecl, variables))
+    if (duration !== null) {
+      binding.duration = duration
+    }
+  }
+
+  const delayDecl = body.match(/animation-delay:\s*([^;]+)/i)?.[1]?.trim()
+  if (delayDecl) {
+    const delay = parseDurationSeconds(resolveCssVar(delayDecl, variables))
+    if (delay !== null) {
+      binding.delay = delay
+    }
+  }
+
+  const directionDecl = body.match(/animation-direction:\s*([^;]+)/i)?.[1]?.trim()
+  if (
+    directionDecl &&
+    ANIMATION_DIRECTIONS.has(directionDecl.toLowerCase() as CssAnimationDirection)
+  ) {
+    binding.direction = directionDecl.toLowerCase() as CssAnimationDirection
+  }
+
+  const timingDecl = body.match(/animation-timing-function:\s*([^;]+)/i)?.[1]?.trim()
+  if (timingDecl) {
+    const timing = parseTimingFunctionToken(resolveCssVar(timingDecl, variables))
+    if (timing) {
+      binding.timingFunction = timing
+    }
+  }
+
+  return binding.animationName ? binding : null
 }
 
 export function parseElementAnimationOverrides(
@@ -301,6 +362,14 @@ export function parseElementAnimationOverrides(
     const timing = parseTimingFunctionToken(resolveCssVar(timingMatch, variables))
     if (timing) {
       overrides.timingFunction = timing
+    }
+  }
+
+  const durationMatch = style.match(/animation-duration\s*:\s*([^;]+)/i)?.[1]?.trim()
+  if (durationMatch) {
+    const duration = parseDurationSeconds(resolveCssVar(durationMatch, variables))
+    if (duration !== null) {
+      overrides.duration = duration
     }
   }
 
@@ -547,25 +616,25 @@ export function parseAnimationClassMap(
   css: string,
   _variables: Map<string, string>,
 ): Map<string, string> {
+  const variables = _variables.size > 0 ? _variables : parseCssVariables(css)
   const map = new Map<string, string>()
   const classPattern = /\.([a-zA-Z_][\w-]*)\s*\{([^}]*)\}/g
+  const idPattern = /#([a-zA-Z_][\w-]*)\s*\{([^}]*)\}/g
+
+  const addMapping = (selector: string, body: string) => {
+    const binding = parseAnimationBindingFromRuleBody(body, variables)
+    if (binding?.animationName) {
+      map.set(binding.animationName, selector)
+    }
+  }
+
   let match: RegExpExecArray | null
-
   while ((match = classPattern.exec(css)) !== null) {
-    const className = match[1]!
-    const body = match[2]!
-    const animationDecl = body.match(/animation:\s*([^;]+)/)?.[1]?.trim()
-    if (!animationDecl) {
-      continue
-    }
+    addMapping(match[1]!, match[2]!)
+  }
 
-    const parts = animationDecl.split(/\s+/).filter(Boolean)
-    const animationName = parts[0]
-    if (!animationName) {
-      continue
-    }
-
-    map.set(animationName, className)
+  while ((match = idPattern.exec(css)) !== null) {
+    addMapping(`#${match[1]!}`, match[2]!)
   }
 
   return map
@@ -815,6 +884,72 @@ function getElementClassNames(element: Element): string[] {
   return []
 }
 
+function parseInlineAnimationBinding(
+  element: Element,
+  css: string,
+  tracks: Map<string, CssAnimationTrack>,
+): CssAnimationBinding | null {
+  const style = element.getAttribute('style')
+  if (!style) {
+    return null
+  }
+
+  const variables = parseCssVariables(css)
+  const animationMatch = style.match(/animation\s*:\s*([^;]+)/i)?.[1]?.trim()
+  if (animationMatch) {
+    const parsed = parseAnimationShorthand(animationMatch, variables)
+    if (parsed.animationName) {
+      return {
+        animationName: parsed.animationName,
+        duration: parsed.duration,
+        delay: parsed.delay,
+        direction: parsed.direction,
+        timingFunction: parsed.timingFunction,
+      }
+    }
+  }
+
+  const nameMatch = style.match(/animation-name\s*:\s*([^;]+)/i)?.[1]?.trim()
+  if (!nameMatch) {
+    return null
+  }
+
+  const overrides = parseElementAnimationOverrides(element, variables)
+  return {
+    animationName: resolveCssVar(nameMatch, variables).split(/\s+/)[0]!,
+    duration: overrides.duration ?? 3,
+    delay: overrides.delay ?? 0,
+    direction: overrides.direction ?? 'normal',
+    timingFunction: overrides.timingFunction ?? { type: 'linear' },
+  }
+}
+
+function pushAnimatedAncestor(
+  chain: AnimatedAncestor[],
+  element: Element,
+  selector: string,
+  css: string,
+  tracks: Map<string, CssAnimationTrack>,
+): void {
+  const classToAnimation = parseClassToAnimationMap(css)
+  const animationName = classToAnimation.get(selector)
+  if (!animationName) {
+    return
+  }
+
+  const track = tracks.get(animationName)
+  if (!track) {
+    return
+  }
+
+  chain.push({
+    element,
+    track,
+    className: selector,
+    binding: resolveAnimationBinding(element, selector, css, track),
+  })
+}
+
 function getAnimatedAncestorChain(shapeElement: Element, css: string): AnimatedAncestor[] {
   const classToAnimation = parseClassToAnimationMap(css)
   const tracks = parseCssKeyframeTracks(css)
@@ -829,18 +964,28 @@ function getAnimatedAncestorChain(shapeElement: Element, css: string): AnimatedA
 
     const classes = getElementClassNames(current)
     for (const className of classes) {
-      const animationName = classToAnimation.get(className)
-      if (!animationName) {
-        continue
+      if (classToAnimation.has(className)) {
+        pushAnimatedAncestor(chain, current, className, css, tracks)
       }
+    }
 
-      const track = tracks.get(animationName)
+    const elementId = current.getAttribute('id')
+    if (elementId) {
+      const idSelector = `#${elementId}`
+      if (classToAnimation.has(idSelector)) {
+        pushAnimatedAncestor(chain, current, idSelector, css, tracks)
+      }
+    }
+
+    const inlineBinding = parseInlineAnimationBinding(current, css, tracks)
+    if (inlineBinding?.animationName) {
+      const track = tracks.get(inlineBinding.animationName)
       if (track) {
         chain.push({
           element: current,
           track,
-          className,
-          binding: resolveAnimationBinding(current, className, css, track),
+          className: `__inline_${inlineBinding.animationName}`,
+          binding: inlineBinding,
         })
       }
     }
@@ -941,16 +1086,49 @@ function getBoundsForElements(
   return { x: minX, y: minY, width: maxX - minX, height: maxY - minY }
 }
 
-function parseTransformOriginForClass(css: string, className: string): string | undefined {
-  const escaped = escapeRegExp(className)
-  const match = css.match(new RegExp(`\\.${escaped}\\s*\\{[^}]*transform-origin:\\s*([^;\\}]+)`))
+function cssSelectorPrefix(selector: string): string {
+  return selector.startsWith('#') ? '' : '\\.'
+}
+
+function parseTransformOriginForSelector(css: string, selector: string): string | undefined {
+  const escaped = escapeRegExp(selector)
+  const match = css.match(
+    new RegExp(`${cssSelectorPrefix(selector)}${escaped}\\s*\\{[^}]*transform-origin:\\s*([^;\\}]+)`),
+  )
   return match?.[1]?.trim()
 }
 
-function parseTransformBoxForClass(css: string, className: string): string | undefined {
-  const escaped = escapeRegExp(className)
-  const match = css.match(new RegExp(`\\.${escaped}\\s*\\{[^}]*transform-box:\\s*([^;\\}]+)`))
+function parseTransformBoxForSelector(css: string, selector: string): string | undefined {
+  const escaped = escapeRegExp(selector)
+  const match = css.match(
+    new RegExp(`${cssSelectorPrefix(selector)}${escaped}\\s*\\{[^}]*transform-box:\\s*([^;\\}]+)`),
+  )
   return match?.[1]?.trim().toLowerCase()
+}
+
+function getSvgViewBoxBounds(element: Element): { x: number; y: number; width: number; height: number } | null {
+  let current: Element | null = element
+  while (current) {
+    if (current.tagName.toLowerCase() === 'svg') {
+      const viewBox = current.getAttribute('viewBox')
+      if (viewBox) {
+        const parts = viewBox.split(/\s+/).map(Number.parseFloat)
+        if (parts.length === 4 && parts.every(Number.isFinite)) {
+          return { x: parts[0]!, y: parts[1]!, width: parts[2]!, height: parts[3]! }
+        }
+      }
+
+      const width = Number.parseFloat(current.getAttribute('width') ?? '')
+      const height = Number.parseFloat(current.getAttribute('height') ?? '')
+      if (Number.isFinite(width) && Number.isFinite(height)) {
+        return { x: 0, y: 0, width, height }
+      }
+    }
+
+    current = current.parentElement
+  }
+
+  return null
 }
 
 function resolveAxisOrigin(
@@ -1113,8 +1291,14 @@ function sampleTrackAtTime(
           previous.opacity !== undefined || next.opacity !== undefined
             ? lerp(previous.opacity ?? 1, next.opacity ?? 1, easedAmount)
             : undefined,
-        fill: easedAmount < 0.5 ? previous.fill : next.fill,
-        stroke: easedAmount < 0.5 ? previous.stroke : next.stroke,
+        fill:
+          previous.fill !== undefined || next.fill !== undefined
+            ? lerpColor(previous.fill ?? '#000000', next.fill ?? '#000000', easedAmount)
+            : undefined,
+        stroke:
+          previous.stroke !== undefined || next.stroke !== undefined
+            ? lerpColor(previous.stroke ?? '#000000', next.stroke ?? '#000000', easedAmount)
+            : undefined,
       }
     }
 
@@ -1163,9 +1347,9 @@ function collectLocalBoundaryTimes(
 
 function collectSparseSampleTimes(
   ancestors: AnimatedAncestor[],
-  projectDuration: number,
+  maxDuration: number,
 ): number[] {
-  const times = new Set<number>([0, projectDuration])
+  const times = new Set<number>([0, maxDuration])
 
   for (const { track, binding } of ancestors) {
     const duration = binding.duration > 0 ? binding.duration : track.duration
@@ -1178,13 +1362,13 @@ function collectSparseSampleTimes(
 
     while (iteration < 10_000) {
       const iterationStart = binding.delay + iteration * duration
-      if (iterationStart > projectDuration + duration) {
+      if (iterationStart > maxDuration + duration) {
         break
       }
 
       for (const local of localBoundaryTimes) {
         const absolute = roundTime(iterationStart + local)
-        if (absolute >= 0 && absolute <= projectDuration) {
+        if (absolute >= 0 && absolute <= maxDuration) {
           times.add(absolute)
         }
       }
@@ -1196,6 +1380,37 @@ function collectSparseSampleTimes(
   return [...times].sort((a, b) => a - b)
 }
 
+function deriveCycleMetadata(
+  ancestors: AnimatedAncestor[],
+  skipGroupClasses?: Set<string>,
+): Pick<Layer, 'cycleDuration' | 'cycleDelay' | 'cycleDirection'> {
+  const filtered = skipGroupClasses
+    ? ancestors.filter((ancestor) => !skipGroupClasses.has(ancestor.className))
+    : ancestors
+
+  if (filtered.length === 0) {
+    return {}
+  }
+
+  let maxDuration = 0
+  let primary = filtered[0]!
+
+  for (const ancestor of filtered) {
+    const duration =
+      ancestor.binding.duration > 0 ? ancestor.binding.duration : ancestor.track.duration
+    if (duration > maxDuration) {
+      maxDuration = duration
+      primary = ancestor
+    }
+  }
+
+  return {
+    cycleDuration: maxDuration,
+    cycleDelay: primary.binding.delay,
+    cycleDirection: primary.binding.direction,
+  }
+}
+
 type ShapeAnimationSample = {
   time: number
   x: number
@@ -1204,6 +1419,8 @@ type ShapeAnimationSample = {
   scaleX: number
   scaleY: number
   opacity: number
+  fill?: string
+  stroke?: string
 }
 
 function sampleOpacityFromAncestors(
@@ -1221,6 +1438,25 @@ function sampleOpacityFromAncestors(
   }
 
   return opacity
+}
+
+function sampleColorFromAncestors(
+  ancestors: AnimatedAncestor[],
+  time: number,
+  property: 'fill' | 'stroke',
+  fallback: string,
+): string {
+  let color = fallback
+
+  for (const { track, binding } of ancestors) {
+    const step = sampleTrackAtTime(track, time, binding)
+    const value = step[property]
+    if (value !== undefined) {
+      color = value
+    }
+  }
+
+  return color
 }
 
 function rotatePointAround(
@@ -1256,16 +1492,24 @@ function applyAncestorTransformToSample(
   parseShape: (element: Element) => Shape | null,
 ): { center: { x: number; y: number }; rotation: number; scaleX: number; scaleY: number } {
   const components = parseTransformComponents(step.transform ?? '')
-  const transformBox = parseTransformBoxForClass(css, ancestor.className)
-  const originBounds =
+  const transformBox = parseTransformBoxForSelector(css, ancestor.className)
+  let originBounds =
     (transformBox === 'fill-box' || transformBox === 'stroke-box') && scopedShapes.length === 1
       ? (() => {
           const shape = parseShape(scopedShapes[0]!)
           return shape ? getShapeBounds(shape) : getBoundsForElements(scopedShapes, parseShape)
         })()
       : getBoundsForElements(scopedShapes, parseShape)
+
+  if (transformBox === 'view-box') {
+    const viewBoxBounds = getSvgViewBoxBounds(ancestor.element)
+    if (viewBoxBounds) {
+      originBounds = viewBoxBounds
+    }
+  }
+
   const origin = resolveTransformOrigin(
-    parseTransformOriginForClass(css, ancestor.className),
+    parseTransformOriginForSelector(css, ancestor.className),
     originBounds,
   )
   const spinOnly =
@@ -1318,6 +1562,14 @@ function ancestorAnimatesProperty(
     return ancestor.track.steps.some((step) => /scale/.test(step.transform ?? ''))
   }
 
+  if (property === 'fill') {
+    return ancestor.track.steps.some((step) => step.fill !== undefined)
+  }
+
+  if (property === 'stroke') {
+    return ancestor.track.steps.some((step) => step.stroke !== undefined)
+  }
+
   return false
 }
 
@@ -1357,7 +1609,7 @@ function buildShapeAnimationKeyframes(
   baseShape: Shape,
   ancestors: AnimatedAncestor[],
   css: string,
-  projectDuration: number,
+  sampleDuration: number,
   parseShape: (element: Element) => Shape | null,
   skipGroupClasses?: Set<string>,
 ): Keyframe[] {
@@ -1369,7 +1621,7 @@ function buildShapeAnimationKeyframes(
     return []
   }
 
-  const sampleTimes = collectSparseSampleTimes(filteredAncestors, projectDuration)
+  const sampleTimes = collectSparseSampleTimes(filteredAncestors, sampleDuration)
   const bounds = getShapeBounds(baseShape)
   const samples: ShapeAnimationSample[] = []
 
@@ -1415,7 +1667,9 @@ function buildShapeAnimationKeyframes(
       rotation,
       scaleX,
       scaleY,
-      opacity: sampleOpacityFromAncestors(ancestors, time, baseShape.opacity),
+      opacity: sampleOpacityFromAncestors(filteredAncestors, time, baseShape.opacity),
+      fill: sampleColorFromAncestors(filteredAncestors, time, 'fill', baseShape.fill),
+      stroke: sampleColorFromAncestors(filteredAncestors, time, 'stroke', baseShape.stroke),
     })
   }
 
@@ -1468,6 +1722,16 @@ function buildShapeAnimationKeyframes(
     'opacity',
     samples.map((sample) => sample.opacity),
     (value) => Math.abs((value as number) - baseShape.opacity) > 0.001,
+  )
+  maybeAdd(
+    'fill',
+    samples.map((sample) => sample.fill ?? baseShape.fill),
+    (value) => value !== baseShape.fill,
+  )
+  maybeAdd(
+    'stroke',
+    samples.map((sample) => sample.stroke ?? baseShape.stroke),
+    (value) => value !== baseShape.stroke,
   )
 
   return keyframes
@@ -1525,31 +1789,48 @@ function deltaTranslateKeyframes(keyframes: Keyframe[]): Keyframe[] {
 function buildGroupTransformKeyframes(
   ancestor: AnimatedAncestor,
   css: string,
-  projectDuration: number,
   parseShape: (element: Element) => Shape | null,
 ): Keyframe[] {
+  const cycleDuration =
+    ancestor.binding.duration > 0 ? ancestor.binding.duration : ancestor.track.duration
   const baseShape = createRectShape(0, 0, 100, 40)
   const keyframes = buildShapeAnimationKeyframes(
     baseShape,
     [ancestor],
     css,
-    projectDuration,
+    cycleDuration,
     parseShape,
   )
 
   return deltaTranslateKeyframes(keyframes)
 }
 
-function collectAnimatedGroupElements(svg: Element, css: string): Element[] {
+function elementHasCssAnimation(element: Element, css: string): boolean {
   const classToAnimation = parseClassToAnimationMap(css)
+
+  if (getElementClassNames(element).some((className) => classToAnimation.has(className))) {
+    return true
+  }
+
+  const elementId = element.getAttribute('id')
+  if (elementId && classToAnimation.has(`#${elementId}`)) {
+    return true
+  }
+
+  const style = element.getAttribute('style')
+  if (style && (/animation\s*:/i.test(style) || /animation-name\s*:/i.test(style))) {
+    return true
+  }
+
+  return false
+}
+
+function collectAnimatedGroupElements(svg: Element, css: string): Element[] {
   const groups: Element[] = []
 
   const walk = (node: Element) => {
-    if (node.tagName.toLowerCase() === 'g') {
-      const classes = getElementClassNames(node)
-      if (classes.some((className) => classToAnimation.has(className))) {
-        groups.push(node)
-      }
+    if (node.tagName.toLowerCase() === 'g' && elementHasCssAnimation(node, css)) {
+      groups.push(node)
     }
 
     for (const child of [...node.children]) {
@@ -1570,7 +1851,6 @@ export function attachGroupAnimationsFromCss(
 ): { layerGroups: Record<string, LayerGroupMeta>; promotedGroupClasses: Set<string> } {
   const nextGroups = { ...(layerGroups ?? {}) }
   const promotedGroupClasses = new Set<string>()
-  const resolvedDuration = projectDuration > 0 ? projectDuration : 3
 
   for (const groupElement of collectAnimatedGroupElements(svg, css)) {
     const ancestors = getAnimatedAncestorChain(groupElement, css)
@@ -1587,7 +1867,6 @@ export function attachGroupAnimationsFromCss(
     const keyframes = buildGroupTransformKeyframes(
       ownAncestor,
       css,
-      resolvedDuration,
       parseShape,
     )
 
@@ -1599,6 +1878,9 @@ export function attachGroupAnimationsFromCss(
     nextGroups[groupId] = {
       ...nextGroups[groupId]!,
       keyframes,
+      cycleDuration: ownAncestor.binding.duration,
+      cycleDelay: ownAncestor.binding.delay,
+      cycleDirection: ownAncestor.binding.direction,
     }
   }
 
@@ -1657,11 +1939,13 @@ function buildLayersFromCssTracksCore(
       continue
     }
 
+    const cycleMeta = deriveCycleMetadata(ancestors, options.skipGroupClasses)
+
     const keyframes = buildShapeAnimationKeyframes(
       parsedShape,
       ancestors,
       css,
-      resolvedDuration,
+      cycleMeta.cycleDuration ?? resolvedDuration,
       options.parseShape,
       options.skipGroupClasses,
     )
@@ -1675,15 +1959,16 @@ function buildLayersFromCssTracksCore(
       getElementClassNames(shapeElement.parentElement ?? shapeElement)[0] ||
       `Layer ${index + 1}`
 
-    layers.push(
-      options.createLayer(
+    layers.push({
+      ...options.createLayer(
         { ...parsedShape, id: createId() },
         index,
         artboardId,
         layerName,
         keyframes,
       ),
-    )
+      ...cycleMeta,
+    })
     index += 1
   }
 
@@ -1728,11 +2013,13 @@ export async function buildLayersFromCssTracksAsync(
       continue
     }
 
+    const cycleMeta = deriveCycleMetadata(ancestors, options.skipGroupClasses)
+
     const keyframes = buildShapeAnimationKeyframes(
       parsedShape,
       ancestors,
       css,
-      resolvedDuration,
+      cycleMeta.cycleDuration ?? resolvedDuration,
       options.parseShape,
       options.skipGroupClasses,
     )
@@ -1746,15 +2033,16 @@ export async function buildLayersFromCssTracksAsync(
       getElementClassNames(shapeElement.parentElement ?? shapeElement)[0] ||
       `Layer ${index + 1}`
 
-    layers.push(
-      options.createLayer(
+    layers.push({
+      ...options.createLayer(
         { ...parsedShape, id: createId() },
         index,
         artboardId,
         layerName,
         keyframes,
       ),
-    )
+      ...cycleMeta,
+    })
     index += 1
   }
 

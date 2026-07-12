@@ -102,4 +102,52 @@ describe('svg export', () => {
     expect(svg).toContain('feDropShadow')
     expect(svg).toContain('filter="url(#imported-filter-shadow)"')
   })
+
+  it('exports animated svg with group keyframes when layerGroups animate', () => {
+    const project = createDefaultProject()
+    const artboardId = project.artboards[0]!.id
+    const groupId = 'group-1'
+    project.layers = [
+      {
+        id: 'layer-1',
+        artboardId,
+        name: 'Box',
+        visible: true,
+        locked: false,
+        groupId,
+        delay: 0,
+        shape: {
+          id: 'shape-1',
+          type: 'rect',
+          x: 40,
+          y: 40,
+          rotation: 0,
+          width: 40,
+          height: 40,
+          fill: '#ff0000',
+          stroke: '#000000',
+          strokeWidth: 1,
+          opacity: 1,
+          scaleX: 1,
+          scaleY: 1,
+        },
+        keyframes: [],
+      },
+    ]
+    project.layerGroups = {
+      [groupId]: {
+        name: 'Group',
+        parentGroupId: null,
+        keyframes: [
+          { id: 'gk-1', time: 0, property: 'y', value: 0 },
+          { id: 'gk-2', time: 1, property: 'y', value: 40 },
+        ],
+      },
+    }
+
+    const svg = exportAnimatedSvg(project)
+    expect(svg).toContain('@keyframes group-anim-0')
+    expect(svg).toContain('translate(0px, 40px)')
+    expect(svg).toContain('<g class="group-anim-0">')
+  })
 })

@@ -5,6 +5,7 @@ import {
   formatAnimationValue,
 } from '@/components/shell/properties/AnimationPropertyField'
 import { PanelSection } from '@/components/shell/properties/PanelSection'
+import { PropertyField } from '@/components/shell/properties/PropertyField'
 import {
   GROUP_ANIMATABLE_PROPERTIES,
   getGroupAnimatedValues,
@@ -19,6 +20,20 @@ type GroupAnimationTabProps = {
   currentTime: number
   onAddKeyframe: (property: AnimatableProperty) => void
   onSetEasing: (property: AnimatableProperty, easing: EasingType, bezier?: BezierHandle) => void
+  onUpdateGroupTransform: (
+    patch: Partial<Record<(typeof GROUP_ANIMATABLE_PROPERTIES)[number], number>>,
+  ) => void
+}
+
+const PROPERTY_STEPS: Partial<
+  Record<(typeof GROUP_ANIMATABLE_PROPERTIES)[number], { step?: number; shiftStep?: number; decimals?: number }>
+> = {
+  x: { step: 1, shiftStep: 10 },
+  y: { step: 1, shiftStep: 10 },
+  rotation: { step: 1, shiftStep: 15 },
+  scaleX: { step: 0.01, shiftStep: 0.1, decimals: 2 },
+  scaleY: { step: 0.01, shiftStep: 0.1, decimals: 2 },
+  opacity: { step: 0.01, shiftStep: 0.1, decimals: 2 },
 }
 
 export function GroupAnimationTab({
@@ -29,6 +44,7 @@ export function GroupAnimationTab({
   currentTime,
   onAddKeyframe,
   onSetEasing,
+  onUpdateGroupTransform,
 }: GroupAnimationTabProps) {
   const values = getGroupAnimatedValues(groupId, layerGroups, currentTime)
   const keyframes = group.keyframes ?? []
@@ -42,7 +58,11 @@ export function GroupAnimationTab({
           </div>
           <div className="min-w-0">
             <p className="truncate text-sm font-medium">{group.name}</p>
-            <p className="text-[10px] text-muted-foreground">Group transform keyframes at playhead</p>
+            <p className="text-[10px] text-muted-foreground">
+              {group.cycleDuration
+                ? `Loop: ${group.cycleDuration}s · Group transform keyframes at playhead`
+                : 'Group transform keyframes at playhead'}
+            </p>
           </div>
         </div>
       </div>
@@ -51,8 +71,9 @@ export function GroupAnimationTab({
         <div className="flex items-start gap-2 rounded-md border border-border/70 bg-muted/10 px-2.5 py-2 text-xs text-muted-foreground">
           <CircleDot className={recordMode ? 'mt-0.5 size-3.5 text-primary' : 'mt-0.5 size-3.5'} />
           <p>
-            Group transforms compose over child layers at playback. Add keyframes here to animate the
-            whole group.
+            {recordMode
+              ? 'Record mode is on. Group transform edits at the playhead create keyframes automatically.'
+              : 'Edits still keyframe at the playhead. Toggle record mode for the same workflow as layers.'}
           </p>
         </div>
       </PanelSection>
@@ -64,18 +85,32 @@ export function GroupAnimationTab({
               (keyframe) =>
                 keyframe.property === property && Math.abs(keyframe.time - currentTime) < 0.001,
             )
+            const steps = PROPERTY_STEPS[property]
 
             return (
-              <AnimationPropertyField
-                key={property}
-                property={property}
-                displayValue={formatAnimationValue(property, values)}
-                keyframeAtTime={Boolean(keyframeAtTime)}
-                easing={keyframeAtTime?.easing ?? 'linear'}
-                bezier={keyframeAtTime?.bezier}
-                onAddKeyframe={() => onAddKeyframe(property)}
-                onSetEasing={(nextEasing, nextBezier) => onSetEasing(property, nextEasing, nextBezier)}
-              />
+              <div key={property} className="space-y-2">
+                <PropertyField
+                  label={property}
+                  value={values[property]}
+                  step={steps?.step}
+                  shiftStep={steps?.shiftStep}
+                  decimals={steps?.decimals}
+                  onChange={(value) =>
+                    onUpdateGroupTransform({
+                      [property]: Number(value),
+                    })
+                  }
+                />
+                <AnimationPropertyField
+                  property={property}
+                  displayValue={formatAnimationValue(property, values)}
+                  keyframeAtTime={Boolean(keyframeAtTime)}
+                  easing={keyframeAtTime?.easing ?? 'linear'}
+                  bezier={keyframeAtTime?.bezier}
+                  onAddKeyframe={() => onAddKeyframe(property)}
+                  onSetEasing={(nextEasing, nextBezier) => onSetEasing(property, nextEasing, nextBezier)}
+                />
+              </div>
             )
           })}
         </div>

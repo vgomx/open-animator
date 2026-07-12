@@ -26,6 +26,8 @@ export const APP_GITHUB_URL = 'https://github.com/vgomx/open-animator'
 export const STORAGE_KEYS = {
   project: `${APP_SLUG}:project`,
   legacyProject: 'svg-animator:project',
+  recentFiles: `${APP_SLUG}:recent-files`,
+  activeRecentFileId: `${APP_SLUG}:active-recent-file-id`,
   theme: `${APP_SLUG}:theme`,
   preferences: `${APP_SLUG}:preferences`,
   layerClipboard: `${APP_SLUG}:layer-clipboard`,

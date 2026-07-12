@@ -1,5 +1,7 @@
 import { buildLayerTreeRows, collectGroupLayers, type LayerTreeRow } from '@/editor/layer-tree'
 import { GROUP_ANIMATABLE_PROPERTIES } from '@/editor/group-animation'
+import { getAnimatedShape } from '@/editor/animation'
+import { getShapeBounds, type ShapeBounds } from '@/editor/bounds'
 import type { AnimatableProperty, Layer, LayerGroupMeta } from '@/editor/types'
 
 export type TimelineRow =
@@ -200,4 +202,33 @@ export function getGroupLayers(
   }
 
   return collectGroupLayers(groupRow)
+}
+
+export function getGroupBounds(
+  groupId: string,
+  displayLayers: Layer[],
+  time: number,
+  layerGroups?: Record<string, LayerGroupMeta>,
+): ShapeBounds | null {
+  const layers = getGroupLayers(groupId, displayLayers, layerGroups)
+  if (layers.length === 0) {
+    return null
+  }
+
+  const context = { layerGroups }
+  const boundsList = layers.map((layer) =>
+    getShapeBounds(getAnimatedShape(layer, time, context)),
+  )
+
+  const left = Math.min(...boundsList.map((bounds) => bounds.x))
+  const top = Math.min(...boundsList.map((bounds) => bounds.y))
+  const right = Math.max(...boundsList.map((bounds) => bounds.x + bounds.width))
+  const bottom = Math.max(...boundsList.map((bounds) => bounds.y + bounds.height))
+
+  return {
+    x: left,
+    y: top,
+    width: right - left,
+    height: bottom - top,
+  }
 }

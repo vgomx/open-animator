@@ -137,11 +137,12 @@ export async function importHtmlAnimationAsync(
   }
 
   const baseProject = svgImportToProject(staticImported)
+  const resolvedTrackDuration = Math.max(...[...tracks.values()].map((track) => track.duration), 0)
   const { layerGroups, promotedGroupClasses } = attachGroupAnimationsFromCss(
     svg,
     css,
     baseProject.layerGroups,
-    Math.max(...[...tracks.values()].map((track) => track.duration), 0),
+    resolvedTrackDuration,
     parseShapeElement,
   )
 
@@ -166,9 +167,18 @@ export async function importHtmlAnimationAsync(
   )
 
   if (animatedLayers.length === 0) {
+    const resolvedDuration =
+      resolvedTrackDuration > 0
+        ? resolvedTrackDuration
+        : baseProject.duration > 0
+          ? baseProject.duration
+          : 3
+
     return {
       ...baseProject,
       layerGroups,
+      duration: resolvedDuration,
+      loopOut: resolvedDuration,
     }
   }
 
@@ -209,11 +219,12 @@ export function importHtmlAnimation(raw: string): Project | null {
   }
 
   const baseProject = svgImportToProject(staticImported)
+  const resolvedTrackDuration = Math.max(...[...tracks.values()].map((track) => track.duration), 0)
   const { layerGroups, promotedGroupClasses } = attachGroupAnimationsFromCss(
     svg,
     css,
     baseProject.layerGroups,
-    Math.max(...[...tracks.values()].map((track) => track.duration), 0),
+    resolvedTrackDuration,
     parseShapeElement,
   )
   const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
@@ -231,9 +242,18 @@ export function importHtmlAnimation(raw: string): Project | null {
   )
 
   if (animatedLayers.length === 0) {
+    const resolvedDuration =
+      resolvedTrackDuration > 0
+        ? resolvedTrackDuration
+        : baseProject.duration > 0
+          ? baseProject.duration
+          : 3
+
     return {
       ...baseProject,
       layerGroups,
+      duration: resolvedDuration,
+      loopOut: resolvedDuration,
     }
   }
 

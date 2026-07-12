@@ -24,7 +24,7 @@ import {
   undoSnapshot,
   type HistoryStacks,
 } from '@/editor/history'
-import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape } from '@/editor/scene'
+import { cloneLayer, createId, createLayer, createLayerFromShape, createPathShape, createRectShape, createEllipseShape, createTextShape, createDefaultProject } from '@/editor/scene'
 import { loadLayerClipboard, saveLayerClipboard } from '@/lib/layer-clipboard-storage'
 import {
   ensureActiveArtboardId,
@@ -56,7 +56,16 @@ import type {
 import { isColorProperty, isNumericProperty, DEFAULT_ONION_SKIN_SETTINGS } from '@/editor/types'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { extractShapeStyle, type ShapeStylePatch } from '@/editor/selection-utils'
-import { createInitialProject, flushProjectSave, saveProjectToStorage, scheduleProjectSave } from '@/io/project'
+import {
+  applyDocumentTabSession,
+  captureDocumentTabSession,
+  createDocumentTab,
+  findDocumentTabByRecentFileId,
+  saveActiveDocumentTab,
+  type DocumentTab,
+} from '@/editor/document-tabs'
+import { createInitialProject, flushProjectSave, saveProjectToStorage, scheduleProjectSave, setAfterProjectPersisted } from '@/io/project'
+import { deriveProjectName, setActiveRecentFileId, bootstrapRecentFiles, touchRecentFile, updateActiveRecentFile } from '@/io/recent-files'
 import {
   clampExportFps,
   clampPanelWidth,
@@ -66,6 +75,26 @@ import {
 
 const initialPreferences = loadEditorPreferences()
 const initialProject = createInitialProject()
+const initialRecentFileId = bootstrapRecentFiles(initialProject)
+const initialDocumentTab = createDocumentTab(
+  captureDocumentTabSession({
+    project: initialProject,
+    activeRecentFileId: initialRecentFileId,
+    activeArtboardId: initialProject.artboards[0]?.id ?? null,
+    selectedLayerIds: [],
+    selectedLayerId: null,
+    selectedGroupId: null,
+    currentTime: 0,
+    playbackState: 'idle',
+    zoom: 1,
+    panX: 0,
+    panY: 0,
+    history: { past: [], future: [] },
+    selectedKeyframeIds: [],
+    selectedNodeIndices: [],
+    collapsedGroupIds: [],
+  }),
+)
 
 function resolveArtboardId(state: Pick<EditorStore, 'project' | 'activeArtboardId'>): string {
   return ensureActiveArtboardId(state.project, state.activeArtboardId)
@@ -98,6 +127,9 @@ const animatableProperties = new Set<AnimatableProperty>([
 
 type EditorStore = {
   project: Project
+  activeRecentFileId: string | null
+  documentTabs: DocumentTab[]
+  activeDocumentTabId: string
   activeArtboardId: string | null
   selectedLayerIds: string[]
   selectedLayerId: string | null
@@ -168,6 +200,11 @@ type EditorStore = {
   setPropertiesPanelWidth: (width: number) => void
   reorderLayers: (fromIndex: number, toIndex: number) => void
   updateShape: (layerId: string, patch: Partial<Shape>, options?: { skipHistory?: boolean }) => void
+  updateGroupTransform: (
+    groupId: string,
+    patch: Partial<Record<(typeof GROUP_ANIMATABLE_PROPERTIES)[number], number>>,
+    options?: { skipHistory?: boolean },
+  ) => void
   setCurrentTime: (time: number) => void
   setPlaybackState: (state: PlaybackState) => void
   toggleLoop: () => void
@@ -185,12 +222,18 @@ type EditorStore = {
   ) => void
   fitToScreen: (viewportWidth: number, viewportHeight: number) => void
   resetViewport: () => void
+  switchDocumentTab: (tabId: string) => void
+  closeDocumentTab: (tabId: string) => void
+  addDocumentTab: () => void
   setProject: (
     project: Project,
     options?: {
       fitViewport?: { width: number; height: number }
       /** Keep document properties visible instead of selecting the first layer. */
       clearLayerSelection?: boolean
+      recentFileId?: string
+      isNewRecentFile?: boolean
+      recentFileName?: string
     },
   ) => void
   importSvgLayers: (
@@ -273,6 +316,7 @@ function persistProject(project: Project, immediate = false): void {
   if (immediate) {
     flushProjectSave()
     saveProjectToStorage(project)
+    updateActiveRecentFile(project, useEditorStore.getState().activeRecentFileId)
     return
   }
 
@@ -486,6 +530,9 @@ function restoreSnapshot(snapshot: ReturnType<typeof createSnapshot>): Partial<E
 
 export const useEditorStore = create<EditorStore>((set, get) => ({
   project: initialProject,
+  activeRecentFileId: initialRecentFileId,
+  documentTabs: [initialDocumentTab],
+  activeDocumentTabId: initialDocumentTab.id,
   activeArtboardId: initialProject.artboards[0]?.id ?? null,
   selectedLayerIds: [],
   selectedLayerId: null,
@@ -1222,6 +1269,59 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       return withHistory(state, applyUpdate)
     }),
 
+  updateGroupTransform: (groupId, patch, options) =>
+    set((state) => {
+      const group = state.project.layerGroups?.[groupId]
+      if (!group) {
+        return state
+      }
+
+      const applyUpdate = (current: EditorStore): Partial<EditorStore> => {
+        const selectedGroup = current.project.layerGroups?.[groupId]
+        if (!selectedGroup) {
+          return {}
+        }
+
+        let keyframes = selectedGroup.keyframes ?? []
+        for (const [property, value] of Object.entries(patch)) {
+          if (
+            !GROUP_ANIMATABLE_PROPERTIES.includes(
+              property as (typeof GROUP_ANIMATABLE_PROPERTIES)[number],
+            ) ||
+            typeof value !== 'number'
+          ) {
+            continue
+          }
+
+          keyframes = upsertKeyframeList(
+            keyframes,
+            current.currentTime,
+            property as AnimatableProperty,
+            value,
+          )
+        }
+
+        const layerGroups = {
+          ...(current.project.layerGroups ?? {}),
+          [groupId]: {
+            ...selectedGroup,
+            keyframes,
+          },
+        }
+
+        return { project: { ...current.project, layerGroups } }
+      }
+
+      if (options?.skipHistory) {
+        const next = applyUpdate(state)
+        const project = next.project ?? state.project
+        persistProject(project)
+        return next
+      }
+
+      return withHistory(state, applyUpdate)
+    }),
+
   setCurrentTime: (time) =>
     set((state) => {
       const nextTime = Math.max(0, Math.min(time, state.project.duration))
@@ -1287,7 +1387,89 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
 
   resetViewport: () => set({ zoom: 1, panX: 0, panY: 0 }),
 
+  switchDocumentTab: (tabId) => {
+    const state = get()
+    if (tabId === state.activeDocumentTabId) {
+      return
+    }
+
+    const target = state.documentTabs.find((tab) => tab.id === tabId)
+    if (!target) {
+      return
+    }
+
+    const documentTabs = saveActiveDocumentTab(state.documentTabs, state.activeDocumentTabId, state)
+    const applied = applyDocumentTabSession(target.session)
+    persistProject(applied.project, true)
+    if (applied.activeRecentFileId) {
+      setActiveRecentFileId(applied.activeRecentFileId)
+    }
+
+    set({
+      ...applied,
+      documentTabs,
+      activeDocumentTabId: tabId,
+      penDraft: null,
+      eyedropperActive: false,
+      eyedropperHandler: null,
+      editingTextLayerId: null,
+    })
+  },
+
+  closeDocumentTab: (tabId) => {
+    const state = get()
+    if (state.documentTabs.length <= 1) {
+      return
+    }
+
+    let documentTabs = saveActiveDocumentTab(state.documentTabs, state.activeDocumentTabId, state)
+    const closingIndex = documentTabs.findIndex((tab) => tab.id === tabId)
+    if (closingIndex === -1) {
+      return
+    }
+
+    documentTabs = documentTabs.filter((tab) => tab.id !== tabId)
+
+    if (tabId !== state.activeDocumentTabId) {
+      set({ documentTabs })
+      return
+    }
+
+    const nextTab = documentTabs[Math.min(closingIndex, documentTabs.length - 1)]!
+    const applied = applyDocumentTabSession(nextTab.session)
+    persistProject(applied.project, true)
+    if (applied.activeRecentFileId) {
+      setActiveRecentFileId(applied.activeRecentFileId)
+    }
+
+    set({
+      ...applied,
+      documentTabs,
+      activeDocumentTabId: nextTab.id,
+      penDraft: null,
+      eyedropperActive: false,
+      eyedropperHandler: null,
+      editingTextLayerId: null,
+    })
+  },
+
+  addDocumentTab: () => {
+    get().setProject(createDefaultProject(), { isNewRecentFile: true, clearLayerSelection: true })
+  },
+
   setProject: (project, options) => {
+    const existingTab = findDocumentTabByRecentFileId(get().documentTabs, options?.recentFileId)
+    if (existingTab) {
+      get().switchDocumentTab(existingTab.id)
+      return
+    }
+
+    const recentFileId = touchRecentFile(project, get().activeRecentFileId, {
+      recentFileId: options?.recentFileId,
+      isNewRecentFile: options?.isNewRecentFile,
+      name: options?.recentFileName,
+    })
+
     persistProject(project, true)
     const activeArtboardId = project.artboards[0]?.id ?? null
     const visibleLayers = activeArtboardId
@@ -1304,18 +1486,51 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
           )
         : 1
 
-    set({
+    const loadedState = {
       project,
+      activeRecentFileId: recentFileId,
       activeArtboardId,
       ...(options?.clearLayerSelection
         ? { ...syncSelection([]), selectedNodeIndices: [], selectedKeyframeIds: [], selectedGroupId: null }
         : syncSelection(visibleLayers[0]?.id ? [visibleLayers[0].id] : [])),
       currentTime: 0,
-      playbackState: 'idle',
+      playbackState: 'idle' as PlaybackState,
       history: { past: [], future: [] },
       panX: 0,
       panY: 0,
       zoom,
+    }
+
+    if (options?.isNewRecentFile) {
+      const documentTabs = saveActiveDocumentTab(
+        get().documentTabs,
+        get().activeDocumentTabId,
+        get(),
+      )
+      const newTab = createDocumentTab(
+        captureDocumentTabSession({
+          ...get(),
+          ...loadedState,
+        }),
+        options?.recentFileName,
+      )
+
+      set({
+        ...loadedState,
+        documentTabs: [...documentTabs, newTab],
+        activeDocumentTabId: newTab.id,
+      })
+      return
+    }
+
+    const documentTabs = saveActiveDocumentTab(get().documentTabs, get().activeDocumentTabId, {
+      ...get(),
+      ...loadedState,
+    })
+
+    set({
+      ...loadedState,
+      documentTabs,
     })
   },
 
@@ -1759,7 +1974,7 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
       withHistory(state, (current) => {
         const time = current.currentTime
         const pinnedLayers = current.project.layers.map((layer) =>
-          pinLayerKeyframesAtTime(layer, time),
+          pinLayerKeyframesAtTime(layer, time, current.project),
         )
         const pinnedProject = { ...current.project, layers: pinnedLayers }
         const nextState = createAnimationState(pinnedProject, time)
@@ -2217,6 +2432,26 @@ export const useEditorStore = create<EditorStore>((set, get) => ({
     return resolveAnimatedShape(layer, time, { layerGroups: project.layerGroups })
   },
 }))
+
+setAfterProjectPersisted((project) => {
+  const state = useEditorStore.getState()
+  updateActiveRecentFile(project, state.activeRecentFileId)
+  useEditorStore.setState({
+    documentTabs: state.documentTabs.map((tab) =>
+      tab.id === state.activeDocumentTabId
+        ? {
+            ...tab,
+            name: deriveProjectName(project, tab.name),
+            session: {
+              ...tab.session,
+              project: structuredClone(project),
+              activeRecentFileId: state.activeRecentFileId,
+            },
+          }
+        : tab,
+    ),
+  })
+})
 
 export function useActiveArtboard(): Artboard {
   return useEditorStore((state) => getActiveArtboard(state.project, state.activeArtboardId))

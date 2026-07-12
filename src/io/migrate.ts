@@ -346,8 +346,40 @@ function migrateV11toV12(project: Project): Project {
 function migrateV12toV13(project: Project): Project {
   return {
     ...project,
-    version: PROJECT_VERSION,
+    version: 13,
     layerGroups: project.layerGroups,
+  }
+}
+
+function migrateV13toV14(project: Project): Project {
+  const inferCycle = (keyframes: Keyframe[] | undefined, fallback: number) => {
+    if (!keyframes || keyframes.length === 0) {
+      return fallback
+    }
+    const maxTime = Math.max(...keyframes.map((keyframe) => keyframe.time))
+    return maxTime > 0 ? maxTime : fallback
+  }
+
+  return {
+    ...project,
+    version: PROJECT_VERSION,
+    layerGroups: project.layerGroups
+      ? Object.fromEntries(
+          Object.entries(project.layerGroups).map(([groupId, group]) => [
+            groupId,
+            {
+              ...group,
+              cycleDuration: group.cycleDuration ?? inferCycle(group.keyframes, project.duration),
+            },
+          ]),
+        )
+      : project.layerGroups,
+    layers: project.layers.map((layer) => ({
+      ...layer,
+      cycleDuration:
+        layer.cycleDuration ??
+        (layer.keyframes.length > 0 ? inferCycle(layer.keyframes, project.duration) : undefined),
+    })),
   }
 }
 
@@ -399,7 +431,11 @@ export function migrateProject(parsed: LegacyProject): Project {
   }
 
   if (project.version === 12) {
-    return migrateV12toV13(project as Project)
+    project = migrateV12toV13(project as Project) as LegacyProject
+  }
+
+  if (project.version === 13) {
+    return migrateV13toV14(project as Project)
   }
 
   if (project.version === PROJECT_VERSION) {
