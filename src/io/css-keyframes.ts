@@ -820,10 +820,6 @@ function getElementClassNames(element: Element): string[] {
   return []
 }
 
-function elementHasAnimationClass(element: Element, classToAnimation: Map<string, string>): boolean {
-  return getElementClassNames(element).some((className) => classToAnimation.has(className))
-}
-
 function getAnimatedAncestorChain(shapeElement: Element, css: string): AnimatedAncestor[] {
   const classToAnimation = parseClassToAnimationMap(css)
   const tracks = parseCssKeyframeTracks(css)
@@ -864,19 +860,25 @@ function getAnimatedAncestorChain(shapeElement: Element, css: string): AnimatedA
   return chain.reverse()
 }
 
-function collectShapesUntilNestedAnimation(
+function collectScopedShapesForAncestor(
   root: Element,
-  classToAnimation: Map<string, string>,
+  ancestorChain: AnimatedAncestor[],
+  ancestorIndex: number,
 ): Element[] {
   const tag = root.tagName.toLowerCase()
   if (SHAPE_TAGS.has(tag)) {
     return [root]
   }
 
+  const nestedClassNames = new Set(
+    ancestorChain.slice(ancestorIndex + 1).map((entry) => entry.className),
+  )
   const shapes: Element[] = []
+
   const walk = (node: Element) => {
     for (const child of [...node.children]) {
-      if (child !== root && elementHasAnimationClass(child, classToAnimation)) {
+      const childClasses = getElementClassNames(child)
+      if (childClasses.some((className) => nestedClassNames.has(className))) {
         continue
       }
 
@@ -1284,6 +1286,17 @@ function resolveSegmentEasing(
     return cssTimingToEasing(sources[0]!.binding.timingFunction)
   }
 
+  if (property === 'x' || property === 'y') {
+    const stepsSource = sources.find(
+      (ancestor) => ancestor.binding.timingFunction.type === 'steps',
+    )
+    if (stepsSource) {
+      return 'hold'
+    }
+
+    return 'linear'
+  }
+
   if (property === 'opacity' || property === 'rotation') {
     const source = [...sources].reverse()[0]
     return source ? cssTimingToEasing(source.binding.timingFunction) : 'linear'
@@ -1303,7 +1316,6 @@ function buildShapeAnimationKeyframes(
     return []
   }
 
-  const classToAnimation = parseClassToAnimationMap(css)
   const sampleTimes = collectSparseSampleTimes(ancestors, projectDuration)
   const bounds = getShapeBounds(baseShape)
   const samples: ShapeAnimationSample[] = []
@@ -1315,11 +1327,11 @@ function buildShapeAnimationKeyframes(
     let scaleX = baseShape.scaleX
     let scaleY = baseShape.scaleY
 
-    for (const ancestor of ancestors) {
+    for (const [ancestorIndex, ancestor] of ancestors.entries()) {
       const { element, track, className, binding } = ancestor
       const step = sampleTrackAtTime(track, time, binding)
       const components = parseTransformComponents(step.transform ?? '')
-      const scopedShapes = collectShapesUntilNestedAnimation(element, classToAnimation)
+      const scopedShapes = collectScopedShapesForAncestor(element, ancestors, ancestorIndex)
       const originBounds = getBoundsForElements(scopedShapes, parseShape)
       const origin = resolveTransformOrigin(
         parseTransformOriginForClass(css, className),
