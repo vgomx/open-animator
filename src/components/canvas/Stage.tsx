@@ -6,6 +6,7 @@ import { UnifiedPlaybackDriver } from '@/components/canvas/UnifiedPlaybackDriver
 import { WebGlViewportOverlay, type WebGlViewportOverlayHandle } from '@/components/canvas/WebGlViewportOverlay'
 import { CanvasRulers } from '@/components/canvas/CanvasRulers'
 import { DrawPreview, PenDraftLayer } from '@/components/canvas/DrawPreview'
+import { GroupSelectionOverlay } from '@/components/canvas/GroupSelectionOverlay'
 import { GuidesLayer } from '@/components/canvas/GuidesLayer'
 import { ShapeView } from '@/components/canvas/ShapeView'
 import { StageLayer } from '@/components/canvas/StageLayer'
@@ -111,6 +112,7 @@ export function Stage() {
   const displayTime = displayTimeRef.current
   const selectedLayerIds = useEditorStore((state) => state.selectedLayerIds)
   const selectedLayerId = useEditorStore((state) => state.selectedLayerId)
+  const selectedGroupId = useEditorStore((state) => state.selectedGroupId)
   const selectedLayerIdSet = useMemo(() => new Set(selectedLayerIds), [selectedLayerIds])
   const activeTool = useEditorStore((state) => state.activeTool)
   const penDraft = useEditorStore((state) => state.penDraft)
@@ -803,6 +805,9 @@ export function Stage() {
                   />
                 )
               })}
+              {selectedGroupId && activeTool === 'select' ? (
+                <GroupSelectionOverlay groupId={selectedGroupId} />
+              ) : null}
               </g>
               {penDraft && penDraft.length > 0 ? (
                 <g data-eyedropper-ignore>

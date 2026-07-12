@@ -9,6 +9,7 @@ import type {
   NumericAnimatableProperty,
   Shape,
 } from '@/editor/types'
+import { resolveLoopTime } from '@/editor/animation-cycle'
 import {
   applyGroupTransformsToShape,
   layerHasGroupAnimation,
@@ -332,7 +333,17 @@ export function getAnimatedShape(
   }
 
   const { shape } = layer
-  const sampleTime = Math.max(0, time - layer.delay)
+  let sampleTime = Math.max(0, time - layer.delay)
+  if (layer.cycleDuration && layer.cycleDuration > 0) {
+    const loopTime = resolveLoopTime(time, {
+      duration: layer.cycleDuration,
+      delay: layer.delay,
+      direction: layer.cycleDirection,
+    })
+    if (loopTime !== null) {
+      sampleTime = loopTime
+    }
+  }
   const tracks = getLayerKeyframeTracks(layer)
 
   const sampleNumeric = (

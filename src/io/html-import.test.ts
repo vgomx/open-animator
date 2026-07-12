@@ -579,5 +579,41 @@ describe('html import', () => {
     expect(
       bobGroup?.keyframes?.some((kf) => kf.property === 'y' && kf.easing === 'easeInOut'),
     ).toBe(true)
+    expect(bobGroup?.cycleDuration).toBe(3)
+  })
+
+  it('preserves independent loop lengths per group on import', () => {
+    const html = `<!DOCTYPE html><html><head><style>
+      :root { --t-world: 26s; --t-bob: 3s; }
+      .vg-world { animation: vgworld var(--t-world) linear infinite; }
+      .vg-train { animation: vgbob var(--t-bob) ease-in-out infinite; }
+      @keyframes vgworld { from { transform: translateX(0); } to { transform: translateX(-1200px); } }
+      @keyframes vgbob {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-4px); }
+      }
+    </style></head><body>
+      <svg viewBox="0 0 1200 470" xmlns="http://www.w3.org/2000/svg">
+        <g class="vg-world"><rect x="0" y="0" width="40" height="30" fill="#ccc"/></g>
+        <g class="vg-train"><rect x="200" y="300" width="80" height="40" fill="#fafafa"/></g>
+      </svg>
+    </body></html>`
+
+    const imported = importHtmlAnimation(html)
+    expect(imported).not.toBeNull()
+    expect(imported?.duration).toBe(26)
+
+    const groups = Object.values(imported!.layerGroups ?? {})
+    const worldGroup = groups.find((group) => group.classNames?.includes('vg-world'))
+    const trainGroup = groups.find((group) => group.classNames?.includes('vg-train'))
+
+    expect(worldGroup?.cycleDuration).toBe(26)
+    expect(trainGroup?.cycleDuration).toBe(3)
+    expect(
+      worldGroup?.keyframes?.every((keyframe) => keyframe.time <= 26),
+    ).toBe(true)
+    expect(
+      trainGroup?.keyframes?.every((keyframe) => keyframe.time <= 3),
+    ).toBe(true)
   })
 })

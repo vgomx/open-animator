@@ -140,7 +140,7 @@ export function Toolbar({ className }: { className?: string }) {
   }
 
   const startNewProject = () => {
-    setProject(createDefaultProject(), { clearLayerSelection: true })
+    setProject(createDefaultProject(), { clearLayerSelection: true, isNewRecentFile: true })
     requestAnimationFrame(fitCanvasToScreen)
     showToast({
       title: 'New project',
@@ -156,6 +156,7 @@ export function Toolbar({ className }: { className?: string }) {
     setProject(svgImportToProject(imported), {
       fitViewport: viewport ?? undefined,
       clearLayerSelection: true,
+      isNewRecentFile: true,
     })
     if (summary.animatedLayerCount > 0) {
       useEditorStore.setState({ loop: true, playbackState: 'idle', currentTime: 0 })
@@ -331,7 +332,7 @@ export function Toolbar({ className }: { className?: string }) {
         return
       }
 
-      setProject(result.value)
+      setProject(result.value, { isNewRecentFile: true, clearLayerSelection: true })
       requestAnimationFrame(fitCanvasToScreen)
       showToast({
         title: 'HTML animation opened',
@@ -385,7 +386,7 @@ export function Toolbar({ className }: { className?: string }) {
         return
       }
 
-      setProject(imported)
+      setProject(imported, { isNewRecentFile: true, clearLayerSelection: true })
       requestAnimationFrame(fitCanvasToScreen)
       showToast({
         title: 'Lottie opened',
@@ -776,7 +777,7 @@ export function Toolbar({ className }: { className?: string }) {
                 onClick={async () => {
                   const nextProject = await openProjectFile()
                   if (nextProject) {
-                    setProject(nextProject)
+                    setProject(nextProject, { isNewRecentFile: true, clearLayerSelection: true })
                   }
                 }}
               >

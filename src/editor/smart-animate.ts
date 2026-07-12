@@ -1,10 +1,12 @@
 import { getAnimatedShape } from '@/editor/animation'
+import { GROUP_ANIMATABLE_PROPERTIES, getGroupAnimatedValues } from '@/editor/group-animation'
 import { createId } from '@/editor/scene'
 import type {
   AnimatableProperty,
   AnimationState,
   Keyframe,
   Layer,
+  LayerGroupMeta,
   LayerStateSnapshot,
   Project,
   Shape,
@@ -51,8 +53,9 @@ export function snapshotFromShape(layer: Layer, shape: Shape): LayerStateSnapsho
 }
 
 export function captureLayerSnapshots(project: Project, time: number): LayerStateSnapshot[] {
+  const context = { layerGroups: project.layerGroups }
   return project.layers.map((layer) => {
-    const shape = getAnimatedShape(layer, time)
+    const shape = getAnimatedShape(layer, time, context)
     return snapshotFromShape(layer, shape)
   })
 }
@@ -265,8 +268,8 @@ function applySnapshotPairToLayer(
   return layer
 }
 
-export function pinLayerKeyframesAtTime(layer: Layer, time: number): Layer {
-  const shape = getAnimatedShape(layer, time)
+export function pinLayerKeyframesAtTime(layer: Layer, time: number, project?: Project): Layer {
+  const shape = getAnimatedShape(layer, time, project ? { layerGroups: project.layerGroups } : undefined)
   let keyframes = [...layer.keyframes]
 
   const snapshot = snapshotFromShape(layer, shape)
@@ -284,6 +287,58 @@ export function pinLayerKeyframesAtTime(layer: Layer, time: number): Layer {
   }
 
   return { ...layer, keyframes }
+}
+
+function applyGroupSmartAnimate(
+  project: Project,
+  fromTime: number,
+  toTime: number,
+): Record<string, LayerGroupMeta> | undefined {
+  const layerGroups = project.layerGroups
+  if (!layerGroups) {
+    return layerGroups
+  }
+
+  const nextGroups = { ...layerGroups }
+
+  for (const groupId of Object.keys(layerGroups)) {
+    const group = nextGroups[groupId]
+    if (!group) {
+      continue
+    }
+
+    const fromValues = getGroupAnimatedValues(groupId, layerGroups, fromTime)
+    const toValues = getGroupAnimatedValues(groupId, layerGroups, toTime)
+    const hasMotion = GROUP_ANIMATABLE_PROPERTIES.some(
+      (property) => Math.abs(fromValues[property] - toValues[property]) >= TIME_EPSILON,
+    )
+
+    if (!hasMotion) {
+      continue
+    }
+
+    let keyframes = [...(group.keyframes ?? [])]
+
+    for (const property of GROUP_ANIMATABLE_PROPERTIES) {
+      const fromValue = fromValues[property]
+      const toValue = toValues[property]
+      if (Math.abs(fromValue - toValue) < TIME_EPSILON) {
+        keyframes = upsertKeyframe(keyframes, fromTime, property, fromValue)
+        keyframes = upsertKeyframe(keyframes, toTime, property, toValue)
+        continue
+      }
+
+      keyframes = upsertKeyframe(keyframes, fromTime, property, fromValue, 'easeInOut')
+      keyframes = upsertKeyframe(keyframes, toTime, property, toValue)
+    }
+
+    nextGroups[groupId] = {
+      ...group,
+      keyframes,
+    }
+  }
+
+  return nextGroups
 }
 
 export function smartAnimateBetweenStates(
@@ -308,7 +363,9 @@ export function smartAnimateBetweenStates(
     return applySnapshotPairToLayer(layer, pair, fromState.time, toState.time)
   })
 
-  return { ...project, layers }
+  const layerGroups = applyGroupSmartAnimate(project, fromState.time, toState.time)
+
+  return { ...project, layers, layerGroups }
 }
 
 export function smartAnimateAllStates(project: Project): Project {

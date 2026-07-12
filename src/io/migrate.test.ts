@@ -80,4 +80,61 @@ describe('migrateProject', () => {
     expect(migrated.canvas).toEqual(DEFAULT_CANVAS)
     expect(migrated.fps).toBe(30)
   })
+
+  it('migrates v13 projects with cycle duration metadata', () => {
+    const migrated = migrateProject({
+      version: 13,
+      artboard: { ...DEFAULT_ARTBOARD, width: 400, height: 300 },
+      duration: 10,
+      loopIn: 0,
+      loopOut: 10,
+      guides: [],
+      states: [],
+      markers: [],
+      layers: [
+        {
+          id: 'layer-1',
+          artboardId: 'artboard-1',
+          name: 'Animated',
+          visible: true,
+          locked: false,
+          groupId: null,
+          delay: 0,
+          shape: {
+            id: 'shape-1',
+            type: 'rect',
+            x: 0,
+            y: 0,
+            rotation: 0,
+            width: 100,
+            height: 100,
+            fill: '#000000',
+            stroke: '#ffffff',
+            strokeWidth: 1,
+            opacity: 1,
+            scaleX: 1,
+            scaleY: 1,
+          },
+          keyframes: [
+            { id: 'kf-1', time: 0, property: 'x', value: 0, easing: 'linear' },
+            { id: 'kf-2', time: 3, property: 'x', value: 100, easing: 'linear' },
+          ],
+        },
+      ],
+      layerGroups: {
+        'group-1': {
+          name: 'Bob',
+          parentGroupId: null,
+          keyframes: [
+            { id: 'gk-1', time: 0, property: 'y', value: 0, easing: 'linear' },
+            { id: 'gk-2', time: 2, property: 'y', value: 8, easing: 'linear' },
+          ],
+        },
+      },
+    } as never)
+
+    expect(migrated.version).toBe(PROJECT_VERSION)
+    expect(migrated.layers[0]?.cycleDuration).toBe(3)
+    expect(migrated.layerGroups?.['group-1']?.cycleDuration).toBe(2)
+  })
 })

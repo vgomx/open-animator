@@ -1,12 +1,18 @@
 import type { ExportOptions } from '@/io/export-options'
 import { DEFAULT_EXPORT_OPTIONS, resolveExportScale } from '@/io/export-options'
 import { getExportArtboard, getExportLayers } from '@/editor/artboard-utils'
+import { buildLayerTreeRows, type LayerTreeRow } from '@/editor/layer-tree'
 import type { Artboard, Layer, Project, Shape } from '@/editor/types'
 import { isTransparentColor } from '@/editor/color-utils'
 import { getAnimatedShape } from '@/editor/animation'
 import { pathPointsToString } from '@/editor/path-nodes'
 import { buildShapeTransform } from '@/editor/transforms'
 import { importedFilterId } from '@/io/svg-filters'
+import {
+  getExportAnimationContext,
+  groupAnimationCss,
+  hasAnimatedGroupsInProject,
+} from '@/io/group-export'
 
 function escapeXml(value: string): string {
   return value
@@ -149,7 +155,12 @@ function collectLayerTimes(layer: Layer, duration: number): number[] {
   return [...times].sort((a, b) => a - b)
 }
 
-function layerAnimationCss(layer: Layer, duration: number, className: string): string {
+function layerAnimationCss(
+  layer: Layer,
+  duration: number,
+  className: string,
+  context?: ReturnType<typeof getExportAnimationContext>,
+): string {
   const times = collectLayerTimes(layer, duration)
   if (times.length <= 1) {
     return ''
@@ -157,13 +168,69 @@ function layerAnimationCss(layer: Layer, duration: number, className: string): s
 
   const keyframeLines = times
     .map((time) => {
-      const shape = getAnimatedShape(layer, time)
+      const shape = getAnimatedShape(layer, time, context)
       const percent = duration === 0 ? 0 : (time / duration) * 100
       return `  ${percent}% { transform: ${toCssTransform(shape)}; opacity: ${shape.opacity}; fill: ${shape.fill}; stroke: ${shape.stroke}; }`
     })
     .join('\n')
 
   return `@keyframes ${className} {\n${keyframeLines}\n}\n.${className} { animation: ${className} ${duration}s linear infinite; transform-box: fill-box; transform-origin: center; }`
+}
+
+type ExportMarkupState = {
+  styles: string[]
+  layerIndex: number
+  groupIndex: number
+}
+
+function exportLayerMarkup(
+  layer: Layer,
+  project: Project,
+  duration: number,
+  state: ExportMarkupState,
+  bakeGroupMotion: boolean,
+): string {
+  const context = bakeGroupMotion ? getExportAnimationContext(project) : undefined
+  const className = `layer-anim-${state.layerIndex}`
+  state.layerIndex += 1
+
+  const css = layerAnimationCss(layer, duration, className, context)
+  if (css) {
+    state.styles.push(css)
+  }
+
+  const baseShape = getAnimatedShape(layer, 0, context)
+  const innerMarkup = shapeMarkup(baseShape, css ? className : undefined, Boolean(css))
+  return wrapLayerMarkup(layer, project, innerMarkup)
+}
+
+function exportTreeMarkup(
+  rows: LayerTreeRow[],
+  project: Project,
+  duration: number,
+  state: ExportMarkupState,
+): string {
+  return rows
+    .map((row) => {
+      if (row.kind === 'layer') {
+        return exportLayerMarkup(row.layer, project, duration, state, false)
+      }
+
+      const className = `group-anim-${state.groupIndex}`
+      state.groupIndex += 1
+      const css = groupAnimationCss(row.groupId, project.layerGroups, duration, className)
+      if (css) {
+        state.styles.push(css)
+      }
+
+      const children = exportTreeMarkup(row.children, project, duration, state)
+      if (css) {
+        return `<g class="${className}">\n    ${children}\n    </g>`
+      }
+
+      return `<g>\n    ${children}\n    </g>`
+    })
+    .join('\n    ')
 }
 
 export function exportSvgAtTime(
@@ -175,9 +242,10 @@ export function exportSvgAtTime(
   const artboard = getExportArtboard(project, artboardId)
   const { width, height, scale } = exportDimensions(artboard, options)
   const visibleLayers = getExportLayers(project, artboardId).filter((layer) => layer.visible)
+  const context = getExportAnimationContext(project)
   const shapes = visibleLayers
     .map((layer) =>
-      wrapLayerMarkup(layer, project, shapeMarkup(getAnimatedShape(layer, time))),
+      wrapLayerMarkup(layer, project, shapeMarkup(getAnimatedShape(layer, time, context))),
     )
     .join('\n    ')
 
@@ -201,27 +269,22 @@ export function exportAnimatedSvg(
   const artboard = getExportArtboard(project, artboardId)
   const { width, height, scale } = exportDimensions(artboard, options)
   const visibleLayers = getExportLayers(project, artboardId).filter((layer) => layer.visible)
-  const styles: string[] = []
-  const shapes: string[] = []
+  const state: ExportMarkupState = { styles: [], layerIndex: 0, groupIndex: 0 }
 
-  visibleLayers.forEach((layer, index) => {
-    const className = `layer-anim-${index}`
-    const css = layerAnimationCss(layer, project.duration, className)
-    if (css) {
-      styles.push(css)
-    }
+  const shapes = hasAnimatedGroupsInProject(project)
+    ? exportTreeMarkup(buildLayerTreeRows(visibleLayers, project.layerGroups), project, project.duration, state)
+    : visibleLayers
+        .map((layer) => exportLayerMarkup(layer, project, project.duration, state, true))
+        .join('\n    ')
 
-    const baseShape = getAnimatedShape(layer, 0)
-    const innerMarkup = shapeMarkup(baseShape, css ? className : undefined, Boolean(css))
-    shapes.push(wrapLayerMarkup(layer, project, innerMarkup))
-  })
+  const styles = state.styles
 
   const styleBlock =
     styles.length > 0 ? `<style>\n${styles.join('\n')}\n</style>\n  ` : ''
   const scaleGroup =
     scale === 1
-      ? shapes.join('\n    ')
-      : `<g transform="scale(${scale})">\n    ${shapes.join('\n    ')}\n  </g>`
+      ? shapes
+      : `<g transform="scale(${scale})">\n    ${shapes}\n  </g>`
 
   return `<?xml version="1.0" encoding="UTF-8"?>
 <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">

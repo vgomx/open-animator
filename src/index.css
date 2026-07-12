@@ -483,6 +483,7 @@
     --shell-ease: cubic-bezier(0.22, 1, 0.36, 1);
     --shell-rail-delay: 60ms;
     --shell-toolbar-delay: 300ms;
+    --shell-tabs-delay: 420ms;
     --shell-panel-left-delay: 560ms;
     --shell-panel-right-delay: 560ms;
     --shell-timeline-delay: 560ms;
@@ -502,6 +503,13 @@
       height 340ms var(--shell-ease),
       border-color 340ms var(--shell-ease);
     transition-delay: var(--shell-toolbar-delay);
+  }
+
+  .editor-shell__tabs {
+    transition:
+      height 320ms var(--shell-ease),
+      border-color 320ms var(--shell-ease);
+    transition-delay: var(--shell-tabs-delay);
   }
 
   .editor-shell__panel {
@@ -572,6 +580,7 @@
 
   .editor-shell__rail,
   .editor-shell__toolbar,
+  .editor-shell__tabs,
   .editor-shell__panel,
   .editor-shell__ruler,
   .editor-shell__timeline,
@@ -587,6 +596,14 @@
   }
 
   .editor-shell:not(.editor-shell--revealed) .editor-shell__toolbar {
+    height: 0 !important;
+    min-height: 0 !important;
+    overflow: hidden;
+    border-bottom-width: 0 !important;
+    padding-block: 0 !important;
+  }
+
+  .editor-shell:not(.editor-shell--revealed) .editor-shell__tabs {
     height: 0 !important;
     min-height: 0 !important;
     overflow: hidden;
@@ -643,6 +660,7 @@
   @media (prefers-reduced-motion: reduce) {
     .editor-shell__rail,
     .editor-shell__toolbar,
+    .editor-shell__tabs,
     .editor-shell__panel,
     .editor-shell__timeline,
     .editor-shell__ruler,

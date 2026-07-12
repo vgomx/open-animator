@@ -47,6 +47,7 @@ export function PropertiesPanel({ className }: { className?: string }) {
   const updateProjectTiming = useEditorStore((state) => state.updateProjectTiming)
   const addKeyframeAtCurrentTime = useEditorStore((state) => state.addKeyframeAtCurrentTime)
   const setKeyframeEasing = useEditorStore((state) => state.setKeyframeEasing)
+  const updateGroupTransform = useEditorStore((state) => state.updateGroupTransform)
 
   const documentPanel = (
     <DocumentTab
@@ -128,6 +129,11 @@ export function PropertiesPanel({ className }: { className?: string }) {
             currentTime={currentTime}
             onAddKeyframe={addKeyframeAtCurrentTime}
             onSetEasing={setKeyframeEasing}
+            onUpdateGroupTransform={(patch) => {
+              if (selectedGroupId) {
+                updateGroupTransform(selectedGroupId, patch)
+              }
+            }}
           />
         </ScrollArea>
       </aside>

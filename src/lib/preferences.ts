@@ -18,6 +18,7 @@ export type EditorPreferences = {
   onionSkinEnabled: boolean
   defaultExportFps: number
   experimentalWebGlViewport: boolean
+  skipWelcomeModal: boolean
 }
 
 export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
@@ -32,6 +33,7 @@ export const DEFAULT_EDITOR_PREFERENCES: EditorPreferences = {
   onionSkinEnabled: false,
   defaultExportFps: 30,
   experimentalWebGlViewport: false,
+  skipWelcomeModal: false,
 }
 
 export function loadEditorPreferences(): EditorPreferences {

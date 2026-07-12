@@ -1,6 +1,11 @@
 import type { Layer, Project } from '@/editor/types'
 import { getAnimatedShape } from '@/editor/animation'
 import { buildShapeTransform } from '@/editor/transforms'
+import {
+  animatedGroupIds,
+  getExportAnimationContext,
+  groupKeyframesCss,
+} from '@/io/group-export'
 
 function collectLayerTimes(layer: Layer, duration: number): number[] {
   const times = new Set<number>([0, duration])
@@ -19,30 +24,41 @@ function toCssTransform(shape: ReturnType<typeof getAnimatedShape>): string {
     .replace(/rotate\(([^)]+)\)/g, 'rotate($1deg)')
 }
 
-function layerKeyframesCss(layer: Layer, duration: number, className: string): string {
-  const times = collectLayerTimes(layer, duration)
+function layerKeyframesCss(
+  layer: Layer,
+  duration: number,
+  className: string,
+  context?: ReturnType<typeof getExportAnimationContext>,
+): string {
+  const cycleDuration = layer.cycleDuration ?? duration
+  const times = collectLayerTimes(layer, cycleDuration)
   if (times.length <= 1) {
     return ''
   }
 
   const lines = times
     .map((time) => {
-      const shape = getAnimatedShape(layer, time)
-      const percent = duration === 0 ? 0 : (time / duration) * 100
+      const shape = getAnimatedShape(layer, time, context)
+      const percent = cycleDuration === 0 ? 0 : (time / cycleDuration) * 100
       return `  ${percent}% { transform: ${toCssTransform(shape)}; opacity: ${shape.opacity}; }`
     })
     .join('\n')
 
-  return `@keyframes ${className} {\n${lines}\n}\n.${className} { animation: ${className} ${duration}s linear infinite; transform-box: fill-box; transform-origin: center; }`
+  return `@keyframes ${className} {\n${lines}\n}\n.${className} { animation: ${className} ${cycleDuration}s linear infinite; transform-box: fill-box; transform-origin: center; }`
 }
 
 export function exportCssKeyframes(project: Project): string {
+  const context = getExportAnimationContext(project)
   const visibleLayers = project.layers.filter((layer) => layer.visible)
-  const blocks = visibleLayers
-    .map((layer, index) => layerKeyframesCss(layer, project.duration, `anim-layer-${index}`))
+  const layerBlocks = visibleLayers
+    .map((layer, index) => layerKeyframesCss(layer, project.duration, `anim-layer-${index}`, context))
     .filter(Boolean)
 
-  return blocks.join('\n\n')
+  const groupBlocks = animatedGroupIds(project.layerGroups).map((groupId, index) =>
+    groupKeyframesCss(groupId, project.layerGroups, project.duration, `anim-group-${index}`),
+  )
+
+  return [...layerBlocks, ...groupBlocks].filter(Boolean).join('\n\n')
 }
 
 export function downloadCssKeyframes(project: Project, filename = 'animation.css'): void {

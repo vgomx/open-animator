@@ -2,9 +2,9 @@ import type { Keyframe, Layer, PathPoint, Project } from '@/editor/types'
 import type { ImportedGradient } from '@/io/svg-gradients'
 import { getExportArtboard, getExportLayers, getProjectFps } from '@/editor/artboard-utils'
 import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } from '@/editor/types'
-import { getAnimatedShape } from '@/editor/animation'
+import { getAnimatedShape, type AnimatedShapeContext } from '@/editor/animation'
 import { createId, createPathShape } from '@/editor/scene'
-import { openFilePicker } from '@/io/file-picker'
+import { getExportAnimationContext } from '@/io/group-export'
 import { waitForPaint } from '@/lib/yield-to-ui'
 
 export type LottieImportStage = 'parsing' | 'building'
@@ -298,7 +298,11 @@ function toLottieTransformProperty(
   return { a: 0, k: staticValue }
 }
 
-function buildTransformKeyframes(layer: Layer, frameRate: number) {
+function buildTransformKeyframes(
+  layer: Layer,
+  frameRate: number,
+  context?: AnimatedShapeContext,
+) {
   const times = collectAnimatedTimes(layer)
   const position: LottieKeyframe[] = []
   const rotation: LottieKeyframe[] = []
@@ -306,7 +310,7 @@ function buildTransformKeyframes(layer: Layer, frameRate: number) {
   const scale: LottieKeyframe[] = []
 
   for (const time of times) {
-    const shape = getAnimatedShape(layer, time)
+    const shape = getAnimatedShape(layer, time, context)
     const frame = Math.round(time * frameRate)
     const easing = layer.keyframes.find((keyframe) => keyframe.time === time)?.easing
     const bezier = layer.keyframes.find((keyframe) => keyframe.time === time)?.bezier
@@ -352,9 +356,10 @@ function layerToLottieShape(
   layerIndex: number,
   outPoint: number,
   importedGradients?: Record<string, ImportedGradient>,
+  context?: AnimatedShapeContext,
 ) {
   const { shape } = layer
-  const transform = buildTransformKeyframes(layer, frameRate)
+  const transform = buildTransformKeyframes(layer, frameRate, context)
 
   const shapeItem =
     shape.type === 'rect'
@@ -479,6 +484,7 @@ export function exportLottie(project: Project, artboardId?: string): object {
   const height = artboard.height
   const importedGradients = project.importedSvg?.gradients
   const outPoint = Math.max(1, Math.round(project.duration * frameRate))
+  const context = getExportAnimationContext(project)
 
   return {
     v: '5.7.4',
@@ -493,7 +499,9 @@ export function exportLottie(project: Project, artboardId?: string): object {
     layers: [...layers]
       .filter((layer) => layer.visible)
       .reverse()
-      .map((layer, index) => layerToLottieShape(layer, frameRate, index, outPoint, importedGradients)),
+      .map((layer, index) =>
+        layerToLottieShape(layer, frameRate, index, outPoint, importedGradients, context),
+      ),
   }
 }
 
