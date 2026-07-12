@@ -38,7 +38,29 @@ await writePng('android-chrome-maskable-512x512.png', 512, 512, faviconSvg, {
   background: { r: 10, g: 10, b: 10, alpha: 1 },
 })
 
-await sharp(Buffer.from(ogSvg), { density: 144 })
+const geistFontPath = path.join(
+  root,
+  'node_modules/@fontsource-variable/geist/files/geist-latin-wght-normal.woff2',
+)
+const geistFont = await readFile(geistFontPath)
+const geistFontDataUri = `data:font/woff2;base64,${geistFont.toString('base64')}`
+
+const ogSvgWithFont = ogSvg
+  .toString()
+  .replace(
+    '<defs>',
+    `<defs>
+    <style>
+      @font-face {
+        font-family: 'Geist Variable';
+        src: url('${geistFontDataUri}') format('woff2');
+        font-weight: 100 900;
+        font-style: normal;
+      }
+    </style>`,
+  )
+
+await sharp(Buffer.from(ogSvgWithFont), { density: 144 })
   .resize(1200, 630, { fit: 'cover' })
   .png()
   .toFile(path.join(publicDir, 'og-image.png'))

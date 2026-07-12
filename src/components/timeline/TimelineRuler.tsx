@@ -63,7 +63,7 @@ function TimelineRulerPlayhead({
       <div
         ref={lineRef}
         className={cn(
-          'pointer-events-none absolute top-0 bottom-0 -translate-x-1/2 bg-primary transition-all duration-150 ease-out',
+          'pointer-events-none absolute top-0 bottom-0 -translate-x-1/2 bg-primary transition-[width,box-shadow] duration-150 ease-out',
           isDragging
             ? 'z-50 w-[2px] shadow-[0_0_14px_3px_color-mix(in_srgb,var(--primary)_55%,transparent)]'
             : 'z-20 w-px',
@@ -74,7 +74,7 @@ function TimelineRulerPlayhead({
       <div
         ref={headRef}
         className={cn(
-          'pointer-events-none absolute top-0 z-50 flex -translate-x-1/2 flex-col items-center transition-all duration-150 ease-out',
+          'pointer-events-none absolute top-0 z-50 flex -translate-x-1/2 flex-col items-center transition-[transform,filter] duration-150 ease-out',
           isDragging && 'scale-[1.14] -translate-y-1',
         )}
         style={{ left: 0 }}

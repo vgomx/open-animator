@@ -89,7 +89,7 @@ function TimelinePlayhead({
     <div
       ref={playheadRef}
       className={cn(
-        'pointer-events-none absolute -translate-x-1/2 bg-primary transition-all duration-150 ease-out',
+        'pointer-events-none absolute -translate-x-1/2 bg-primary transition-[width,box-shadow] duration-150 ease-out',
         isDragging
           ? 'z-30 w-[2px] shadow-[0_0_16px_3px_color-mix(in_srgb,var(--primary)_50%,transparent)]'
           : 'z-10 w-px',
