@@ -76,6 +76,7 @@ type ActivityRailProps = {
   onViewChange: (view: ActivityView) => void
   onOpenShortcuts?: () => void
   onOpenAbout?: () => void
+  onShowWelcome?: () => void
 }
 
 export function ActivityRail({
@@ -83,6 +84,7 @@ export function ActivityRail({
   onViewChange,
   onOpenShortcuts,
   onOpenAbout,
+  onShowWelcome,
 }: ActivityRailProps) {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [acknowledgmentsOpen, setAcknowledgmentsOpen] = useState(false)
@@ -183,7 +185,11 @@ export function ActivityRail({
         </div>
       </aside>
 
-      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <SettingsDialog
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        onShowWelcome={onShowWelcome}
+      />
       {!onOpenAbout ? (
         <>
           <AboutDialog

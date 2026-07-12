@@ -2,6 +2,7 @@ import { useState, type ReactNode } from 'react'
 
 import { Plus } from 'lucide-react'
 
+import { WelcomeHero } from '@/components/shell/WelcomeHero'
 import {
   Dialog,
   DialogContent,
@@ -11,8 +12,6 @@ import {
 import { Label } from '@/components/ui/label'
 import { APP_AUTHOR, APP_LICENSE, APP_NAME } from '@/lib/app'
 import { cn } from '@/lib/utils'
-
-const WELCOME_HERO_URL = `${import.meta.env.BASE_URL}og-image.png`
 
 export type WelcomeDismissAction = 'new' | 'resume'
 
@@ -148,11 +147,7 @@ export function WelcomeDialog({
         className="gap-0 overflow-hidden p-0 sm:max-w-lg"
       >
         <div className="border-b border-border/60 bg-muted/20">
-          <img
-            src={WELCOME_HERO_URL}
-            alt=""
-            className="block h-36 w-full object-cover object-center sm:h-40"
-          />
+          <WelcomeHero />
         </div>
 
         <div className="space-y-4 p-4">

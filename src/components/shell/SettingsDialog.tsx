@@ -8,6 +8,7 @@ import {
   Moon,
   PanelLeft,
   Settings2,
+  Sparkles,
   Sun,
   Video,
 } from 'lucide-react'
@@ -38,6 +39,7 @@ import { cn } from '@/lib/utils'
 type SettingsDialogProps = {
   open: boolean
   onOpenChange: (open: boolean) => void
+  onShowWelcome?: () => void
 }
 
 type SettingsSectionProps = {
@@ -115,7 +117,7 @@ const themeOptions: Array<{ value: ThemeMode; label: string; icon: typeof Sun }>
   { value: 'system', label: 'System', icon: Monitor },
 ]
 
-export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
+export function SettingsDialog({ open, onOpenChange, onShowWelcome }: SettingsDialogProps) {
   const { theme, setTheme } = useTheme()
   const {
     canPromptInstall,
@@ -143,13 +145,18 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
   const [defaultExportFps, setDefaultExportFps] = useState(
     () => loadEditorPreferences().defaultExportFps,
   )
+  const [showWelcomeScreen, setShowWelcomeScreen] = useState(
+    () => !loadEditorPreferences().skipWelcomeModal,
+  )
 
   useEffect(() => {
     if (!open) {
       return
     }
 
-    setDefaultExportFps(loadEditorPreferences().defaultExportFps)
+    const preferences = loadEditorPreferences()
+    setDefaultExportFps(preferences.defaultExportFps)
+    setShowWelcomeScreen(!preferences.skipWelcomeModal)
   }, [open])
 
   const setBooleanPreference = (
@@ -166,6 +173,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
     const next = clampExportFps(Number(value) || 30)
     setDefaultExportFps(next)
     saveEditorPreferences({ defaultExportFps: next })
+  }
+
+  const handleWelcomeScreenChange = (next: boolean) => {
+    setShowWelcomeScreen(next)
+    saveEditorPreferences({ skipWelcomeModal: !next })
+    if (next) {
+      onShowWelcome?.()
+    }
   }
 
   const handleInstallApp = async () => {
@@ -260,6 +275,19 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps) {
                   onCheckedChange={(next) =>
                     setBooleanPreference(snapEnabled, toggleSnapEnabled, next)
                   }
+                />
+              </SettingsRow>
+            </SettingsSection>
+
+            <SettingsSection title="Startup" icon={Sparkles}>
+              <SettingsRow
+                label="Welcome screen"
+                description="Show the welcome modal when you open the editor."
+              >
+                <SettingsSwitch
+                  checked={showWelcomeScreen}
+                  label="Welcome screen"
+                  onCheckedChange={handleWelcomeScreenChange}
                 />
               </SettingsRow>
             </SettingsSection>

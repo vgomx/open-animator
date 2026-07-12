@@ -109,12 +109,69 @@
       0 12px 36px rgb(28 27 25 / 0.14);
   }
 
+  .glass-tool-palette {
+    isolation: isolate;
+    position: relative;
+    color: var(--card-foreground);
+    background-color: color-mix(in oklab, var(--card) var(--tool-palette-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 72%, transparent);
+    backdrop-filter: blur(var(--tool-palette-blur)) saturate(155%) contrast(1.04);
+    -webkit-backdrop-filter: blur(var(--tool-palette-blur)) saturate(155%) contrast(1.04);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 52%, transparent),
+      0 10px 36px color-mix(in oklab, var(--foreground) 9%, transparent),
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 7%, transparent);
+  }
+
+  .glass-tool-palette [data-slot='button'][data-variant='ghost'] {
+    color: color-mix(in oklab, var(--foreground) 88%, transparent);
+  }
+
+  .glass-tool-palette [data-slot='button'][data-variant='ghost']:hover,
+  .glass-tool-palette [data-slot='button'][data-variant='ghost'][aria-expanded='true'] {
+    background-color: color-mix(in oklab, var(--muted) 82%, transparent);
+    color: var(--foreground);
+  }
+
+  .glass-tool-palette [data-slot='button'][data-variant='secondary'] {
+    background-color: color-mix(in oklab, var(--secondary) 88%, transparent);
+    color: var(--secondary-foreground);
+  }
+
+  .glass-tool-palette [role='separator'] {
+    background-color: color-mix(in oklab, var(--border) 82%, transparent);
+  }
+
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .glass-tool-palette {
+      background-color: color-mix(in oklab, var(--card) 94%, transparent);
+    }
+  }
+
   .dark .glass-panel {
     background-color: color-mix(in oklab, var(--popover) var(--panel-float-mix), transparent);
     border-color: color-mix(in oklab, var(--border) 85%, transparent);
     box-shadow:
       0 0 0 1px color-mix(in oklab, var(--border) 60%, transparent),
       0 12px 36px rgb(0 0 0 / 0.45);
+  }
+
+  .dark .glass-tool-palette {
+    background-color: color-mix(in oklab, var(--card) var(--tool-palette-mix), transparent);
+    border-color: color-mix(in oklab, var(--border) 78%, transparent);
+    box-shadow:
+      0 0 0 1px color-mix(in oklab, var(--border) 58%, transparent),
+      0 12px 40px rgb(0 0 0 / 0.42),
+      inset 0 1px 0 color-mix(in oklab, var(--foreground) 10%, transparent);
+  }
+
+  .dark .glass-tool-palette [data-slot='button'][data-variant='ghost'] {
+    color: color-mix(in oklab, var(--foreground) 92%, transparent);
+  }
+
+  .dark .glass-tool-palette [data-slot='button'][data-variant='ghost']:hover,
+  .dark .glass-tool-palette [data-slot='button'][data-variant='ghost'][aria-expanded='true'] {
+    background-color: color-mix(in oklab, var(--muted) 76%, transparent);
   }
 
   .glass-panel-header {
@@ -250,6 +307,8 @@
   --sidebar-ring: color-mix(in oklab, var(--brand-accent) 45%, transparent);
   --panel-chrome-mix: 97%;
   --panel-float-mix: 90%;
+  --tool-palette-mix: 74%;
+  --tool-palette-blur: 24px;
   --panel-muted-foreground: #5c5952;
 }
 
@@ -291,6 +350,8 @@
   --sidebar-ring: color-mix(in oklab, var(--brand-accent) 55%, transparent);
   --panel-chrome-mix: 97%;
   --panel-float-mix: 92%;
+  --tool-palette-mix: 66%;
+  --tool-palette-blur: 28px;
   --panel-muted-foreground: #a8a49c;
 }
 

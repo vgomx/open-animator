@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 
 import { ActivityRail } from '@/components/shell/ActivityRail'
 import type { ActivityView } from '@/components/shell/activity-view'
@@ -22,7 +22,7 @@ import { consumeStaleImportClearNotice } from '@/io/project'
 import { deriveProjectName, getRecentFiles } from '@/io/recent-files'
 import { STORAGE_KEYS } from '@/lib/app'
 import { loadEditorPreferences, saveEditorPreferences } from '@/lib/preferences'
-import { getShellPanelRevealCompleteMs } from '@/lib/shell-reveal'
+import { getShellWelcomeModalDelayMs, SHELL_WELCOME_MODAL_PAUSE_MS } from '@/lib/shell-reveal'
 import { showToast } from '@/lib/toast'
 import { cn } from '@/lib/utils'
 
@@ -35,6 +35,7 @@ export function EditorLayout() {
   const [aboutOpen, setAboutOpen] = useState(false)
   const [acknowledgmentsOpen, setAcknowledgmentsOpen] = useState(false)
   const [activeView, setActiveView] = useState<ActivityView>('editor')
+  const hasAutoOpenedWelcome = useRef(false)
   const setProject = useEditorStore((state) => state.setProject)
   const activeRecentFileId = useEditorStore((state) => state.activeRecentFileId)
   const project = useEditorStore((state) => state.project)
@@ -77,23 +78,32 @@ export function EditorLayout() {
   }
 
   useEffect(() => {
-    if (!shellRevealed || activeView !== 'editor' || loadEditorPreferences().skipWelcomeModal) {
+    if (
+      !shellRevealed ||
+      activeView !== 'editor' ||
+      loadEditorPreferences().skipWelcomeModal ||
+      hasAutoOpenedWelcome.current
+    ) {
       return
     }
 
-    const panel = document.querySelector('.editor-shell__panel--left')
-    const revealCompleteMs = getShellPanelRevealCompleteMs()
+    hasAutoOpenedWelcome.current = true
+
+    const toolPalette = document.querySelector('.editor-shell__tool-palette')
+    const welcomeDelayMs = getShellWelcomeModalDelayMs()
 
     const openWelcome = () => {
       setWelcomeOpen(true)
     }
 
-    if (!panel || revealCompleteMs === 0) {
+    if (!(toolPalette instanceof Element) || welcomeDelayMs === 0) {
       openWelcome()
       return
     }
 
     let opened = false
+    let pauseTimer: number | undefined
+
     const openOnce = () => {
       if (opened) {
         return
@@ -103,18 +113,29 @@ export function EditorLayout() {
       openWelcome()
     }
 
+    const scheduleWelcome = () => {
+      pauseTimer = window.setTimeout(openOnce, SHELL_WELCOME_MODAL_PAUSE_MS)
+    }
+
     const onTransitionEnd = (event: Event) => {
-      if ((event as TransitionEvent).propertyName === 'width') {
-        openOnce()
+      if (event.target !== toolPalette) {
+        return
+      }
+
+      if ((event as TransitionEvent).propertyName === 'transform') {
+        scheduleWelcome()
       }
     }
 
-    panel.addEventListener('transitionend', onTransitionEnd)
-    const fallbackTimer = window.setTimeout(openOnce, revealCompleteMs + 80)
+    toolPalette.addEventListener('transitionend', onTransitionEnd)
+    const fallbackTimer = window.setTimeout(openOnce, welcomeDelayMs + 80)
 
     return () => {
-      panel.removeEventListener('transitionend', onTransitionEnd)
+      toolPalette.removeEventListener('transitionend', onTransitionEnd)
       window.clearTimeout(fallbackTimer)
+      if (pauseTimer !== undefined) {
+        window.clearTimeout(pauseTimer)
+      }
     }
   }, [shellRevealed, activeView])
 
@@ -210,6 +231,11 @@ export function EditorLayout() {
         onViewChange={setActiveView}
         onOpenShortcuts={() => setShortcutsOpen(true)}
         onOpenAbout={() => setAboutOpen(true)}
+        onShowWelcome={() => {
+          if (activeView === 'editor' && shellRevealed) {
+            setWelcomeOpen(true)
+          }
+        }}
       />
       {activeView === 'files' ? (
         <FilesView
