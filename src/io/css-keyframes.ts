@@ -887,7 +887,7 @@ function getElementClassNames(element: Element): string[] {
 function parseInlineAnimationBinding(
   element: Element,
   css: string,
-  tracks: Map<string, CssAnimationTrack>,
+  _tracks: Map<string, CssAnimationTrack>,
 ): CssAnimationBinding | null {
   const style = element.getAttribute('style')
   if (!style) {
@@ -1846,7 +1846,7 @@ export function attachGroupAnimationsFromCss(
   svg: Element,
   css: string,
   layerGroups: Record<string, LayerGroupMeta> | undefined,
-  projectDuration: number,
+  _projectDuration: number,
   parseShape: (element: Element) => Shape | null,
 ): { layerGroups: Record<string, LayerGroupMeta>; promotedGroupClasses: Set<string> } {
   const nextGroups = { ...(layerGroups ?? {}) }

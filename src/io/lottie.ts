@@ -5,6 +5,7 @@ import { DEFAULT_ARTBOARD, DEFAULT_CANVAS, PROJECT_VERSION, createArtboard } fro
 import { getAnimatedShape, type AnimatedShapeContext } from '@/editor/animation'
 import { createId, createPathShape } from '@/editor/scene'
 import { getExportAnimationContext } from '@/io/group-export'
+import { openFilePicker } from '@/io/file-picker'
 import { waitForPaint } from '@/lib/yield-to-ui'
 
 export type LottieImportStage = 'parsing' | 'building'
