@@ -3,7 +3,7 @@ import { useEffect, useRef } from 'react'
 import { clientToArtboard } from '@/editor/coordinates'
 import { getGroupAnimatedValues } from '@/editor/group-animation'
 import { getGroupBounds } from '@/editor/timeline-rows'
-import { getArtboardLayers } from '@/editor/artboard-utils'
+import { ensureActiveArtboardId, getArtboardLayers } from '@/editor/artboard-utils'
 import { useEditorStore } from '@/editor/store'
 import { UI_STROKE } from '@/lib/brand-colors'
 import { saveProjectToStorage } from '@/io/project'
@@ -40,7 +40,10 @@ export function GroupSelectionOverlay({
   const project = useEditorStore((state) => state.project)
   const currentTime = useEditorStore((state) => state.currentTime)
   const activeArtboardId = useEditorStore((state) => state.activeArtboardId)
-  const displayLayers = getArtboardLayers(project, activeArtboardId).filter((layer) => layer.visible)
+  const displayLayers = getArtboardLayers(
+    project,
+    ensureActiveArtboardId(project, activeArtboardId),
+  ).filter((layer) => layer.visible)
 
   const bounds = getGroupBounds(groupId, displayLayers, currentTime, project.layerGroups)
   const values = getGroupAnimatedValues(groupId, project.layerGroups, currentTime)

@@ -346,7 +346,7 @@ function migrateV11toV12(project: Project): Project {
 function migrateV12toV13(project: Project): Project {
   return {
     ...project,
-    version: 13,
+    version: 13 as unknown as Project['version'],
     layerGroups: project.layerGroups,
   }
 }

@@ -103,8 +103,8 @@ export function EditorLayout() {
       openWelcome()
     }
 
-    const onTransitionEnd = (event: TransitionEvent) => {
-      if (event.propertyName === 'width') {
+    const onTransitionEnd = (event: Event) => {
+      if ((event as TransitionEvent).propertyName === 'width') {
         openOnce()
       }
     }
