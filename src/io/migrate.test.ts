@@ -27,7 +27,7 @@ describe('migrateProject', () => {
             stroke: '#ffffff',
             strokeWidth: 1,
             opacity: 1,
-            scale: 1,
+            scaleX: 1, scaleY: 1,
           },
           keyframes: [],
         },

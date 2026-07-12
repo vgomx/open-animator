@@ -19,7 +19,7 @@ const rect: Shape = {
   stroke: '#000000',
   strokeWidth: 1,
   opacity: 1,
-  scale: 1,
+  scaleX: 1, scaleY: 1,
 }
 
 describe('align', () => {

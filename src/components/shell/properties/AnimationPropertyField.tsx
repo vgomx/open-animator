@@ -14,7 +14,8 @@ const PROPERTY_LABELS: Record<AnimatableProperty, string> = {
   x: 'X',
   y: 'Y',
   opacity: 'Opacity',
-  scale: 'Scale',
+  scaleX: 'Scale X',
+  scaleY: 'Scale Y',
   rotation: 'Rotation',
   fill: 'Fill',
   stroke: 'Stroke',
@@ -168,7 +169,7 @@ export function formatAnimationValue(
     return `${value.toFixed(1)}°`
   }
 
-  if (property === 'scale') {
+  if (property === 'scaleX' || property === 'scaleY') {
     return value.toFixed(2)
   }
 

@@ -603,7 +603,7 @@ function collectSampleTimes(node: Element): number[] {
   return [...times].sort((left, right) => left - right)
 }
 
-const IDENTITY_DECOMPOSED = { x: 0, y: 0, rotation: 0, scale: 1 }
+const IDENTITY_DECOMPOSED = { x: 0, y: 0, rotation: 0, scaleX: 1, scaleY: 1 }
 
 function matrixKeyframeHasMotion(
   keyframes: Array<{ time: number; a: number; b: number; c: number; d: number; e: number; f: number }>,
@@ -686,7 +686,7 @@ export function collectTransformKeyframesForNode(
 
   const addKeyframe = (
     time: number,
-    property: 'x' | 'y' | 'rotation' | 'scale',
+    property: 'x' | 'y' | 'rotation' | 'scaleX' | 'scaleY',
     value: number,
   ) => {
     const existing = keyframes.find(
@@ -726,25 +726,30 @@ export function collectTransformKeyframesForNode(
       addKeyframe(0, 'rotation', IDENTITY_DECOMPOSED.rotation)
       addKeyframe(time, 'rotation', decomposed.rotation)
     }
-    if (Math.abs(decomposed.scale - IDENTITY_DECOMPOSED.scale) > 0.001) {
-      addKeyframe(0, 'scale', IDENTITY_DECOMPOSED.scale)
-      addKeyframe(time, 'scale', decomposed.scale)
+    if (
+      Math.abs(decomposed.scaleX - IDENTITY_DECOMPOSED.scaleX) > 0.001 ||
+      Math.abs(decomposed.scaleY - IDENTITY_DECOMPOSED.scaleY) > 0.001
+    ) {
+      addKeyframe(0, 'scaleX', IDENTITY_DECOMPOSED.scaleX)
+      addKeyframe(0, 'scaleY', IDENTITY_DECOMPOSED.scaleY)
+      addKeyframe(time, 'scaleX', decomposed.scaleX)
+      addKeyframe(time, 'scaleY', decomposed.scaleY)
     }
   }
 
   return { keyframes, duration }
 }
 
-export function applyDecomposedMatrixToShape<T extends { x: number; y: number; rotation: number; scale: number }>(
-  shape: T,
-  matrix: AffineMatrix,
-): T {
+export function applyDecomposedMatrixToShape<
+  T extends { x: number; y: number; rotation: number; scaleX: number; scaleY: number },
+>(shape: T, matrix: AffineMatrix): T {
   const decomposed = decomposeMatrix(matrix)
   return {
     ...shape,
     x: decomposed.x,
     y: decomposed.y,
     rotation: decomposed.rotation,
-    scale: decomposed.scale,
+    scaleX: decomposed.scaleX,
+    scaleY: decomposed.scaleY,
   }
 }

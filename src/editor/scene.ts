@@ -61,7 +61,8 @@ function baseShape(type: ShapeType): Shape {
       stroke: SHAPE_STROKE_PRIMARY,
       strokeWidth: 2,
       opacity: 1,
-      scale: 1,
+      scaleX: 1,
+      scaleY: 1,
     }
     return shape
   }
@@ -80,7 +81,8 @@ function baseShape(type: ShapeType): Shape {
       stroke: 'none',
       strokeWidth: 0,
       opacity: 1,
-      scale: 1,
+      scaleX: 1,
+      scaleY: 1,
     }
     return shape
   }
@@ -98,7 +100,8 @@ function baseShape(type: ShapeType): Shape {
       stroke: UI_PATH_STROKE,
       strokeWidth: 2,
       opacity: 1,
-      scale: 1,
+      scaleX: 1,
+      scaleY: 1,
     }
     return shape
   }
@@ -115,7 +118,8 @@ function baseShape(type: ShapeType): Shape {
     stroke: SHAPE_STROKE_SECONDARY,
     strokeWidth: 2,
     opacity: 1,
-    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
   }
   return shape
 }
@@ -152,7 +156,8 @@ export function createRectShape(x: number, y: number, width: number, height: num
     stroke: SHAPE_STROKE_SECONDARY,
     strokeWidth: 2,
     opacity: 1,
-    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
   }
 }
 
@@ -174,7 +179,8 @@ export function createEllipseShape(
     stroke: SHAPE_STROKE_PRIMARY,
     strokeWidth: 2,
     opacity: 1,
-    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
   }
 }
 
@@ -192,7 +198,8 @@ export function createTextShape(x: number, y: number): TextShape {
     stroke: 'none',
     strokeWidth: 0,
     opacity: 1,
-    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
   }
 }
 
@@ -209,7 +216,8 @@ export function createPathShape(points: PathPoint[], closed = false): PathShape 
     stroke: UI_PATH_STROKE,
     strokeWidth: 2,
     opacity: 1,
-    scale: 1,
+    scaleX: 1,
+    scaleY: 1,
   }
 }
 

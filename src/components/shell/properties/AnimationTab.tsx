@@ -14,7 +14,7 @@ import { PanelSection } from '@/components/shell/properties/PanelSection'
 import type { AnimatableProperty, BezierHandle, EasingType, Layer, Shape } from '@/editor/types'
 import { isColorProperty } from '@/editor/types'
 
-const TRANSFORM_PROPERTIES: AnimatableProperty[] = ['x', 'y', 'rotation', 'scale']
+const TRANSFORM_PROPERTIES: AnimatableProperty[] = ['x', 'y', 'rotation', 'scaleX', 'scaleY']
 const APPEARANCE_PROPERTIES: AnimatableProperty[] = ['opacity', 'fill', 'stroke']
 
 type AnimationTabProps = {

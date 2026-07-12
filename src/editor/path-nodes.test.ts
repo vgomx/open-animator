@@ -45,7 +45,7 @@ describe('path-nodes', () => {
       stroke: 'none',
       strokeWidth: 0,
       opacity: 1,
-      scale: 1,
+      scaleX: 1, scaleY: 1,
       closed: false,
       points: [
         {

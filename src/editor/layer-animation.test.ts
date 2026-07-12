@@ -30,7 +30,10 @@ describe('layer-animation', () => {
       { time: 2, a: 1.1, b: 0, c: 0, d: 1.1, e: 10, f: 5 },
     ])
 
-    expect(display.some((keyframe) => keyframe.property === 'scale' && keyframe.time === 2)).toBe(
+    expect(display.some((keyframe) => keyframe.property === 'scaleX' && keyframe.time === 2)).toBe(
+      true,
+    )
+    expect(display.some((keyframe) => keyframe.property === 'scaleY' && keyframe.time === 2)).toBe(
       true,
     )
     expect(display.some((keyframe) => keyframe.property === 'x' && keyframe.time === 2)).toBe(true)

@@ -1,5 +1,10 @@
 import { attachMatrixDisplayKeyframes, layerHasAnimation } from '@/editor/layer-animation'
 import {
+  buildLayersFromCssTracks,
+  mergeAnimatedKeyframesIntoStaticLayers,
+  parseCssKeyframeTracks,
+} from '@/io/css-keyframes'
+import {
   createEllipseShape,
   createId,
   createLayerFromShape,
@@ -7,7 +12,7 @@ import {
   createRectShape,
   createTextShape,
 } from '@/editor/scene'
-import type { Keyframe, Layer, LayerGroupMeta, PathPoint, Project, Shape, TextShape } from '@/editor/types'
+import type { Keyframe, Layer, LayerGroupMeta, PathPoint, PathShape, Project, Shape, TextShape } from '@/editor/types'
 import { createArtboard } from '@/editor/types'
 import { createDefaultProject } from '@/editor/scene'
 import {
@@ -50,6 +55,7 @@ import {
   sampleMatrixKeyframesInWorker,
 } from '@/io/svg-matrix-batch'
 import { SHAPE_FILL_SECONDARY } from '@/lib/brand-colors'
+import { waitForPaint, yieldToUi } from '@/lib/yield-to-ui'
 
 export { parseSvgColor } from '@/io/svg-colors'
 
@@ -85,6 +91,64 @@ type CollectLayersContext = {
   deferMatrixSampling: boolean
 }
 
+function parseNumber(value: string | null | undefined, fallback = 0): number {
+  if (!value) {
+    return fallback
+  }
+
+  const parsed = Number.parseFloat(value)
+  return Number.isFinite(parsed) ? parsed : fallback
+}
+
+function isInsideDefs(node: Element): boolean {
+  let parent = node.parentElement
+  while (parent) {
+    if (parent.tagName.toLowerCase() === 'defs') {
+      return true
+    }
+    parent = parent.parentElement
+  }
+  return false
+}
+
+/** Clone `<use>` references inline so imported SVGs retain tiled/reused content. */
+export function expandSvgUses(root: SVGSVGElement): void {
+  const uses = [...root.querySelectorAll('use')]
+
+  for (const use of uses) {
+    if (isInsideDefs(use)) {
+      continue
+    }
+
+    const href = use.getAttribute('href') ?? use.getAttribute('xlink:href')
+    if (!href?.startsWith('#')) {
+      continue
+    }
+
+    const id = href.slice(1)
+    const ref = root.querySelector(`[id="${id}"]`)
+    if (!ref) {
+      continue
+    }
+
+    const x = parseNumber(use.getAttribute('x'))
+    const y = parseNumber(use.getAttribute('y'))
+    const clone = ref.cloneNode(true) as Element
+
+    if (x !== 0 || y !== 0) {
+      const existingTransform = clone.getAttribute('transform') ?? ''
+      const translate = `translate(${x},${y})`
+      clone.setAttribute(
+        'transform',
+        existingTransform ? `${translate} ${existingTransform}` : translate,
+      )
+    }
+
+    use.parentNode?.insertBefore(clone, use)
+    use.remove()
+  }
+}
+
 const SKIP_TAGS = new Set([
   'defs',
   'style',
@@ -98,15 +162,6 @@ const SKIP_TAGS = new Set([
   'animate',
   'animatemotion',
 ])
-
-function parseNumber(value: string | null | undefined, fallback = 0): number {
-  if (!value) {
-    return fallback
-  }
-
-  const parsed = Number.parseFloat(value)
-  return Number.isFinite(parsed) ? parsed : fallback
-}
 
 function readStyle(
   element: Element,
@@ -371,6 +426,31 @@ export function parseSvgPathData(d: string): { points: PathPoint[]; closed: bool
   return { points, closed }
 }
 
+function normalizePathPlacement(shape: PathShape): PathShape {
+  if (shape.localCoords || shape.points.length === 0) {
+    return shape
+  }
+
+  const xs = shape.points.map((point) => point.x)
+  const ys = shape.points.map((point) => point.y)
+  const minX = Math.min(...xs)
+  const minY = Math.min(...ys)
+
+  if (minX === 0 && minY === 0) {
+    return shape
+  }
+
+  return {
+    ...shape,
+    x: shape.x + minX,
+    y: shape.y + minY,
+    points: shape.points.map((point) => ({
+      x: point.x - minX,
+      y: point.y - minY,
+    })),
+  }
+}
+
 function elementToShape(element: Element, style: SvgStyle, matrix: AffineMatrix): Shape | null {
   const tag = element.tagName.toLowerCase()
 
@@ -457,12 +537,14 @@ function elementToShape(element: Element, style: SvgStyle, matrix: AffineMatrix)
     const y2 = parseNumber(element.getAttribute('y2'))
     const start = applyMatrixToPoint(matrix, x1, y1)
     const end = applyMatrixToPoint(matrix, x2, y2)
-    const pathShape = createPathShape(
-      [
-        { x: start.x, y: start.y },
-        { x: end.x, y: end.y },
-      ],
-      false,
+    const pathShape = normalizePathPlacement(
+      createPathShape(
+        [
+          { x: start.x, y: start.y },
+          { x: end.x, y: end.y },
+        ],
+        false,
+      ),
     )
     return applyStyle(pathShape, style)
   }
@@ -494,22 +576,11 @@ function elementToShape(element: Element, style: SvgStyle, matrix: AffineMatrix)
       return null
     }
 
-    const pathShape = createPathShape(pathPoints, tag === 'polygon')
+    const pathShape = normalizePathPlacement(createPathShape(pathPoints, tag === 'polygon'))
     return applyStyle(pathShape, style)
   }
 
   return null
-}
-
-function isInsideDefs(node: Element): boolean {
-  let parent = node.parentElement
-  while (parent) {
-    if (parent.tagName.toLowerCase() === 'defs') {
-      return true
-    }
-    parent = parent.parentElement
-  }
-  return false
 }
 
 function collectLayers(
@@ -583,7 +654,7 @@ function collectLayers(
       x: 0,
       y: 0,
       rotation: 0,
-      scale: 1,
+      scaleX: 1, scaleY: 1,
       localCoords: true,
     }
 
@@ -681,6 +752,7 @@ async function finalizeMatrixSamples(
       current: Math.min(offset + chunk.length, total),
       total,
     })
+    await yieldToUi()
   }
 
   onProgress?.({ stage: 'applying', current: total, total })
@@ -709,6 +781,8 @@ function parseSvgDocument(raw: string, deferMatrixSampling: boolean): {
   if (!svg) {
     return null
   }
+
+  expandSvgUses(svg)
 
   const gradients = parseSvgGradients(svg)
   const masks = parseSvgMasks(svg, gradients)
@@ -806,15 +880,55 @@ function readArtboard(svg: SVGSVGElement): { width: number; height: number } {
   }
 }
 
-export function parseShapeElement(element: Element): Shape | null {
+function buildAncestorChain(element: Element): Element[] {
+  const chain: Element[] = []
+  let current: Element | null = element
+
+  while (current) {
+    const tag = current.tagName.toLowerCase()
+    if (tag === 'html' || tag === 'body' || tag === 'div') {
+      break
+    }
+
+    chain.unshift(current)
+    if (tag === 'svg') {
+      break
+    }
+
+    current = current.parentElement
+  }
+
+  return chain
+}
+
+function resolveShapeContext(element: Element): { style: SvgStyle; matrix: AffineMatrix } {
+  const svg = element.closest('svg')
+  const gradients = svg ? parseSvgGradients(svg) : {}
+  const styleSheet = svg ? parseSvgStyleSheet(svg) : { classes: {}, ids: {} }
   const defaultStyle: SvgStyle = {
     fill: SHAPE_FILL_SECONDARY,
     stroke: 'none',
     strokeWidth: 0,
     opacity: 1,
   }
-  const style = readStyle(element, defaultStyle, {}, { classes: {}, ids: {} })
-  return elementToShape(element, style, IDENTITY_MATRIX)
+
+  let style = defaultStyle
+  let matrix = IDENTITY_MATRIX
+
+  for (const node of buildAncestorChain(element)) {
+    style = readStyle(node, style, gradients, styleSheet)
+    const localMatrix = parseTransformAttribute(node.getAttribute('transform'))
+    matrix = multiplyMatrix(matrix, localMatrix)
+  }
+
+  return { style, matrix }
+}
+
+export function parseShapeElement(element: Element): Shape | null {
+  const { style, matrix } = resolveShapeContext(element)
+  const tag = element.tagName.toLowerCase()
+  const isPath = tag === 'path'
+  return elementToShape(element, style, isPath ? IDENTITY_MATRIX : matrix)
 }
 
 export function parseSvgArtboardFromMarkup(raw: string): { width: number; height: number } | null {
@@ -865,6 +979,22 @@ export type SvgImportOptions = {
   onProgress?: (progress: SvgImportProgress) => void
 }
 
+export function computeSvgImportProgress(progress: SvgImportProgress): number {
+  if (progress.stage === 'parsing') {
+    return 12
+  }
+
+  if (progress.stage === 'matrix-sampling') {
+    if (progress.total && progress.total > 0 && progress.current !== undefined) {
+      return 12 + Math.round((progress.current / progress.total) * 78)
+    }
+
+    return 25
+  }
+
+  return 95
+}
+
 export function formatSvgImportProgress(progress: SvgImportProgress): string {
   if (progress.stage === 'parsing') {
     return 'Parsing SVG structure…'
@@ -885,6 +1015,7 @@ export async function importSvgAsync(
   options?: SvgImportOptions,
 ): Promise<SvgImportResult | null> {
   options?.onProgress?.({ stage: 'parsing' })
+  await waitForPaint()
   const deferMatrixSampling = true
   const parsed = parseSvgDocument(raw, deferMatrixSampling)
   if (!parsed) {
@@ -904,7 +1035,75 @@ export async function importSvgAsync(
   return buildSvgImportResult(parsed, duration)
 }
 
-export function importSvgAsProject(raw: string): Project | null {
+function collectSvgCssText(svg: SVGSVGElement): string {
+  return [...svg.querySelectorAll('style')]
+    .map((style) => style.textContent ?? '')
+    .join('\n')
+}
+
+export function importCssAnimatedSvgProject(raw: string): Project | null {
+  const parser = new DOMParser()
+  const document = parser.parseFromString(raw, 'image/svg+xml')
+  const parserError = document.querySelector('parsererror')
+  if (parserError) {
+    return null
+  }
+
+  const svg = document.querySelector('svg')
+  if (!svg) {
+    return null
+  }
+
+  expandSvgUses(svg)
+
+  const css = collectSvgCssText(svg)
+  const tracks = parseCssKeyframeTracks(css)
+  if (tracks.size === 0) {
+    return null
+  }
+
+  const staticImported = importSvg(svg.outerHTML)
+  if (!staticImported) {
+    return null
+  }
+
+  const baseProject = svgImportToProject(staticImported)
+  const { layers: animatedLayers, duration: cssDuration } = buildLayersFromCssTracks(
+    svg,
+    css,
+    baseProject.artboards[0]!.id,
+    {
+      parseShape: parseShapeElement,
+      createLayer: (shape, index, artboardId, name, keyframes) => ({
+        ...createLayerFromShape(shape, index, artboardId, name),
+        keyframes,
+      }),
+    },
+  )
+
+  if (animatedLayers.length === 0) {
+    return null
+  }
+
+  const resolvedDuration =
+    cssDuration > 0 ? cssDuration : baseProject.duration > 0 ? baseProject.duration : 3
+
+  return {
+    ...baseProject,
+    duration: resolvedDuration,
+    loopOut: resolvedDuration,
+    layers: mergeAnimatedKeyframesIntoStaticLayers(baseProject.layers, animatedLayers),
+  }
+}
+
+export function importSvgAsProject(raw: string, options?: { staticOnly?: boolean }): Project | null {
+  if (!options?.staticOnly) {
+    const cssProject = importCssAnimatedSvgProject(raw)
+    if (cssProject) {
+      return cssProject
+    }
+  }
+
   const imported = importSvg(raw)
   if (!imported) {
     return null

@@ -50,7 +50,7 @@ export function matrixKeyframesToDisplayKeyframes(matrixKeyframes: MatrixKeyfram
 
   const addKeyframe = (
     time: number,
-    property: 'x' | 'y' | 'rotation' | 'scale',
+    property: 'x' | 'y' | 'rotation' | 'scaleX' | 'scaleY',
     value: number,
   ) => {
     const existing = keyframes.find(
@@ -93,9 +93,11 @@ export function matrixKeyframesToDisplayKeyframes(matrixKeyframes: MatrixKeyfram
       addKeyframe(0, 'rotation', 0)
       addKeyframe(sample.time, 'rotation', decomposed.rotation)
     }
-    if (Math.abs(decomposed.scale - 1) > 0.001) {
-      addKeyframe(0, 'scale', 1)
-      addKeyframe(sample.time, 'scale', decomposed.scale)
+    if (Math.abs(decomposed.scaleX - 1) > 0.001 || Math.abs(decomposed.scaleY - 1) > 0.001) {
+      addKeyframe(0, 'scaleX', 1)
+      addKeyframe(0, 'scaleY', 1)
+      addKeyframe(sample.time, 'scaleX', decomposed.scaleX)
+      addKeyframe(sample.time, 'scaleY', decomposed.scaleY)
     }
   }
 
