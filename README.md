@@ -1,15 +1,30 @@
 # Open Animator
 
-Browser-based SVG animator and editor — a portfolio side project for authoring simple shape animations with keyframes.
+[![Live demo](https://img.shields.io/badge/demo-live-brightgreen?style=flat-square)](https://vgomx.github.io/open-animator/)
+[![CI](https://img.shields.io/github/actions/workflow/status/vgomx/open-animator/ci.yml?branch=main&style=flat-square&label=CI)](https://github.com/vgomx/open-animator/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg?style=flat-square)](LICENSE)
+[![Release](https://img.shields.io/badge/status-beta-blue?style=flat-square)](CHANGELOG.md)
 
-## Stack
+Browser-based SVG animator for authoring simple shape animations with keyframes. Portfolio side project by [Vitor Gomes](https://vitorgomes.design).
 
-- **React 19** + **TypeScript** + **Vite**
-- **Radix UI** via **shadcn/ui** (Nova preset)
-- **Tailwind CSS v4**
-- **Zustand** for editor state
-- **lottie-web** for Lottie preview
-- **Vitest** + **jsdom** for unit tests
+[Live demo](https://vgomx.github.io/open-animator/) · [Changelog](CHANGELOG.md) · [Report an issue](https://github.com/vgomx/open-animator/issues)
+
+<p align="center">
+  <img src="public/og-image.png" alt="Open Animator preview" width="720" />
+</p>
+
+## Tech stack
+
+[![React](https://img.shields.io/badge/React-19-61DAFB?style=flat-square&logo=react&logoColor=black)](https://react.dev/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Vite](https://img.shields.io/badge/Vite-8-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vite.dev/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-4-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Radix UI](https://img.shields.io/badge/Radix_UI-shadcn-161618?style=flat-square&logo=radixui&logoColor=white)](https://www.radix-ui.com/)
+[![Zustand](https://img.shields.io/badge/Zustand-5-443E38?style=flat-square)](https://zustand.docs.pmnd.rs/)
+[![Vitest](https://img.shields.io/badge/Vitest-4-6E9F18?style=flat-square&logo=vitest&logoColor=white)](https://vitest.dev/)
+[![PWA](https://img.shields.io/badge/PWA-ready-5A0FC8?style=flat-square&logo=pwa&logoColor=white)](https://vite-pwa-org.netlify.app/)
+
+Also uses **lottie-web** for Lottie preview, **oxlint** for linting, and **jsdom** in tests.
 
 ## Getting started
 
@@ -18,112 +33,64 @@ npm install
 npm run dev
 ```
 
-Open the local URL from Vite (usually `http://localhost:5173`).
+Open the local URL printed by Vite (configured as `http://127.0.0.1:5173`).
 
-## Demo
-
-**Live demo:** [vgomx.github.io/open-animator](https://vgomx.github.io/open-animator/) — open the editor in your browser and try the built-in **Train Performance** sample (File → Samples) to see layered SVG motion, gradients, and masks.
-
-![Open Animator preview](public/og-image.png)
-
-The demo showcases keyframe animation, SVG import fidelity (groups, masks, clip paths), and export to animated SVG, GIF, and Lottie JSON.
-
-## Scripts
+### Scripts
 
 | Command | Description |
 |---------|-------------|
-| `npm run dev` | Start dev server |
-| `npm run build` | Typecheck, generate brand assets, and production build |
-| `npm run generate:brand-assets` | Regenerate favicons and Open Graph image from SVG sources |
-| `npm run preview` | Preview production build |
-| `npm run test` | Run unit tests |
+| `npm run dev` | Start the development server |
+| `npm run build` | Generate brand assets, typecheck, and production build |
+| `npm run preview` | Preview the production build |
+| `npm run test` | Run unit tests (Vitest) |
 | `npm run lint` | Run oxlint |
+| `npm run generate:brand-assets` | Regenerate favicons and Open Graph image |
 
 ## Features
 
-### Editor shell
-- Light, dark, and system theme toggle with frosted-glass side panels, toolbar, layers, properties, and timeline
-- Canvas rulers (top + left) with guide dragging, snapping, and full-bleed glass chrome
-- Floating tool palette at the bottom of the canvas
-- Canvas context menu with common actions and shortcuts
-- Collapsible layers and properties panels (`[` / `]`)
+### Editor
+- Light, dark, and system theme with frosted-glass chrome
+- Canvas rulers, guides, snap, and floating tool palette
+- Layers and properties panels, document tabs, and recent files
+- Welcome screen, keyboard shortcuts, and settings
 
 ### Tools
-- **Select** — move, resize, rotate, multi-select (Shift+click, marquee)
-- **Hand** — pan the viewport
-- **Zoom** — click to zoom in/out; trackpad pinch-to-zoom and two-finger pan
-- **Node** — edit path points and shape corners
-- **Pen** — draw vector paths with bezier handles
+- **Select** — move, resize, rotate, multi-select
+- **Hand / Zoom** — pan and zoom (trackpad pinch supported)
+- **Node / Pen** — path editing and bezier drawing
 - **Rect / Ellipse / Text** — create shapes on canvas
 
-### Design & animation
-- Edit position, size, fill, stroke, opacity, rotation, and scale
-- Figma-style color picker with hex input, presets, and eyedropper (screen or canvas sampling)
-- Custom number inputs with label scrub and steppers
-- Keyframe `x`, `y`, `rotation`, `opacity`, `scale`, `fill`, and `stroke` with easing segments
-- Custom cubic-bezier easing editor for fine-tuned motion curves
-- Record mode (auto-keyframe on property change)
-- Playback with loop toggle; click-to-scrub timeline
-- Layer groups — select and move grouped layers together on canvas; collapsible groups in layers panel
-- Multi-select property editing with mixed-value UI
-- Pen bezier curves (click-drag), text inline edit, Alt+drag duplicate, copy/paste style, copy/paste layers
-- Onion skin controls — frame count, opacity, and tint for previous/next frames
+### Animation
+- Keyframes for transform, opacity, fill, and stroke with easing
+- Custom cubic-bezier editor and record mode
+- Timeline scrubbing, loop playback, and onion skin
+- Layer groups with shared transform keyframes
 
-### Workflow
-- Undo/redo (`⌘Z` / `⌘⇧Z`)
-- Pan viewport (Space + drag or middle mouse); fit artboard to screen
-- Save/open project JSON (autosaved to `localStorage`, v2 format with migration from v1)
-- Export static SVG, animated SVG, **HTML animation**, **WebM video**, **GIF**, CSS keyframes, React component, and **Lottie JSON** (subset, including paths)
-- Import SVG — merge shapes into the current project or open as a new project
-- Import **HTML animation** files (CSS-animated SVG exported by Open Animator)
-- Import Lottie JSON (limited subset) and preview with lottie-web
+### Import & export
+- **Import:** SVG (shapes, groups, gradients, masks, SMIL), HTML animation, Lottie JSON (subset)
+- **Export:** static SVG, animated SVG, HTML, WebM, GIF, CSS keyframes, React component, Lottie JSON (subset)
 
-### SVG import support
-
-Supported on import:
-
-- Shapes: `rect`, `circle`, `ellipse`, `line`, `polyline`, `polygon`, `path` (including arc `A`/`a` commands), `text`
-- Groups: nested `<g>` elements preserved as collapsible layer groups
-- Clip paths and basic blur filters from imported SVG defs
-- Styles: inline `fill`, `stroke`, `stroke-width`, `opacity`; basic `<style>` blocks with `.className` selectors
-- Transforms: `translate`, `rotate`, `scale`, `matrix()`
-- SMIL animation: `animateTransform` and matrix-based path motion
-- Gradients and masks from imported SVG defs
-- Artboard: `viewBox` or `width` / `height`
-
-Not yet supported: complex CSS selectors and full Illustrator/Figma fidelity.
-
-### Export
-
-- Static SVG, **animated SVG** (SMIL), HTML animation, WebM, GIF, CSS keyframes, React component, and Lottie JSON (subset)
+> Tip: in the live demo, open **File → Samples → Train Performance** for a layered SVG motion sample.
 
 ## Project structure
 
 ```text
 src/
-  components/
-    canvas/       # SVG stage, tools, selection, rulers, context menu
-    lottie/       # Lottie preview dialog
-    shell/        # Editor layout, toolbar, panels, shortcuts, theme
-    timeline/     # Playhead and keyframe tracks
-    ui/           # shadcn/Radix primitives
-  editor/
-    animation.ts  # Keyframe interpolation and easing
-    easing.ts     # Easing presets and cubic-bezier sampling
-    history.ts    # Undo/redo snapshots
-    scene.ts      # Layer/project helpers
-    store.ts      # Zustand editor store
-    tools.ts      # Canvas tool definitions
-    types.ts      # Core types
-  io/
-    lottie.ts     # Lottie import/export (subset)
-    migrate.ts    # Project version migration
-    project.ts    # JSON save/load
-    embed-export.ts # Standalone HTML animation export
-    html-import.ts  # HTML animation import (CSS keyframes)
-    svg-export.ts # Static and animated SVG export
-    svg-import.ts # SVG import into layers/projects
+  components/   # Canvas, shell, timeline, and UI
+  editor/       # Store, animation, tools, and types
+  io/           # Import, export, and project persistence
+  lib/          # App constants, preferences, and helpers
 ```
+
+## Contributing
+
+Issues and pull requests are welcome. Please:
+
+1. Open an issue for larger changes when useful
+2. Keep PRs focused
+3. Run `npm run lint`, `npm run test`, and `npm run build` before opening a PR
+
+CI runs build, lint, and tests on every pull request to `main`.
 
 ## License
 
